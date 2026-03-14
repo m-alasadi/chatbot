@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>اختبار Widget - مساعد مشاريع العتبة العباسية</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Readex Pro', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+      direction: rtl;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      margin-bottom: 30px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+
+    .header h1 {
+      color: #1e293b;
+      font-size: 32px;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .header p {
+      color: #64748b;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    .section {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+
+    .section h2 {
+      color: #1e293b;
+      font-size: 24px;
+      margin-bottom: 15px;
+      font-weight: 600;
+    }
+
+    .section p {
+      color: #475569;
+      font-size: 16px;
+      line-height: 1.8;
+      margin-bottom: 15px;
+    }
+
+    .code-block {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 15px 0;
+      overflow-x: auto;
+    }
+
+    .code-block code {
+      color: #94a3b8;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre;
+    }
+
+    .highlight {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-weight: 700;
+    }
+
+    .feature-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .feature-list li {
+      padding: 10px 0;
+      padding-right: 25px;
+      position: relative;
+      color: #475569;
+    }
+
+    .feature-list li:before {
+      content: "✓";
+      position: absolute;
+      right: 0;
+      color: #10b981;
+      font-weight: bold;
+    }
+
+    .status-badge {
+      display: inline-block;
+      background: #10b981;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 40px;
+      color: white;
+      opacity: 0.9;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 20px 15px;
+      }
+
+      .header, .section {
+        padding: 25px;
+      }
+
+      .header h1 {
+        font-size: 26px;
+      }
+
+      .section h2 {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎉 مرحباً بك في صفحة اختبار الودجت!</h1>
+      <p>هذه صفحة تجريبية لاختبار <span class="highlight">مساعد مشاريع العتبة العباسية</span> كودجت قابل للتضمين في أي موقع</p>
+    </div>
+
+    <div class="section">
+      <span class="status-badge">✓ الودجت مفعّل في هذه الصفحة</span>
+      <h2>كيف يعمل الودجت؟</h2>
+      <ul class="feature-list">
+        <li>زر عائم في الجانب الأيسر من الشاشة</li>
+        <li>يفتح نافذة محادثة ذكية عند الضغط عليه</li>
+        <li>يتواصل مع نفس API الموجود في المشروع الأصلي</li>
+        <li>يعمل بدون iframe - حقن مباشر في DOM</li>
+        <li>متجاوب مع جميع الأحجام (Mobile & Desktop)</li>
+        <li>سهل التضمين - سطر واحد من الكود!</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>📝 كود التضمين</h2>
+      <p>لتضمين الودجت في أي موقع، أضف هذا الكود قبل إغلاق تاج <code>&lt;/body&gt;</code>:</p>
+      
+      <div class="code-block">
+        <code>&lt;!-- AlKafeel Widget - ملف واحد فقط! --&gt;
+&lt;script src="http://localhost:3000/api/widget"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+  // تهيئة الودجت
+  AlkafeelWidget.init({
+    apiEndpoint: 'http://localhost:3000/api/chat/site',
+    title: 'مساعدك في المشاريع',
+    subtitle: 'اسأل عن مشاريع العتبة العباسية',
+    position: 'left'
+  });
+&lt;/script&gt;</code>
+      </div>
+
+      <p><strong>ملاحظة:</strong> في الإنتاج، استبدل <code>localhost:3000</code> بالدومين الفعلي المنشور على Vercel</p>
+      <p><strong>مميز:</strong> ملف JavaScript واحد فقط - CSS مدمج بالكامل! ✨</p>
+    </div>
+
+    <div class="section">
+      <h2>⚙️ الخيارات المتاحة</h2>
+      <p>يمكنك تخصيص الودجت باستخدام الخيارات التالية:</p>
+      
+      <div class="code-block">
+        <code>AlkafeelWidget.init({
+  apiEndpoint: '/api/chat/site',     // رابط API
+  title: 'مساعدك في المشاريع',        // عنوان الودجت
+  subtitle: 'اسأل عن المشاريع',       // نص فرعي
+  position: 'left',                   // left أو right
+  buttonText: '💬',                   // رمز الزر
+  buttonSize: '60px',                 // حجم الزر
+  zIndex: 999998                      // ترتيب العرض
+});</code>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🚀 المميزات</h2>
+      <ul class="feature-list">
+        <li>بدون iframe - أداء أفضل وأسرع</li>
+        <li>تصميم عصري ومتجاوب</li>
+        <li>دعم كامل للغة العربية مع RTL</li>
+        <li>تكامل سلس مع أي موقع</li>
+        <li>سهولة التخصيص والتعديل</li>
+        <li>حجم صغير وسريع التحميل</li>
+      </ul>
+    </div>
+
+    <div class="footer">
+      <p>مشروع مساعد العتبة العباسية المقدسة © 2026</p>
+      <p style="font-size: 14px; margin-top: 10px; opacity: 0.8;">جرّب الضغط على الزر العائم في الجانب الأيسر! 👈</p>
+    </div>
+  </div>
+
+  <!-- Widget Loader -->
+  <script src="/api/widget"></script>
+  <script>
+    // تهيئة الودجت
+    AlkafeelWidget.init({
+      apiEndpoint: '/api/chat/site',
+      title: 'مساعدك في المشاريع',
+      subtitle: 'اسأل عن مشاريع العتبة العباسية',
+      position: 'left'
+    });
+  </script>
+</body>
+</html>

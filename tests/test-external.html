@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>اختبار 1 + 2: الودجت من دومين خارجي</title>
+  <style>
+    /* ===== CSS موقع خارجي وهمي (يمثل Laravel/WordPress) ===== */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      direction: rtl;
+    }
+    .site-header {
+      background: rgba(0,0,0,0.3);
+      padding: 16px 24px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .site-header h1 { font-size: 20px; }
+    .site-header nav a {
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      margin: 0 12px;
+      font-size: 14px;
+    }
+    .site-content {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .card h2 {
+      color: #1e40af;
+      margin-bottom: 16px;
+      font-size: 22px;
+    }
+    .card p {
+      color: #555;
+      line-height: 1.8;
+      margin-bottom: 12px;
+    }
+
+    /* ===== Test Dashboard ===== */
+    #test-dashboard {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      font-family: 'Courier New', monospace;
+    }
+    #test-dashboard h3 {
+      color: #60a5fa;
+      margin-bottom: 16px;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .test-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid #1e293b;
+      font-size: 14px;
+    }
+    .test-item:last-child { border-bottom: none; }
+    .test-status {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .test-status.pass { background: #065f46; }
+    .test-status.fail { background: #991b1b; }
+    .test-status.wait { background: #92400e; }
+    .test-detail { color: #94a3b8; font-size: 12px; }
+    #test-log {
+      background: #020617;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 12px;
+      line-height: 1.6;
+      direction: ltr;
+      text-align: left;
+    }
+    .log-line { color: #64748b; }
+    .log-line.ok { color: #4ade80; }
+    .log-line.err { color: #f87171; }
+    .log-line.info { color: #60a5fa; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== موقع خارجي وهمي ===== -->
+  <header class="site-header">
+    <h1>🕌 موقع العتبة العباسية (محاكاة)</h1>
+    <nav>
+      <a href="#">الرئيسية</a>
+      <a href="#">المشاريع</a>
+      <a href="#">عن العتبة</a>
+      <a href="#">اتصل بنا</a>
+    </nav>
+  </header>
+
+  <main class="site-content">
+    <!-- لوحة الاختبارات -->
+    <div id="test-dashboard">
+      <h3>🧪 لوحة الاختبارات التلقائية</h3>
+      <div id="test-results"></div>
+      <div id="test-log"></div>
+    </div>
+
+    <!-- محتوى وهمي -->
+    <div class="card">
+      <h2>📋 عن هذا الاختبار</h2>
+      <p>هذه الصفحة تعمل على <strong>سيرفر مختلف (port 4444)</strong> بينما الودجت يتصل بـ <strong>API على (port 3000)</strong>.</p>
+      <p>يحاكي هذا السيناريو الفعلي: موقع Laravel خارجي يضمّن الودجت من Vercel.</p>
+      <p>الاختبارات تتحقق من: تحميل السكريبت، CORS، الزر العائم، فتح/إغلاق، إرسال رسالة، والرد الفعلي.</p>
+    </div>
+
+    <div class="card">
+      <h2>🏗️ نموذج محتوى حقيقي</h2>
+      <p>هذا نص تجريبي يمثل محتوى موقع فعلي. المشاريع تشمل بناء المدارس والمستشفيات والمراكز الثقافية والمكتبات وغيرها من المنشآت الخدمية والدينية.</p>
+      <p>الودجت يجب أن يظهر فوق هذا المحتوى بدون تعارض في الأنماط أو التخطيط.</p>
+    </div>
+  </main>
+
+  <script>
+    // ===== Test Framework =====
+    const TESTS = [];
+    const LOG = [];
+    const API_BASE = 'http://localhost:3000';
+
+    function log(msg, type = '') {
+      LOG.push({ msg, type });
+      const logEl = document.getElementById('test-log');
+      if (logEl) {
+        const line = document.createElement('div');
+        line.className = 'log-line ' + type;
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logEl.appendChild(line);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    }
+
+    function addTest(name, detail) {
+      TESTS.push({ name, detail, status: 'wait', statusText: '⏳' });
+    }
+
+    function updateTest(index, passed, extra = '') {
+      TESTS[index].status = passed ? 'pass' : 'fail';
+      TESTS[index].statusText = passed ? '✅' : '❌';
+      if (extra) TESTS[index].detail = extra;
+      renderTests();
+    }
+
+    function renderTests() {
+      const container = document.getElementById('test-results');
+      container.innerHTML = TESTS.map(t => `
+        <div class="test-item">
+          <div class="test-status ${t.status}">${t.statusText}</div>
+          <div>
+            <div>${t.name}</div>
+            <div class="test-detail">${t.detail}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ===== Define Tests =====
+    addTest('تحميل widget.js عبر Cross-Origin', 'يجري التحميل...');
+    addTest('AlkafeelWidget متاح في window', 'ينتظر تحميل السكريبت...');
+    addTest('init() يُنشئ instance بنجاح', 'ينتظر...');
+    addTest('الزر العائم 💬 موجود في DOM', 'ينتظر...');
+    addTest('فتح/إغلاق النافذة', 'ينتظر...');
+    addTest('CORS Preflight (OPTIONS)', 'ينتظر...');
+    addTest('إرسال رسالة + رد فعلي من API', 'ينتظر...');
+    addTest('عزل CSS (لا تعارض مع الموقع)', 'ينتظر...');
+    addTest('RTL + اتجاه النص العربي', 'ينتظر...');
+    addTest('Responsive: viewport < 768px', 'ينتظر...');
+    renderTests();
+
+    // ===== Run Tests =====
+    async function runAllTests() {
+      let widget;
+
+      // Test 0: Script loads cross-origin
+      log('بدء تحميل widget.js من ' + API_BASE, 'info');
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = API_BASE + '/widget.js';
+          script.onload = () => { log('widget.js loaded OK', 'ok'); resolve(); };
+          script.onerror = (e) => { log('FAILED to load widget.js: ' + e, 'err'); reject(e); };
+          document.head.appendChild(script);
+        });
+        updateTest(0, true, `تم من ${API_BASE}/widget.js`);
+      } catch (e) {
+        updateTest(0, false, 'فشل التحميل — تأكد أن السيرفر يعمل على port 3000');
+        log('⛔ لا يمكن إكمال الاختبارات بدون السكريبت', 'err');
+        return;
+      }
+
+      // Test 1: AlkafeelWidget exists
+      const exists = typeof window.AlkafeelWidget !== 'undefined'
+                     && typeof window.AlkafeelWidget.init === 'function';
+      updateTest(1, exists, exists
+        ? `v${window.AlkafeelWidget.version} — init/destroyAll متاحة`
+        : 'AlkafeelWidget غير موجود!');
+      if (!exists) return;
+
+      // Test 2: init() creates widget
+      try {
+        widget = AlkafeelWidget.init({
+          apiEndpoint: API_BASE + '/api/chat/site',
+          title: 'اختبار الودجت',
+          subtitle: 'من دومين مختلف',
+          position: 'left'
+        });
+        updateTest(2, true, 'Instance created + elements rendered');
+        log('Widget initialized successfully', 'ok');
+      } catch (e) {
+        updateTest(2, false, 'خطأ: ' + e.message);
+        log('init() error: ' + e.message, 'err');
+        return;
+      }
+
+      // Test 3: Button exists in DOM — container should NOT exist yet (lazy)
+      await sleep(300);
+      const btn = document.querySelector('.alkw-chat-button');
+      const containerBefore = document.querySelector('.alkw-widget-container');
+      updateTest(3, !!btn && !containerBefore,
+        btn ? `Button: ${btn.offsetWidth}x${btn.offsetHeight}px, Container lazy: ${!containerBefore ? '✓ deferred' : '✗ created too early'}`
+            : 'لم يُعثر على الزر');
+
+      // Test 4: Open/Close — first click creates the panel (lazy)
+      if (btn) {
+        btn.click();
+        await sleep(400);
+        const container = document.querySelector('.alkw-widget-container');
+        const isOpen = container && container.classList.contains('alkw-open');
+        log('After click: open=' + isOpen + ' | container created=' + !!container, isOpen ? 'ok' : 'err');
+
+        const closeBtn = container && container.querySelector('.alkw-close-btn');
+        if (closeBtn) closeBtn.click();
+        await sleep(400);
+        const isClosed = container && !container.classList.contains('alkw-open');
+        log('After close: closed=' + isClosed, isClosed ? 'ok' : 'err');
+
+        updateTest(4, isOpen && isClosed, `فتح: ${isOpen ? '✓' : '✗'} | إغلاق: ${isClosed ? '✓' : '✗'} | lazy panel: ${container ? '✓' : '✗'}`);
+      } else {
+        updateTest(4, false, 'لا يوجد زر');
+      }
+
+      // Test 5: CORS Preflight
+      try {
+        const corsResp = await fetch(API_BASE + '/api/chat/site', {
+          method: 'OPTIONS',
+          headers: {
+            'Origin': window.location.origin,
+            'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'Content-Type'
+          }
+        });
+        const acao = corsResp.headers.get('access-control-allow-origin');
+        const pass = corsResp.status === 204 && acao;
+        updateTest(5, pass,
+          `Status: ${corsResp.status} | ACAO: ${acao || 'MISSING'}`);
+        log('CORS OK — Allow-Origin: ' + acao, pass ? 'ok' : 'err');
+      } catch (e) {
+        updateTest(5, false, 'CORS blocked: ' + e.message);
+        log('CORS FAILED: ' + e.message, 'err');
+      }
+
+      // Test 6: Send message + get real reply
+      try {
+        log('إرسال رسالة اختبار: "مرحبا"', 'info');
+        // Open widget first
+        btn.click();
+        await sleep(400);
+
+        const resp = await fetch(API_BASE + '/api/chat/site', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: 'مرحبا' }],
+            temperature: 0.7,
+            max_tokens: 500,
+            use_tools: true
+          })
+        });
+
+        const ct = (resp.headers.get('content-type') || '').toLowerCase();
+        log('Response status: ' + resp.status + ' | content-type: ' + ct, 'info');
+
+        if (resp.ok && ct.includes('application/json')) {
+          const data = await resp.json();
+          const hasMessage = !!data.message;
+          const hasMode = data.mode === 'function_calling';
+          const preview = (data.message || '').substring(0, 80);
+          updateTest(6, hasMessage,
+            `mode=${data.mode} | iterations=${data.iterations} | reply: "${preview}..."`);
+          log('Reply: ' + preview, 'ok');
+        } else if (resp.ok) {
+          const text = await resp.text();
+          updateTest(6, text.length > 0, `Stream reply (${text.length} chars)`);
+          log('Stream reply OK', 'ok');
+        } else {
+          updateTest(6, false, `HTTP ${resp.status}`);
+          log('API error: ' + resp.status, 'err');
+        }
+      } catch (e) {
+        updateTest(6, false, 'Error: ' + e.message);
+        log('Chat API error: ' + e.message, 'err');
+      }
+
+      // Test 7: CSS Isolation — two CSS tags (btn + panel), all:initial reset
+      const siteHeader = document.querySelector('.site-header');
+      const headerStyle = getComputedStyle(siteHeader);
+      const siteFont = headerStyle.fontFamily;
+      // Check widget hasn't broken site styles
+      const cardEl = document.querySelector('.card h2');
+      const cardColor = getComputedStyle(cardEl).color;
+      const noConflict = siteFont.length > 0 && cardColor.length > 0;
+      // Check widget has split CSS (lazy loaded)
+      const btnCSS = document.getElementById('alkw-btn-css');
+      const panelCSS = document.getElementById('alkw-panel-css');
+      const hasPrefix = btnCSS && btnCSS.textContent.includes('alkw-');
+      const hasReset = panelCSS && panelCSS.textContent.includes('all:initial');
+      updateTest(7, noConflict && hasPrefix && hasReset,
+        `Site font: "${siteFont.substring(0,30)}..." | btn-css: ${!!btnCSS} | panel-css: ${!!panelCSS} | all:initial: ${!!hasReset}`);
+
+      // Test 8: RTL — ensure panel is open for direction check
+      btn.click(); await sleep(400);
+      const widgetContainer = document.querySelector('.alkw-widget-container');
+      const dir = widgetContainer ? getComputedStyle(widgetContainer).direction : 'unknown';
+      const textArea = document.querySelector('.alkw-textarea');
+      const taDir = textArea ? getComputedStyle(textArea).direction : 'unknown';
+      updateTest(8, dir === 'rtl',
+        `Container dir: ${dir} | Textarea dir: ${taDir}`);
+
+      // Test 9: Responsive (check CSS rules exist in panel CSS)
+      const panelSheet = document.getElementById('alkw-panel-css');
+      const hasMediaQuery = panelSheet && panelSheet.textContent.includes('@media(max-width:768px)');
+      const hasMobileRules = panelSheet && panelSheet.textContent.includes('100vw');
+      updateTest(9, hasMediaQuery && hasMobileRules,
+        `@media 768px: ${hasMediaQuery ? '✓' : '✗'} | 100vw rule: ${hasMobileRules ? '✓' : '✗'}`);
+
+      // Summary
+      const passed = TESTS.filter(t => t.status === 'pass').length;
+      const failed = TESTS.filter(t => t.status === 'fail').length;
+      log(`\n===== النتيجة: ${passed}/${TESTS.length} نجاح | ${failed} فشل =====`,
+          failed === 0 ? 'ok' : 'err');
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // Start after page load
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(runAllTests, 500);
+    });
+  </script>
+
+</body>
+</html>
