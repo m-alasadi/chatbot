@@ -1,4 +1,7 @@
-# Phase B — System Redesign Blueprint for m-alasadi/chatbot
+interface CachePayload<T> {
+  data: T
+  cachedAt: number
+}# Phase B — System Redesign Blueprint for m-alasadi/chatbot
 
 This phase is based on the approved Phase A architecture report for the current repository.
 
