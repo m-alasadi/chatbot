@@ -8,6 +8,12 @@
 import { getSiteAPIConfig } from "./site-api-config"
 import type { AllowedToolName } from "./site-tools-definitions"
 import { sanitizeAPIResponse } from "./data-sanitizer"
+import {
+  getCachedProjects,
+  setCachedProjects,
+  invalidateProjectsCache,
+  getCacheAge
+} from "./kv-cache"
 
 /**
  * إعدادات Timeout و Retry
@@ -58,7 +64,7 @@ async function fetchWithTimeout(
   } catch (error: any) {
     clearTimeout(timeoutId)
     if (error.name === "AbortError") {
-      throw new Error(`انتهت مهلة الاتصال بعد ${timeoutMs / 1000} ثانية`)
+      throw new Error(`TIMEOUT_ERROR: انتهت مهلة الاتصال بعد ${timeoutMs / 1000} ثانية`)
     }
     throw error
   }
@@ -196,7 +202,8 @@ async function callSiteAPI(
         if (
           error.message.includes("fetch") ||
           error.message.includes("network") ||
-          error.message.includes("timeout")
+          error.message.includes("timeout") ||
+          error.message.includes("TIMEOUT_ERROR")
         ) {
           throw error // للسماح بـ retry
         }
@@ -223,34 +230,50 @@ async function callSiteAPI(
  * جلب جميع المشاريع من API
  * يتم cache النتائج لتجنب استدعاءات متكررة
  */
-let projectsCache: any[] | null = null
-let projectsCacheTime: number = 0
-const CACHE_DURATION = 30 * 60 * 1000 // 30 دقيقة — تقليل استدعاءات API
-
 async function getAllProjects(): Promise<APICallResult> {
   console.log("[getAllProjects] Starting...")
-  
-  // تحقق من الـ cache
-  const now = Date.now()
-  if (projectsCache && now - projectsCacheTime < CACHE_DURATION) {
-    console.log("[getAllProjects] Returning cached data")
-    return {
-      success: true,
-      data: projectsCache
+
+  // تحقق من الـ KV cache أولاً
+  try {
+    const cachedProjects = await getCachedProjects()
+    if (Array.isArray(cachedProjects)) {
+      const ageSeconds = await getCacheAge().catch(() => -1)
+      console.log(
+        "[getAllProjects] Returning cached data",
+        ageSeconds >= 0 ? `(age: ${ageSeconds}s)` : ""
+      )
+      return {
+        success: true,
+        data: cachedProjects
+      }
     }
+  } catch (error: any) {
+    console.warn(
+      "[getAllProjects] KV cache read failed, falling back to API fetch:",
+      error?.message || error
+    )
   }
 
   console.log("[getAllProjects] Cache miss, fetching from API...")
-  
+
   // جلب البيانات من API
   const result = await callSiteAPI("/allProjects")
-  
+
   console.log("[getAllProjects] API result:", result.success ? `Success (${result.data?.length} projects)` : `Failed: ${result.error}`)
-  
+
   if (result.success && Array.isArray(result.data)) {
-    projectsCache = result.data
-    projectsCacheTime = now
-    console.log("[getAllProjects] Cached", result.data.length, "projects")
+    try {
+      await setCachedProjects(result.data)
+      console.log("[getAllProjects] Cached", result.data.length, "projects")
+    } catch (error: any) {
+      console.warn(
+        "[getAllProjects] KV cache write failed, continuing without cache:",
+        error?.message || error
+      )
+    }
+  } else if (result.success) {
+    // حماية ضد تخزين payload غير متوقع
+    await invalidateProjectsCache().catch(() => undefined)
   }
 
   return result
@@ -360,7 +383,7 @@ export async function siteSearch(
 
     for (const { text, weight } of searchTexts) {
       // مطابقة الاستعلام الكامل — أعلى نقاط
-      if (text.includes(lowerQuery)) {
+      if (lowerQuery && text.includes(lowerQuery)) {
         score += weight * 3
       }
 
@@ -505,7 +528,8 @@ export async function siteGetLatest(
     return allProjects
   }
 
-  let projects = allProjects.data as any[]
+  // نسخ المصفوفة لتجنب تعديل بيانات الكاش الأصلية أثناء sort
+  let projects = [...(allProjects.data as any[])]
 
   // فلترة حسب القسم إذا كان محدداً
   if (section) {
