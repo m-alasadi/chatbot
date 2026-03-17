@@ -279,6 +279,30 @@ async function getAllProjects(): Promise<APICallResult> {
   return result
 }
 
+export async function getRawProjectsForContentLayer(): Promise<any[]> {
+  const result = await getAllProjects()
+
+  if (result.success && Array.isArray(result.data)) {
+    return result.data
+  }
+
+  return []
+}
+
+function getRawProjectFromContentItem(item: any): any | null {
+  if (item && typeof item === "object" && item.raw && typeof item.raw === "object") {
+    return item.raw
+  }
+
+  return null
+}
+
+function getRawProjectsFromContentItems(items: any[]): any[] {
+  return items
+    .map(getRawProjectFromContentItem)
+    .filter((project): project is any => project !== null)
+}
+
 /**
  * البحث العميق في المشاريع
  * يبحث في: الاسم، الوصف، الأقسام، الخصائص (المكان، المواصفات، الجهة المنفذة...)،
@@ -442,8 +466,20 @@ export async function siteSearch(
  * @param id - معرف المشروع
  */
 export async function siteGetProject(id: string): Promise<APICallResult> {
+  const { getProjectContentItemById } = await import("../content/services/content-aggregator")
+
+  const item = await getProjectContentItemById(id)
+  const projectFromContent = getRawProjectFromContentItem(item)
+
+  if (projectFromContent) {
+    return {
+      success: true,
+      data: projectFromContent
+    }
+  }
+
+  // fallback للحفاظ على نفس السلوك الحالي عند فشل جلب المحتوى
   const allProjects = await getAllProjects()
-  
   if (!allProjects.success) {
     return allProjects
   }
@@ -522,14 +558,21 @@ export async function siteGetLatest(
   limit: number = 5,
   section?: string
 ): Promise<APICallResult> {
-  const allProjects = await getAllProjects()
-  
-  if (!allProjects.success) {
-    return allProjects
-  }
+  const { getProjectContentItems } = await import("../content/services/content-aggregator")
 
-  // نسخ المصفوفة لتجنب تعديل بيانات الكاش الأصلية أثناء sort
-  let projects = [...(allProjects.data as any[])]
+  const contentItems = await getProjectContentItems()
+  let projects = getRawProjectsFromContentItems(contentItems)
+
+  // fallback للحفاظ على سلوك الأخطاء الحالي إذا تعذر الحصول على المحتوى
+  if (projects.length === 0) {
+    const allProjects = await getAllProjects()
+    if (!allProjects.success) {
+      return allProjects
+    }
+
+    // نسخ المصفوفة لتجنب تعديل بيانات الكاش الأصلية أثناء sort
+    projects = [...(allProjects.data as any[])]
+  }
 
   // فلترة حسب القسم إذا كان محدداً
   if (section) {
@@ -542,8 +585,8 @@ export async function siteGetLatest(
 
   // ترتيب حسب تاريخ الإنشاء (الأحدث أولاً)
   projects.sort((a, b) => {
-    const dateA = new Date(a.created_at || 0).getTime()
-    const dateB = new Date(b.created_at || 0).getTime()
+    const dateA = new Date(a.created_at || a.publishedAt || 0).getTime()
+    const dateB = new Date(b.created_at || b.publishedAt || 0).getTime()
     return dateB - dateA
   })
 
