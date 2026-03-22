@@ -112,6 +112,32 @@ function cleanResultForGPT(result: APICallResult): any {
     }
   }
 
+  // إذا كانت نتائج أحدث محتوى (projects array)
+  if (data?.projects && Array.isArray(data.projects)) {
+    return {
+      success: true,
+      data: {
+        projects: data.projects.map((p: any) => cleanProject(p, false)),
+        total: data.total,
+        limit: data.limit,
+        source_used: data.source_used,
+        candidate_sources: data.candidate_sources
+      }
+    }
+  }
+
+  // قوائم التصنيفات
+  if (data?.categories && Array.isArray(data.categories)) {
+    return {
+      success: true,
+      data: {
+        categories: data.categories.slice(0, 50),
+        total_categories: data.total_categories,
+        source_used: data.source_used
+      }
+    }
+  }
+
   // إذا كان مشروع واحد — تفاصيل كاملة
   if (data?.id && data?.name) {
     return {
