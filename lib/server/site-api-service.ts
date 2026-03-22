@@ -8,12 +8,6 @@
 import { getSiteAPIConfig } from "./site-api-config"
 import type { AllowedToolName } from "./site-tools-definitions"
 import { sanitizeAPIResponse } from "./data-sanitizer"
-import {
-  getCachedProjects,
-  setCachedProjects,
-  invalidateProjectsCache,
-  getCacheAge
-} from "./kv-cache"
 
 /**
  * إعدادات Timeout و Retry
@@ -64,7 +58,7 @@ async function fetchWithTimeout(
   } catch (error: any) {
     clearTimeout(timeoutId)
     if (error.name === "AbortError") {
-      throw new Error(`TIMEOUT_ERROR: انتهت مهلة الاتصال بعد ${timeoutMs / 1000} ثانية`)
+      throw new Error(`انتهت مهلة الاتصال بعد ${timeoutMs / 1000} ثانية`)
     }
     throw error
   }
@@ -138,8 +132,12 @@ async function callSiteAPI(
       try {
         const config = getSiteAPIConfig()
 
-        // بناء URL كامل
-        let url = `${config.baseUrl}${endpoint}`
+        // بناء URL كامل بشكل مرن (يدعم endpoint نسبي أو URL كامل)
+        const normalizedBase = config.baseUrl.replace(/\/+$/, "")
+        const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
+        let url = endpoint.startsWith("http://") || endpoint.startsWith("https://")
+          ? endpoint
+          : `${normalizedBase}${normalizedEndpoint}`
 
         // إضافة query parameters
         if (params && Object.keys(params).length > 0) {
@@ -147,13 +145,15 @@ async function callSiteAPI(
           Object.entries(params).forEach(([key, value]) => {
             searchParams.append(key, String(value))
           })
-          url += `?${searchParams.toString()}`
+          const separator = url.includes("?") ? "&" : "?"
+          url += `${separator}${searchParams.toString()}`
         }
 
         // إعداد Headers
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
-          Accept: "application/json"
+          Accept: "application/json",
+          "Accept-Language": config.acceptLanguage
         }
 
         // إضافة Token إذا كان متوفراً
@@ -202,8 +202,7 @@ async function callSiteAPI(
         if (
           error.message.includes("fetch") ||
           error.message.includes("network") ||
-          error.message.includes("timeout") ||
-          error.message.includes("TIMEOUT_ERROR")
+          error.message.includes("timeout")
         ) {
           throw error // للسماح بـ retry
         }
@@ -227,53 +226,129 @@ async function callSiteAPI(
 }
 
 /**
+ * توحيد شكل البيانات القادمة من APIs مختلفة إلى مصفوفة مشاريع موحدة
+ */
+function normalizeProjectsDataset(rawData: any): any[] {
+  if (Array.isArray(rawData)) {
+    return rawData
+  }
+
+  const siteDomain = (process.env.SITE_DOMAIN || "https://alkafeel.net").replace(/\/+$/, "")
+  const articleUrlTemplate = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}"
+
+  function resolveArticleUrl(item: any): string {
+    const explicitUrl =
+      item?.url ||
+      item?.link ||
+      item?.permalink ||
+      item?.news_url ||
+      item?.article_url
+
+    if (typeof explicitUrl === "string" && explicitUrl.trim().length > 0) {
+      return explicitUrl
+    }
+
+    const id = String(item?.id || "").trim()
+    if (!id) return siteDomain
+
+    const articlePath = articleUrlTemplate.replace("{id}", encodeURIComponent(id))
+
+    // Fallback pattern for news pages when API item has no direct URL.
+    if (articlePath.startsWith("http://") || articlePath.startsWith("https://")) {
+      return articlePath
+    }
+
+    const normalizedPath = articlePath.startsWith("/") ? articlePath : `/${articlePath}`
+    return `${siteDomain}${normalizedPath}`
+  }
+
+  if (rawData && Array.isArray(rawData.data)) {
+    return rawData.data.map((item: any) => {
+      const sectionName = item.cat_title || "غير مصنف"
+      const unixTime = Number(item.time)
+      const createdAt = Number.isFinite(unixTime) && unixTime > 0
+        ? new Date(unixTime * 1000).toISOString()
+        : new Date().toISOString()
+      const articleUrl = resolveArticleUrl(item)
+
+      return {
+        id: String(item.id || ""),
+        name: item.title || item.name || "بدون عنوان",
+        description: item.text || item.description || "",
+        image: item.image || null,
+        created_at: createdAt,
+        address: item.address || "",
+        sections: [
+          {
+            id: sectionName,
+            name: sectionName
+          }
+        ],
+        kftags: [],
+        properties: [],
+        url: articleUrl,
+        source_type: "articles_api",
+        source_raw: item
+      }
+    })
+  }
+
+  return []
+}
+
+/**
  * جلب جميع المشاريع من API
  * يتم cache النتائج لتجنب استدعاءات متكررة
  */
+let projectsCache: any[] | null = null
+let projectsCacheTime: number = 0
+const CACHE_DURATION = 30 * 60 * 1000 // 30 دقيقة — تقليل استدعاءات API
+
 async function getAllProjects(): Promise<APICallResult> {
   console.log("[getAllProjects] Starting...")
-
-  // تحقق من الـ KV cache أولاً
-  try {
-    const cachedProjects = await getCachedProjects()
-    if (Array.isArray(cachedProjects)) {
-      const ageSeconds = await getCacheAge().catch(() => -1)
-      console.log(
-        "[getAllProjects] Returning cached data",
-        ageSeconds >= 0 ? `(age: ${ageSeconds}s)` : ""
-      )
-      return {
-        success: true,
-        data: cachedProjects
-      }
+  const config = getSiteAPIConfig()
+  
+  // تحقق من الـ cache
+  const now = Date.now()
+  if (projectsCache && now - projectsCacheTime < CACHE_DURATION) {
+    console.log("[getAllProjects] Returning cached data")
+    return {
+      success: true,
+      data: projectsCache
     }
-  } catch (error: any) {
-    console.warn(
-      "[getAllProjects] KV cache read failed, falling back to API fetch:",
-      error?.message || error
-    )
   }
 
   console.log("[getAllProjects] Cache miss, fetching from API...")
-
+  
   // جلب البيانات من API
-  const result = await callSiteAPI("/allProjects")
+  const result = await callSiteAPI(config.allProjectsEndpoint)
+  const normalizedProjects = result.success
+    ? normalizeProjectsDataset(result.data)
+    : []
 
-  console.log("[getAllProjects] API result:", result.success ? `Success (${result.data?.length} projects)` : `Failed: ${result.error}`)
+  console.log(
+    "[getAllProjects] API result:",
+    result.success
+      ? `Success (${normalizedProjects.length} projects)`
+      : `Failed: ${result.error}`
+  )
 
-  if (result.success && Array.isArray(result.data)) {
-    try {
-      await setCachedProjects(result.data)
-      console.log("[getAllProjects] Cached", result.data.length, "projects")
-    } catch (error: any) {
-      console.warn(
-        "[getAllProjects] KV cache write failed, continuing without cache:",
-        error?.message || error
-      )
+  if (result.success && normalizedProjects.length > 0) {
+    projectsCache = normalizedProjects
+    projectsCacheTime = now
+    console.log("[getAllProjects] Cached", normalizedProjects.length, "projects")
+
+    return {
+      success: true,
+      data: normalizedProjects
     }
-  } else if (result.success) {
-    // حماية ضد تخزين payload غير متوقع
-    await invalidateProjectsCache().catch(() => undefined)
+  }
+
+  if (result.success && normalizedProjects.length === 0) {
+    return {
+      success: false,
+      error: "تم استلام البيانات لكن بصيغة غير مدعومة."
+    }
   }
 
   return result
@@ -383,7 +458,7 @@ export async function siteSearch(
 
     for (const { text, weight } of searchTexts) {
       // مطابقة الاستعلام الكامل — أعلى نقاط
-      if (lowerQuery && text.includes(lowerQuery)) {
+      if (text.includes(lowerQuery)) {
         score += weight * 3
       }
 
@@ -528,8 +603,7 @@ export async function siteGetLatest(
     return allProjects
   }
 
-  // نسخ المصفوفة لتجنب تعديل بيانات الكاش الأصلية أثناء sort
-  let projects = [...(allProjects.data as any[])]
+  let projects = allProjects.data as any[]
 
   // فلترة حسب القسم إذا كان محدداً
   if (section) {

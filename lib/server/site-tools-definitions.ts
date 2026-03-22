@@ -2,7 +2,7 @@
  * تعريف الأدوات (Tools) للـ Function Calling
  * 
  * هذه الأدوات تُستخدم من قبل OpenAI لاختيار الـ endpoint المناسب
- * جميع الأدوات مرتبطة بـ REST API الخاص بموقع projects.alkafeel.net
+ * جميع الأدوات مرتبطة بـ REST API الخاص بموقع alkafeel.net
  */
 
 import { ChatCompletionTool } from "openai/resources/chat/completions"

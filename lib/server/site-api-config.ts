@@ -7,6 +7,8 @@ export interface SiteAPIConfig {
   baseUrl: string
   token: string | null
   openaiModel: string
+  acceptLanguage: string
+  allProjectsEndpoint: string
 }
 
 /**
@@ -17,6 +19,8 @@ export function getSiteAPIConfig(): SiteAPIConfig {
   const baseUrl = process.env.SITE_API_BASE_URL
   const token = process.env.SITE_API_TOKEN || null
   const openaiModel = process.env.OPENAI_MODEL || "gpt-4o-mini"
+  const acceptLanguage = process.env.SITE_API_ACCEPT_LANGUAGE || "ar"
+  const allProjectsEndpoint = process.env.SITE_API_ALL_PROJECTS_ENDPOINT || "/allProjects"
 
   if (!baseUrl) {
     throw new Error(
@@ -27,7 +31,9 @@ export function getSiteAPIConfig(): SiteAPIConfig {
   return {
     baseUrl,
     token,
-    openaiModel
+    openaiModel,
+    acceptLanguage,
+    allProjectsEndpoint
   }
 }
 

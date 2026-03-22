@@ -24,7 +24,7 @@ export const runtime: ServerRuntime = "edge"
  * CORS Headers - السماح فقط من دومين محدد
  */
 const ALLOWED_ORIGINS = [
-  process.env.SITE_DOMAIN || "https://projects.alkafeel.net",
+  process.env.SITE_DOMAIN || "https://alkafeel.net",
   "http://localhost:3000", // للتطوير
   "http://localhost:3001", // للتطوير (بديل)
   "null" // للـ file:// protocol (HTML files)

@@ -167,7 +167,7 @@ export function generateOutOfScopeSuggestions(query: string): SuggestionResponse
  * بناء رسالة للأسئلة خارج النطاق
  */
 function buildOutOfScopeMessage(query: string): string {
-  return `أنا متخصص في الإجابة عن أسئلة متعلقة بموقع projects.alkafeel.net والمشاريع المسجلة فيه فقط.
+  return `أنا متخصص في الإجابة عن أسئلة متعلقة بموقع alkafeel.net والمشاريع المسجلة فيه فقط.
 
 سؤالك عن "${query}" خارج نطاق اختصاصي.
 

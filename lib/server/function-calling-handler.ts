@@ -36,6 +36,35 @@ function truncate(text: string, max: number): string {
 
 function cleanProject(project: any, detailed: boolean = false): any {
   if (!project || typeof project !== "object") return project
+
+  const siteDomain = (process.env.SITE_DOMAIN || "https://alkafeel.net").replace(/\/+$/, "")
+  const articleUrlTemplate = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}"
+
+  const derivedSourceUrl =
+    project?.source_raw?.url ||
+    project?.source_raw?.link ||
+    project?.source_raw?.permalink ||
+    project?.source_raw?.news_url ||
+    project?.source_raw?.article_url
+
+  const fallbackArticleUrl = (() => {
+    if (!project.id) return siteDomain
+    const articlePath = articleUrlTemplate.replace(
+      "{id}",
+      encodeURIComponent(String(project.id))
+    )
+    if (articlePath.startsWith("http://") || articlePath.startsWith("https://")) {
+      return articlePath
+    }
+    const normalizedPath = articlePath.startsWith("/") ? articlePath : `/${articlePath}`
+    return `${siteDomain}${normalizedPath}`
+  })()
+
+  const articleUrl =
+    project.url ||
+    project.article_url ||
+    derivedSourceUrl ||
+    fallbackArticleUrl
   
   const sectionNames = Array.isArray(project.sections)
     ? project.sections.map((s: any) => s.name).filter(Boolean)
@@ -59,7 +88,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
     description: truncate(project.description || "", detailed ? 500 : 150),
     sections: sectionNames,
     properties: Object.keys(properties).length > 0 ? properties : undefined,
-    url: project.id ? `https://projects.alkafeel.net/project/${project.id}` : null,
+    url: articleUrl,
   }
 }
 
