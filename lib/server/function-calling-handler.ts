@@ -40,6 +40,55 @@ function cleanProject(project: any, detailed: boolean = false): any {
   const siteDomain = (process.env.SITE_DOMAIN || "https://alkafeel.net").replace(/\/+$/, "")
   const articleUrlTemplate = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}"
 
+  // تحديد رابط المصدر حسب نوع المحتوى
+  const sourceType = project?.source_type
+  const isVideoSource = sourceType === "videos_latest" || sourceType === "videos_by_category"
+  const isHistorySource = sourceType === "shrine_history_by_section" || sourceType === "shrine_history_sections"
+  const isAbbasSource = sourceType === "abbas_history_by_id"
+  const mediaSlug = project?.source_raw?.request || project?.source_raw?.news_id || project?.source_raw?.article_id
+
+  // تاريخ العتبة أو العباس: صفحة ثابتة
+  if (isHistorySource || isAbbasSource) {
+    const historyUrl = isAbbasSource
+      ? `${siteDomain}/abbas?lang=ar`
+      : `${siteDomain}/history?lang=ar`
+    const sectionNames = Array.isArray(project.sections)
+      ? project.sections.map((s: any) => s.name).filter(Boolean)
+      : []
+    return {
+      id: project.id,
+      name: project.name,
+      description: truncate(project.description || "", detailed ? 500 : 150),
+      sections: sectionNames,
+      url: historyUrl,
+    }
+  }
+
+  if (isVideoSource && mediaSlug) {
+    const articleUrl = `${siteDomain}/media/${encodeURIComponent(String(mediaSlug))}?lang=ar`
+    const sectionNames = Array.isArray(project.sections)
+      ? project.sections.map((s: any) => s.name).filter(Boolean)
+      : []
+    const maxPropLen = detailed ? 2000 : 300
+    const properties: Record<string, string> = {}
+    if (Array.isArray(project.properties)) {
+      for (const prop of project.properties) {
+        const val = prop.pivot?.value || prop.value
+        if (prop.name && val && typeof val === "string") {
+          properties[prop.name] = truncate(val, maxPropLen)
+        }
+      }
+    }
+    return {
+      id: project.id,
+      name: project.name,
+      description: truncate(project.description || "", detailed ? 500 : 150),
+      sections: sectionNames,
+      properties: Object.keys(properties).length > 0 ? properties : undefined,
+      url: articleUrl,
+    }
+  }
+
   const derivedSourceUrl =
     project?.source_raw?.url ||
     project?.source_raw?.link ||

@@ -366,20 +366,11 @@ function normalizeSourceDataset(source: SiteSourceName, rawData: any): any[] {
     return arr.map((item: any) => {
       const section = pickText(item?.cat_title, item?.category, "فيديو")
       const id = String(item?.id || item?.video_id || "")
-      // دائماً استخدم رابط الخبر على النمط https://alkafeel.net/media/{id}?lang=ar عند توفر المعرف
-      const newsId = item?.news_id || item?.article_id || item?.newsId || item?.articleId
-      let newsUrl = null
-      if (newsId) {
-        newsUrl = `https://alkafeel.net/media/${encodeURIComponent(String(newsId))}?lang=ar`
-      }
-      // fallback: إذا لم يوجد معرف خبر، استخدم رابط الفيديو كحل أخير
-      const url = newsUrl || pickText(
-        item?.video_src,
-        item?.url,
-        item?.video_url,
-        item?.link,
-        id ? `${siteDomain}/videos/index?id=${encodeURIComponent(id)}` : siteDomain
-      )
+      // حقل request يحتوي المعرّف الصحيح (hash/slug) لصفحة الخبر
+      const mediaSlug = item?.request || item?.news_id || item?.article_id || item?.newsId || item?.articleId
+      const url = mediaSlug
+        ? `${siteDomain}/media/${encodeURIComponent(String(mediaSlug))}?lang=ar`
+        : siteDomain
 
       return {
         id,
@@ -426,13 +417,14 @@ function normalizeSourceDataset(source: SiteSourceName, rawData: any): any[] {
       sections: [normalizeSection("أقسام تاريخ العتبة")],
       kftags: [],
       properties: [],
-      url: siteDomain,
+      url: `${siteDomain}/history?lang=ar`,
       source_type: source,
       source_raw: item
     }))
   }
 
   if (source === "shrine_history_by_section" || source === "abbas_history_by_id") {
+    const historyPath = source === "abbas_history_by_id" ? "/abbas?lang=ar" : "/history?lang=ar"
     return arr.map((item: any) => ({
       id: String(item?.id || item?.history_id || ""),
       name: pickText(item?.title, item?.name, "محتوى تاريخي"),
@@ -443,7 +435,7 @@ function normalizeSourceDataset(source: SiteSourceName, rawData: any): any[] {
       sections: [normalizeSection(source === "abbas_history_by_id" ? "تاريخ العباس" : "تاريخ العتبة")],
       kftags: [],
       properties: [],
-      url: siteDomain,
+      url: `${siteDomain}${historyPath}`,
       source_type: source,
       source_raw: item
     }))
