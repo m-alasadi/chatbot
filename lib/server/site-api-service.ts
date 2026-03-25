@@ -366,13 +366,18 @@ function normalizeSourceDataset(source: SiteSourceName, rawData: any): any[] {
     return arr.map((item: any) => {
       const section = pickText(item?.cat_title, item?.category, "فيديو")
       const id = String(item?.id || item?.video_id || "")
-      const requestId = pickText(item?.request)
-      const url = pickText(
+      // دائماً استخدم رابط الخبر على النمط https://alkafeel.net/media/{id}?lang=ar عند توفر المعرف
+      const newsId = item?.news_id || item?.article_id || item?.newsId || item?.articleId
+      let newsUrl = null
+      if (newsId) {
+        newsUrl = `https://alkafeel.net/media/${encodeURIComponent(String(newsId))}?lang=ar`
+      }
+      // fallback: إذا لم يوجد معرف خبر، استخدم رابط الفيديو كحل أخير
+      const url = newsUrl || pickText(
         item?.video_src,
         item?.url,
         item?.video_url,
         item?.link,
-        requestId ? `${siteDomain}/videos/video?id=${encodeURIComponent(requestId)}` : "",
         id ? `${siteDomain}/videos/index?id=${encodeURIComponent(id)}` : siteDomain
       )
 
