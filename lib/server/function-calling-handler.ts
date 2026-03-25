@@ -142,6 +142,23 @@ function cleanProject(project: any, detailed: boolean = false): any {
 }
 
 /**
+ * تحويل اسم المصدر التقني إلى اسم عربي مفهوم
+ */
+function friendlySourceName(source: string): string {
+  const map: Record<string, string> = {
+    shrine_history_sections: "تاريخ العتبة",
+    shrine_history_by_section: "تاريخ العتبة",
+    abbas_history_by_id: "تاريخ العباس",
+    articles_latest: "الأخبار",
+    videos_latest: "الفيديوهات",
+    videos_by_category: "الفيديوهات",
+    videos_categories: "أقسام الفيديو",
+    lang_words_ar: "القاموس اللغوي",
+  }
+  return map[source] || source
+}
+
+/**
  * تنظيف نتائج الـ API قبل إرسالها لـ GPT
  */
 function cleanResultForGPT(result: APICallResult): any {
@@ -169,8 +186,7 @@ function cleanResultForGPT(result: APICallResult): any {
         projects: data.projects.map((p: any) => cleanProject(p, false)),
         total: data.total,
         limit: data.limit,
-        source_used: data.source_used,
-        candidate_sources: data.candidate_sources
+        source_used: friendlySourceName(data.source_used),
       }
     }
   }
@@ -182,7 +198,7 @@ function cleanResultForGPT(result: APICallResult): any {
       data: {
         categories: data.categories.slice(0, 50),
         total_categories: data.total_categories,
-        source_used: data.source_used
+        source_used: friendlySourceName(data.source_used)
       }
     }
   }
