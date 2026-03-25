@@ -34,18 +34,35 @@ function truncate(text: string, max: number): string {
   return text.substring(0, max) + "…"
 }
 
+function isDirectVideoUrl(value: string): boolean {
+  const url = (value || "").toLowerCase()
+  if (!url) return false
+  return /\.(mp4|m3u8|webm|mov|avi)(\?|#|$)/i.test(url)
+}
+
 function cleanProject(project: any, detailed: boolean = false): any {
   if (!project || typeof project !== "object") return project
 
   const siteDomain = (process.env.SITE_DOMAIN || "https://alkafeel.net").replace(/\/+$/, "")
   const articleUrlTemplate = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}"
 
-  const derivedSourceUrl =
+  const videoSourceType = project?.source_type === "videos_latest" || project?.source_type === "videos_by_category"
+  const videoPageId = project?.source_raw?.news_id || project?.source_raw?.article_id || project?.id
+  const mediaPageUrl = videoSourceType && videoPageId
+    ? `${siteDomain}/media/${encodeURIComponent(String(videoPageId))}?lang=ar`
+    : ""
+
+  const rawDerivedSourceUrl =
     project?.source_raw?.url ||
     project?.source_raw?.link ||
     project?.source_raw?.permalink ||
     project?.source_raw?.news_url ||
     project?.source_raw?.article_url
+
+  const derivedSourceUrl =
+    typeof rawDerivedSourceUrl === "string" && !isDirectVideoUrl(rawDerivedSourceUrl)
+      ? rawDerivedSourceUrl
+      : ""
 
   const fallbackArticleUrl = (() => {
     if (!project.id) return siteDomain
@@ -61,6 +78,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
   })()
 
   const articleUrl =
+    mediaPageUrl ||
     project.url ||
     project.article_url ||
     derivedSourceUrl ||

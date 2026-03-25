@@ -296,6 +296,12 @@ function pickText(...values: any[]): string {
   return ""
 }
 
+function isDirectVideoUrl(value: string): boolean {
+  const url = (value || "").toLowerCase()
+  if (!url) return false
+  return /\.(mp4|m3u8|webm|mov|avi)(\?|#|$)/i.test(url)
+}
+
 function detectQueryIntentSources(query: string): SiteSourceName[] {
   const q = (query || "").toLowerCase()
 
@@ -366,20 +372,23 @@ function normalizeSourceDataset(source: SiteSourceName, rawData: any): any[] {
     return arr.map((item: any) => {
       const section = pickText(item?.cat_title, item?.category, "فيديو")
       const id = String(item?.id || item?.video_id || "")
-      // دائماً استخدم رابط الخبر على النمط https://alkafeel.net/media/{id}?lang=ar عند توفر المعرف
       const newsId = item?.news_id || item?.article_id || item?.newsId || item?.articleId
-      let newsUrl = null
-      if (newsId) {
-        newsUrl = `https://alkafeel.net/media/${encodeURIComponent(String(newsId))}?lang=ar`
-      }
-      // fallback: إذا لم يوجد معرف خبر، استخدم رابط الفيديو كحل أخير
-      const url = newsUrl || pickText(
-        item?.video_src,
+      const mediaPageId = newsId || id
+
+      // المصدر في نتائج الفيديو يجب أن يكون صفحة الخبر/الميديا الحاوية للفيديو
+      const mediaPageUrl = mediaPageId
+        ? `${siteDomain}/media/${encodeURIComponent(String(mediaPageId))}?lang=ar`
+        : ""
+
+      const nonDirectCandidate = pickText(
         item?.url,
-        item?.video_url,
         item?.link,
-        id ? `${siteDomain}/videos/index?id=${encodeURIComponent(id)}` : siteDomain
+        item?.permalink,
+        item?.news_url,
+        item?.article_url
       )
+
+      const url = mediaPageUrl || (!isDirectVideoUrl(nonDirectCandidate) ? nonDirectCandidate : "") || siteDomain
 
       return {
         id,
