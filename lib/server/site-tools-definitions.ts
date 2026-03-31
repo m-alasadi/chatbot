@@ -211,9 +211,9 @@ export const TOOL_GET_LATEST_PROJECTS: ChatCompletionTool = {
       properties: {
         limit: {
           type: "number",
-          description: "عدد المشاريع (افتراضي: 5، أقصى: 20)",
+          description: "عدد المشاريع (افتراضي: 5، أقصى: 50)",
           minimum: 1,
-          maximum: 20
+          maximum: 50
         },
         source: {
           type: "string",
@@ -250,7 +250,7 @@ export const TOOL_GET_LATEST_BY_SOURCE: ChatCompletionTool = {
         limit: {
           type: "number",
           minimum: 1,
-          maximum: 20,
+          maximum: 50,
           description: "عدد النتائج"
         },
         category_id: {
@@ -276,10 +276,70 @@ export const TOOL_GET_STATISTICS: ChatCompletionTool = {
   type: "function",
   function: {
     name: "get_statistics",
-    description: "إحصائيات عامة عن أحجام البيانات في المصادر المتعددة.",
+    description: "إحصائيات حقيقية عن العدد الكلي للمقالات والفيديوهات وغيرها من المصادر. استخدمها عندما يسأل المستخدم: كم عدد الأخبار؟ كم مقال؟ كم فيديو؟",
     parameters: {
       type: "object",
       properties: {},
+      required: []
+    }
+  }
+}
+
+/**
+ * أداة الحصول على metadata المصدر (إجمالي، صفحات)
+ */
+export const TOOL_GET_SOURCE_METADATA: ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "get_source_metadata",
+    description: "معلومات وصفية عن مصدر بيانات: العدد الكلي، عدد الصفحات. استخدمها للإجابة عن: كم خبر كلي؟ كم صفحة؟",
+    parameters: {
+      type: "object",
+      properties: {
+        source: {
+          type: "string",
+          enum: SOURCE_ENUM,
+          description: "المصدر المطلوب (افتراضي: articles_latest)"
+        }
+      },
+      required: []
+    }
+  }
+}
+
+/**
+ * أداة تصفح صفحة محددة من المصدر
+ */
+export const TOOL_BROWSE_SOURCE_PAGE: ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "browse_source_page",
+    description: "تصفح صفحة محددة من مصدر بيانات. استخدمها للوصول لأقدم أو أحدث المحتوى. مثلاً: أول خبر نُشر (order=oldest, page=1)، أو آخر صفحة.",
+    parameters: {
+      type: "object",
+      properties: {
+        source: {
+          type: "string",
+          enum: ["articles_latest", "videos_latest"],
+          description: "المصدر"
+        },
+        page: {
+          type: "number",
+          minimum: 1,
+          description: "رقم الصفحة (افتراضي: 1)"
+        },
+        per_page: {
+          type: "number",
+          minimum: 1,
+          maximum: 50,
+          description: "عدد العناصر بالصفحة (افتراضي: 10)"
+        },
+        order: {
+          type: "string",
+          enum: ["newest", "oldest"],
+          description: "الترتيب: newest = الأحدث أولاً، oldest = الأقدم أولاً (للوصول لأول خبر نُشر)"
+        }
+      },
       required: []
     }
   }
@@ -297,7 +357,9 @@ export const ALL_SITE_TOOLS: ChatCompletionTool[] = [
   TOOL_LIST_SOURCE_CATEGORIES,
   TOOL_GET_LATEST_PROJECTS,
   TOOL_GET_LATEST_BY_SOURCE,
-  TOOL_GET_STATISTICS
+  TOOL_GET_STATISTICS,
+  TOOL_GET_SOURCE_METADATA,
+  TOOL_BROWSE_SOURCE_PAGE
 ]
 
 /**
@@ -312,7 +374,9 @@ export const ALLOWED_TOOL_NAMES = [
   "list_source_categories",
   "get_latest_projects",
   "get_latest_by_source",
-  "get_statistics"
+  "get_statistics",
+  "get_source_metadata",
+  "browse_source_page"
 ] as const
 
 export type AllowedToolName = (typeof ALLOWED_TOOL_NAMES)[number]

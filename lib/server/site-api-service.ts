@@ -975,7 +975,7 @@ export async function siteSearchContent(
   limit: number = 5,
   params: SourceFetchParams = {}
 ): Promise<APICallResult> {
-  const safeLimit = Math.min(Math.max(limit || 5, 1), 20)
+  const safeLimit = Math.min(Math.max(limit || 5, 1), 50)
   const candidates = source === "auto"
     ? detectQueryIntentSources(query).slice(0, 3)
     : [source]
@@ -1009,12 +1009,101 @@ export async function siteSearchContent(
     if (!deduped.has(key)) deduped.set(key, item)
   }
 
-  const scored = Array.from(deduped.values())
+  let scored = Array.from(deduped.values())
     .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, safeLimit)
     .map(x => x.item)
+
+  // ✅ بحث موسّع: إذا لم نجد نتائج كافية، نبحث في صفحات إضافية
+  if (scored.length < safeLimit && query.trim().length > 2) {
+    const paginatedSources: Partial<Record<SiteSourceName, string>> = {
+      articles_latest: "/alkafeel_back_test/api/v1/articles/GetLast/50/all?page=",
+      videos_latest: "/alkafeel_back_test/api/v1/videos/latest/50?page="
+    }
+
+    const additionalItems: any[] = []
+
+    for (const s of candidates) {
+      const baseEndpoint = paginatedSources[s]
+      if (!baseEndpoint) continue
+
+      // المرحلة 1: الصفحات القريبة (2-6)
+      const nearPages = [2, 3, 4, 5, 6]
+      for (const page of nearPages) {
+        if (additionalItems.length + scored.length >= safeLimit) break
+        const result = await callSiteAPI(`${baseEndpoint}${page}`)
+        if (!result.success || !result.data?.data) continue
+
+        const normalized = normalizeSourceDataset(s, result.data)
+        const pageScored = normalized
+          .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
+          .filter(x => x.score > 0)
+
+        if (pageScored.length > 0) {
+          additionalItems.push(...pageScored.map(x => x.item))
+        }
+      }
+
+      // المرحلة 2: إذا لا زلنا لم نجد — نبحث في عينة من الصفحات القديمة
+      if (additionalItems.length + scored.length < safeLimit) {
+        const metaEndpoint = s === "articles_latest"
+          ? "/alkafeel_back_test/api/v1/articles/GetLast/1/all?page=1"
+          : "/alkafeel_back_test/api/v1/videos/latest/1?page=1"
+        const meta = await callSiteAPI(metaEndpoint)
+        if (meta.success && meta.data?.last_page) {
+          const lastPage = Math.ceil(meta.data.total / 50)
+          // عينة: صفحات من المنتصف والنهاية
+          const samplePages = [
+            Math.floor(lastPage * 0.25),
+            Math.floor(lastPage * 0.5),
+            Math.floor(lastPage * 0.75),
+            lastPage - 1,
+            lastPage
+          ].filter(p => p > 6 && p <= lastPage)
+
+          for (const page of samplePages) {
+            if (additionalItems.length + scored.length >= safeLimit) break
+            const result = await callSiteAPI(`${baseEndpoint}${page}`)
+            if (!result.success || !result.data?.data) continue
+
+            const normalized = normalizeSourceDataset(s, result.data)
+            const pageScored = normalized
+              .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
+              .filter(x => x.score > 0)
+
+            if (pageScored.length > 0) {
+              additionalItems.push(...pageScored.map(x => x.item))
+            }
+          }
+        }
+      }
+    }
+
+    if (additionalItems.length > 0) {
+      // دمج وإزالة التكرار
+      const allItems = [...scored, ...additionalItems]
+      const finalDeduped = new Map<string, any>()
+      for (const item of allItems) {
+        const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
+        if (!finalDeduped.has(key)) finalDeduped.set(key, item)
+      }
+      scored = Array.from(finalDeduped.values())
+        .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, safeLimit)
+        .map(x => x.item)
+    }
+  }
+
+  // تقييم جودة النتائج — إذا أفضل نتيجة لا تطابق بشكل قوي، نضيف تلميح
+  const bestScore = scored.length > 0 ? scoreUnifiedItem(scored[0], query) : 0
+  const queryWords = query.trim().split(/\s+/).filter(w => w.length > 2)
+  const hasExactMatch = scored.some(item => {
+    const name = String(item?.name || "").toLowerCase()
+    return queryWords.length >= 3 && queryWords.every(w => name.includes(w.toLowerCase()))
+  })
 
   return {
     success: true,
@@ -1023,7 +1112,10 @@ export async function siteSearchContent(
       total: scored.length,
       query,
       source_used: source,
-      candidate_sources: candidates
+      candidate_sources: candidates,
+      ...(!hasExactMatch && scored.length < safeLimit && {
+        hint: "البحث شمل أحدث المحتوى فقط. إذا كان السؤال عن محتوى قديم أو محدد، جرّب browse_source_page مع order=oldest للوصول لأقدم المحتوى، أو get_content_by_id إذا تعرف رقم المعرّف."
+      })
     }
   }
 }
@@ -1035,6 +1127,7 @@ export async function siteGetContentById(
 ): Promise<APICallResult> {
   const candidates = source === "auto" ? ALL_SOURCES : [source]
 
+  // الخطوة 1: البحث في الكاش المحلي أولاً
   for (const s of candidates) {
     const result = await getSourceDocuments(s, { ...params, id })
     if (!result.success || !Array.isArray(result.data)) continue
@@ -1043,6 +1136,90 @@ export async function siteGetContentById(
       return {
         success: true,
         data: hit
+      }
+    }
+  }
+
+  // الخطوة 2: للمصادر المُصفحنة — بحث ذكي بالصفحات
+  const numericId = parseInt(id)
+  const paginatedSources: Partial<Record<SiteSourceName, string>> = {
+    articles_latest: "/alkafeel_back_test/api/v1/articles/GetLast/50/all?page=",
+    videos_latest: "/alkafeel_back_test/api/v1/videos/latest/50?page="
+  }
+
+  for (const s of candidates) {
+    const baseEndpoint = paginatedSources[s]
+    if (!baseEndpoint) continue
+
+    // جلب metadata لمعرفة total
+    const metaEndpoint = s === "articles_latest"
+      ? "/alkafeel_back_test/api/v1/articles/GetLast/1/all?page=1"
+      : "/alkafeel_back_test/api/v1/videos/latest/1?page=1"
+    const meta = await callSiteAPI(metaEndpoint)
+    if (!meta.success || !meta.data?.total) continue
+
+    const total = meta.data.total
+    const perPage = 50
+    const lastPage = Math.ceil(total / perPage)
+
+    if (!Number.isFinite(numericId) || numericId < 1) continue
+
+    // التقدير الأولي
+    const estimatedPosition = total - numericId + 1
+    let targetPage = Math.max(1, Math.min(lastPage, Math.ceil(estimatedPosition / perPage)))
+
+    // بحث ذكي: حتى 5 محاولات مع تصحيح بناءً على IDs الصفحة
+    const triedPages = new Set<number>()
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (triedPages.has(targetPage)) break
+      triedPages.add(targetPage)
+
+      const result = await callSiteAPI(`${baseEndpoint}${targetPage}`)
+      if (!result.success || !result.data?.data) break
+
+      const items = Array.isArray(result.data.data) ? result.data.data : []
+      if (items.length === 0) break
+
+      // البحث في الصفحة الحالية
+      const hit = items.find((item: any) => String(item?.id) === String(id))
+      if (hit) {
+        const normalized = normalizeSourceDataset(s, { data: [hit] })
+        return {
+          success: true,
+          data: normalized[0] || hit
+        }
+      }
+
+      // تصحيح ذكي: نقارن ID المطلوب مع IDs الصفحة لتقدير الاتجاه
+      const pageIds = items.map((item: any) => parseInt(item?.id)).filter(Number.isFinite)
+      if (pageIds.length === 0) break
+
+      const maxId = Math.max(...pageIds)
+      const minId = Math.min(...pageIds)
+
+      if (numericId > maxId) {
+        // ID أكبر = مقال أحدث = صفحة أقل
+        const diff = Math.max(1, Math.ceil((numericId - maxId) / perPage))
+        targetPage = Math.max(1, targetPage - diff)
+      } else if (numericId < minId) {
+        // ID أصغر = مقال أقدم = صفحة أكبر
+        const diff = Math.max(1, Math.ceil((minId - numericId) / perPage))
+        targetPage = Math.min(lastPage, targetPage + diff)
+      } else {
+        // ID ضمن المدى لكن غير موجود (فجوة) — نجرب الصفحات المجاورة
+        for (const offset of [1, -1]) {
+          const nearPage = targetPage + offset
+          if (nearPage < 1 || nearPage > lastPage || triedPages.has(nearPage)) continue
+          triedPages.add(nearPage)
+          const r2 = await callSiteAPI(`${baseEndpoint}${nearPage}`)
+          if (!r2.success || !r2.data?.data) continue
+          const nearHit = r2.data.data.find((item: any) => String(item?.id) === String(id))
+          if (nearHit) {
+            const normalized = normalizeSourceDataset(s, { data: [nearHit] })
+            return { success: true, data: normalized[0] || nearHit }
+          }
+        }
+        break
       }
     }
   }
@@ -1100,7 +1277,7 @@ export async function siteGetLatestBySource(
   limit: number = 5,
   params: SourceFetchParams = {}
 ): Promise<APICallResult> {
-  const safeLimit = Math.min(Math.max(limit || 5, 1), 20)
+  const safeLimit = Math.min(Math.max(limit || 5, 1), 50)
   const candidates = source === "auto"
     ? ["articles_latest", "videos_latest", "shrine_history_by_section"] as SiteSourceName[]
     : [source]
@@ -1130,15 +1307,48 @@ export async function siteGetLatestBySource(
 }
 
 export async function siteGetMultiSourceStatistics(): Promise<APICallResult> {
-  const targets: SiteSourceName[] = ["articles_latest", "videos_latest", "shrine_history_by_section", "lang_words_ar"]
-  const stats = await Promise.all(targets.map(s => getSourceDocuments(s)))
+  // جلب الإحصائيات الحقيقية من pagination metadata بدل عدّ العناصر المحلية
+  const paginatedSources: { source: SiteSourceName; endpoint: string }[] = [
+    { source: "articles_latest", endpoint: "/alkafeel_back_test/api/v1/articles/GetLast/1/all?page=1" },
+    { source: "videos_latest", endpoint: "/alkafeel_back_test/api/v1/videos/latest/1?page=1" }
+  ]
 
-  const bySource = targets.map((s, i) => ({
-    source: s,
-    count: stats[i].success && Array.isArray(stats[i].data) ? stats[i].data.length : 0
+  const paginationResults = await Promise.all(
+    paginatedSources.map(async ({ source, endpoint }) => {
+      const result = await callSiteAPI(endpoint)
+      if (result.success && result.data && typeof result.data.total === "number") {
+        return {
+          source,
+          total: result.data.total,
+          last_page: result.data.last_page || 1,
+          per_page: parseInt(result.data.per_page) || 0
+        }
+      }
+      // fallback: عدّ العناصر المحلية
+      const docs = await getSourceDocuments(source)
+      return {
+        source,
+        total: docs.success && Array.isArray(docs.data) ? docs.data.length : 0,
+        last_page: 1,
+        per_page: 0
+      }
+    })
+  )
+
+  // المصادر غير المُصفحنة — نعدّها محلياً
+  const nonPaginatedSources: SiteSourceName[] = ["shrine_history_by_section", "lang_words_ar"]
+  const nonPaginated = await Promise.all(nonPaginatedSources.map(async s => {
+    const docs = await getSourceDocuments(s)
+    return {
+      source: s,
+      total: docs.success && Array.isArray(docs.data) ? docs.data.length : 0,
+      last_page: 1,
+      per_page: 0
+    }
   }))
 
-  const total = bySource.reduce((acc, cur) => acc + cur.count, 0)
+  const bySource = [...paginationResults, ...nonPaginated]
+  const total = bySource.reduce((acc, cur) => acc + cur.total, 0)
 
   return {
     success: true,
@@ -1146,6 +1356,119 @@ export async function siteGetMultiSourceStatistics(): Promise<APICallResult> {
       total_records: total,
       sources_count: bySource.length,
       by_source: bySource
+    }
+  }
+}
+
+/**
+ * جلب metadata المصدر (عدد كلي، صفحات، إلخ) بدون جلب كل البيانات
+ */
+export async function siteGetSourceMetadata(
+  source: SiteSourceName | "auto" = "articles_latest"
+): Promise<APICallResult> {
+  const config = getSiteAPIConfig()
+
+  // نبني endpoint بـ per_page=1 فقط لجلب metadata سريعاً
+  const metadataEndpoints: Partial<Record<SiteSourceName, string>> = {
+    articles_latest: "/alkafeel_back_test/api/v1/articles/GetLast/1/all?page=1",
+    videos_latest: "/alkafeel_back_test/api/v1/videos/latest/1?page=1"
+  }
+
+  const targets = source === "auto"
+    ? ["articles_latest", "videos_latest"] as SiteSourceName[]
+    : [source]
+
+  const results = await Promise.all(
+    targets.map(async s => {
+      const endpoint = metadataEndpoints[s]
+      if (endpoint) {
+        const result = await callSiteAPI(endpoint)
+        if (result.success && result.data) {
+          return {
+            source: s,
+            total: result.data.total ?? 0,
+            current_page: result.data.current_page ?? 1,
+            last_page: result.data.last_page ?? 1,
+            per_page: parseInt(result.data.per_page) || 0,
+            has_pagination: true
+          }
+        }
+      }
+      // fallback
+      const docs = await getSourceDocuments(s)
+      return {
+        source: s,
+        total: docs.success && Array.isArray(docs.data) ? docs.data.length : 0,
+        current_page: 1,
+        last_page: 1,
+        per_page: 0,
+        has_pagination: false
+      }
+    })
+  )
+
+  return {
+    success: true,
+    data: results.length === 1 ? results[0] : { sources: results }
+  }
+}
+
+/**
+ * تصفح صفحة محددة من مصدر (للوصول لأقدم/أحدث الأخبار)
+ */
+export async function siteBrowseSourcePage(
+  source: SiteSourceName = "articles_latest",
+  page: number = 1,
+  perPage: number = 10,
+  order: "newest" | "oldest" = "newest"
+): Promise<APICallResult> {
+  const safePerPage = Math.min(Math.max(perPage, 1), 50)
+  const safePage = Math.max(page, 1)
+
+  const pageEndpoints: Partial<Record<SiteSourceName, string>> = {
+    articles_latest: `/alkafeel_back_test/api/v1/articles/GetLast/${safePerPage}/all?page=`,
+    videos_latest: `/alkafeel_back_test/api/v1/videos/latest/${safePerPage}?page=`
+  }
+
+  const baseEndpoint = pageEndpoints[source]
+  if (!baseEndpoint) {
+    return {
+      success: false,
+      error: `المصدر ${source} لا يدعم التصفح بالصفحات`
+    }
+  }
+
+  // إذا طلب "أقدم" — نحتاج أولاً معرفة آخر صفحة
+  let targetPage = safePage
+  if (order === "oldest") {
+    const metaResult = await callSiteAPI(`${baseEndpoint}1`)
+    if (metaResult.success && metaResult.data?.last_page) {
+      targetPage = metaResult.data.last_page - (safePage - 1)
+      if (targetPage < 1) targetPage = 1
+    }
+  }
+
+  const endpoint = `${baseEndpoint}${targetPage}`
+  const result = await callSiteAPI(endpoint)
+  if (!result.success) return result
+
+  const normalized = normalizeSourceDataset(source, result.data)
+
+  // عكس الترتيب إذا طُلب الأقدم لعرض من الأقدم للأحدث
+  if (order === "oldest") {
+    normalized.reverse()
+  }
+
+  return {
+    success: true,
+    data: {
+      items: normalized,
+      count: normalized.length,
+      page: targetPage,
+      total: result.data?.total ?? 0,
+      last_page: result.data?.last_page ?? 1,
+      source,
+      order
     }
   }
 }
@@ -1216,6 +1539,17 @@ export async function executeToolByName(
 
       case "get_statistics":
         return await siteGetMultiSourceStatistics()
+
+      case "get_source_metadata":
+        return await siteGetSourceMetadata(args.source || "auto")
+
+      case "browse_source_page":
+        return await siteBrowseSourcePage(
+          args.source || "articles_latest",
+          args.page || 1,
+          args.per_page || 10,
+          args.order || "newest"
+        )
 
       default:
         return {

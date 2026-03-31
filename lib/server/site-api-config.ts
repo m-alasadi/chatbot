@@ -25,16 +25,16 @@ export function getSiteAPIConfig(): SiteAPIConfig {
   const sourceEndpoints: Record<string, string> = {
     articles_latest:
       process.env.SITE_API_ARTICLES_ENDPOINT ||
-      "/alkafeel_back_test/api/v1/articles/GetLast/16/all?page=1",
+      "/alkafeel_back_test/api/v1/articles/GetLast/50/all?page=1",
     videos_latest:
       process.env.SITE_API_VIDEOS_LATEST_ENDPOINT ||
-      "/alkafeel_back_test/api/v1/videos/latest/16?page=1",
+      "/alkafeel_back_test/api/v1/videos/latest/50?page=1",
     videos_categories:
       process.env.SITE_API_VIDEOS_CATEGORIES_ENDPOINT ||
       "/alkafeel_back_test/api/v1/videos/getCats",
     videos_by_category:
       process.env.SITE_API_VIDEOS_BY_CATEGORY_ENDPOINT ||
-      "/alkafeel_back_test/api/v1/videos/ByCat/{catId}/16?page=1",
+      "/alkafeel_back_test/api/v1/videos/ByCat/{catId}/50?page=1",
     shrine_history_sections:
       process.env.SITE_API_SHRINE_HISTORY_SECTIONS_ENDPOINT ||
       "/alkafeel_back_test/api/v1/alkafeel-histories/getOtherSec",
