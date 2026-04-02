@@ -58,7 +58,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
     return {
       id: project.id,
       name: project.name,
-      description: truncate(project.description || "", detailed ? 500 : 150),
+      description: truncate(project.description || "", detailed ? 600 : 250),
       sections: sectionNames,
       url: historyUrl,
     }
@@ -69,7 +69,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
     const sectionNames = Array.isArray(project.sections)
       ? project.sections.map((s: any) => s.name).filter(Boolean)
       : []
-    const maxPropLen = detailed ? 2000 : 300
+    const maxPropLen = detailed ? 2000 : 400
     const properties: Record<string, string> = {}
     if (Array.isArray(project.properties)) {
       for (const prop of project.properties) {
@@ -82,7 +82,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
     return {
       id: project.id,
       name: project.name,
-      description: truncate(project.description || "", detailed ? 500 : 150),
+      description: truncate(project.description || "", detailed ? 600 : 250),
       sections: sectionNames,
       properties: Object.keys(properties).length > 0 ? properties : undefined,
       url: articleUrl,
@@ -120,7 +120,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
     : []
 
   // استخراج الخصائص المهمة — قص النصوص الطويلة في البحث، كاملة في التفاصيل
-  const maxPropLen = detailed ? 2000 : 300
+  const maxPropLen = detailed ? 2000 : 400
   const properties: Record<string, string> = {}
   if (Array.isArray(project.properties)) {
     for (const prop of project.properties) {
@@ -134,7 +134,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
   return {
     id: project.id,
     name: project.name,
-    description: truncate(project.description || "", detailed ? 500 : 150),
+    description: truncate(project.description || "", detailed ? 600 : 250),
     sections: sectionNames,
     properties: Object.keys(properties).length > 0 ? properties : undefined,
     url: articleUrl,
@@ -166,14 +166,22 @@ function cleanResultForGPT(result: APICallResult): any {
 
   const data = result.data
   
-  // إذا كانت نتائج بحث (results array) — مختصرة
+  // إذا كانت نتائج بحث (results array) — مع snippet
   if (data?.results && Array.isArray(data.results)) {
     return {
       success: true,
       data: {
-        results: data.results.map((p: any) => cleanProject(p, false)),
+        results: data.results.map((p: any) => {
+          const cleaned = cleanProject(p, false)
+          // Include evidence snippet if available
+          if (p._snippet) {
+            cleaned.snippet = p._snippet
+          }
+          return cleaned
+        }),
         total: data.total,
-        query: data.query
+        query: data.query,
+        ...(data.hint && { hint: data.hint })
       }
     }
   }
@@ -426,6 +434,41 @@ export async function resolveToolCalls(
           iterations
         }
       }
+
+      // G. Reduce unsafe direct-answer: if first iteration produces a
+      // direct answer but the user appears to ask about site content,
+      // force retrieval by re-sending with tool_choice=required (once).
+      if (iterations === 1 && !toolsWereCalled) {
+        const lastUserMsg = getLastUserMessage(messages)
+        if (lastUserMsg && looksLikeSiteContentQuery(lastUserMsg)) {
+          console.log(`[Tool Resolution] Direct answer detected for content query, forcing tool use`)
+          currentMessages.pop() // remove the direct answer
+          try {
+            const forcedResponse = await openai.chat.completions.create({
+              model,
+              messages: currentMessages,
+              tools,
+              tool_choice: { type: "function", function: { name: "search_content" } },
+              temperature: 0.5,
+              max_tokens: 1200
+            })
+            const forcedMsg = forcedResponse.choices[0].message
+            currentMessages.push(forcedMsg)
+            if (forcedMsg.tool_calls && forcedMsg.tool_calls.length > 0) {
+              toolsWereCalled = true
+              console.log(`[Tool Resolution] Forced ${forcedMsg.tool_calls.length} tool call(s)`)
+              const toolResponses = await handleToolCalls(forcedMsg.tool_calls)
+              currentMessages.push(...toolResponses)
+              continue
+            }
+          } catch (err) {
+            console.warn(`[Tool Resolution] Forced tool_choice failed, using direct answer`)
+          }
+          // If forcing failed, fall through to direct answer
+          currentMessages.push(assistantMessage)
+        }
+      }
+
       // سؤال بسيط بدون أدوات → نرجعه كـ directAnswer
       return {
         resolvedMessages: currentMessages,
@@ -448,6 +491,42 @@ export async function resolveToolCalls(
     needsFinalCall: true,
     iterations
   }
+}
+
+/** Extract the last user message text from the conversation */
+function getLastUserMessage(messages: ChatCompletionMessageParam[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (msg.role === "user" && typeof msg.content === "string") {
+      return msg.content
+    }
+  }
+  return null
+}
+
+/** Heuristic: does the message look like a question about alkafeel site content? */
+function looksLikeSiteContentQuery(text: string): boolean {
+  const lower = text.toLowerCase()
+  // Greetings / meta questions should NOT be forced
+  const greetings = ["مرحبا", "اهلا", "سلام", "شكرا", "كيف حالك", "hi", "hello", "من انت", "ما اسمك"]
+  if (greetings.some(g => lower.includes(g)) && lower.length < 30) return false
+
+  // Content signals
+  const contentSignals = [
+    "خبر", "اخبار", "مقال", "فيديو", "تاريخ", "مشروع", "خطب", "خطبه", "جمعه",
+    "العتبه", "العباس", "الحرم", "كربلاء", "زياره", "صلاه", "موكب",
+    "افتتاح", "بناء", "ترميم", "توسعه", "مستشفى", "مدرسه", "جامعه",
+    "ابحث", "اريد", "اعطني", "وين", "شنو", "ماذا", "هل يوجد", "كم عدد",
+    "احدث", "اقدم", "اخر", "اول", "ارشيف",
+    "فعاليه", "نشاط", "برنامج", "حفل", "مؤتمر", "ندوه", "معرض",
+  ]
+  // Normalize alef/ya for matching
+  const normalized = lower
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+
+  return contentSignals.some(s => normalized.includes(s))
 }
 
 /**

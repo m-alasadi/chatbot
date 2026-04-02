@@ -296,30 +296,129 @@ function pickText(...values: any[]): string {
   return ""
 }
 
+// ============================================================
+// A. Arabic normalization utilities
+// ============================================================
+
+/** Remove Arabic diacritics / tashkeel */
+const DIACRITICS_RE = /[\u064B-\u065F\u0670\u06D6-\u06ED]/g
+/** Tatweel / kashida */
+const TATWEEL_RE = /\u0640/g
+
+function normalizeArabic(text: string): string {
+  if (!text) return ""
+  return text
+    .toLowerCase()
+    .replace(DIACRITICS_RE, "")
+    .replace(TATWEEL_RE, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function tokenizeArabicQuery(query: string): string[] {
+  const norm = normalizeArabic(query)
+  return norm.split(/\s+/).filter(w => w.length > 1)
+}
+
+// ============================================================
+// B. Weighted source routing (replaces detectQueryIntentSources)
+// ============================================================
+
+interface SourceRouteHint {
+  keywords: string[]
+  weight: number
+}
+
+const SOURCE_HINTS: Record<SiteSourceName, SourceRouteHint[]> = {
+  articles_latest: [
+    { keywords: ["خبر", "اخبار", "مقال", "مقالات", "تقرير", "بيان", "اعلان", "نشاط", "فعاليه", "مشروع", "افتتاح", "زياره", "موكب", "خطبه", "خطب", "جمعه", "صلاه"], weight: 6 },
+  ],
+  videos_latest: [
+    { keywords: ["فيديو", "فديو", "مرئي", "يوتيوب", "مقطع", "بث", "مباشر", "حلقه", "لقاء"], weight: 8 },
+  ],
+  videos_categories: [
+    { keywords: ["اقسام الفيديو", "تصنيفات الفيديو", "فئات الفيديو"], weight: 8 },
+  ],
+  videos_by_category: [
+    // parametric — هل المعامل متوفر يُحسم في مكان آخر
+    { keywords: ["فيديو", "فديو", "مرئي"], weight: 4 },
+  ],
+  shrine_history_sections: [
+    { keywords: ["اقسام التاريخ", "اقسام تاريخ", "فهرس التاريخ"], weight: 8 },
+    { keywords: ["تاريخ", "سيره", "تراث"], weight: 3 },
+  ],
+  shrine_history_by_section: [
+    { keywords: ["تاريخ العتبه", "تاريخ الحرم", "تاريخ المقام", "عمارات", "توسعه", "ترميم"], weight: 8 },
+    { keywords: ["تاريخ", "سيره", "تراث"], weight: 5 },
+  ],
+  abbas_history_by_id: [
+    { keywords: ["العباس", "ابو الفضل", "ابا الفضل", "قمر بني هاشم", "سيره العباس"], weight: 9 },
+    { keywords: ["تاريخ", "سيره"], weight: 2 },
+  ],
+  lang_words_ar: [
+    { keywords: ["ترجمه", "لغه", "كلمه", "مصطلح", "معني", "قاموس", "تفسير كلمه"], weight: 9 },
+  ],
+}
+
+/** Sources that need a parameter to be useful */
+const PARAMETRIC_REQUIREMENTS: Partial<Record<SiteSourceName, keyof SourceFetchParams>> = {
+  videos_by_category: "category_id",
+  shrine_history_by_section: "section_id",
+  abbas_history_by_id: "id",
+}
+
+function rankCandidateSources(query: string, params?: SourceFetchParams): SiteSourceName[] {
+  const q = normalizeArabic(query)
+  const tokens = tokenizeArabicQuery(query)
+
+  const scores: { source: SiteSourceName; score: number }[] = ALL_SOURCES.map(source => {
+    // Skip parametric sources when required param is missing
+    const requiredParam = PARAMETRIC_REQUIREMENTS[source]
+    if (requiredParam && (!params || !params[requiredParam])) {
+      // shrine_history_by_section gets a small base score (API returns default section)
+      if (source === "shrine_history_by_section") {
+        // allow with reduced weight — the endpoint has a default
+      } else {
+        return { source, score: 0 }
+      }
+    }
+
+    let score = 0
+    const hints = SOURCE_HINTS[source] || []
+    for (const hint of hints) {
+      for (const kw of hint.keywords) {
+        const kwNorm = normalizeArabic(kw)
+        if (q.includes(kwNorm)) {
+          score += hint.weight
+        } else {
+          // token-level match
+          for (const t of tokens) {
+            if (kwNorm.includes(t) || t.includes(kwNorm)) {
+              score += Math.floor(hint.weight * 0.5)
+            }
+          }
+        }
+      }
+    }
+
+    // Baseline: articles_latest always gets a small base score (catch-all)
+    if (source === "articles_latest") score = Math.max(score, 2)
+
+    return { source, score }
+  })
+
+  return scores
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(s => s.source)
+}
+
+// Keep backward compat — old name redirects to new
 function detectQueryIntentSources(query: string): SiteSourceName[] {
-  const q = (query || "").toLowerCase()
-
-  const videoHints = ["فيديو", "فديو", "مرئي", "يوتيوب", "مقطع"]
-  if (videoHints.some(k => q.includes(k))) {
-    return ["videos_latest", "videos_categories", "videos_by_category", "articles_latest"]
-  }
-
-  const historyHints = ["تاريخ", "سيرة", "العباس", "العتبة", "أبو الفضل"]
-  if (historyHints.some(k => q.includes(k))) {
-    return [
-      "shrine_history_by_section",
-      "abbas_history_by_id",
-      "shrine_history_sections",
-      "articles_latest"
-    ]
-  }
-
-  const langHints = ["ترجمة", "لغة", "كلمة", "مصطلح", "معنى"]
-  if (langHints.some(k => q.includes(k))) {
-    return ["lang_words_ar", "articles_latest", "videos_latest"]
-  }
-
-  return ["articles_latest", "videos_latest", "shrine_history_by_section", "lang_words_ar"]
+  return rankCandidateSources(query)
 }
 
 function buildSourceEndpoint(
@@ -334,15 +433,18 @@ function buildSourceEndpoint(
 
   switch (source) {
     case "videos_by_category": {
-      const catId = params.category_id || "1a2f5"
+      const catId = params.category_id
+      if (!catId) throw new Error("videos_by_category requires category_id")
       return fillEndpointTemplate(endpoint, { catId })
     }
     case "shrine_history_by_section": {
+      // section_id defaults to "1" — the API accepts it and returns the first section
       const secId = params.section_id || "1"
       return fillEndpointTemplate(endpoint, { secId })
     }
     case "abbas_history_by_id": {
-      const id = params.id || "9"
+      const id = params.id
+      if (!id) throw new Error("abbas_history_by_id requires id")
       return fillEndpointTemplate(endpoint, { id })
     }
     default:
@@ -944,29 +1046,214 @@ export async function siteGetStatistics(): Promise<APICallResult> {
   }
 }
 
-function scoreUnifiedItem(item: any, query: string): number {
-  const q = (query || "").trim().toLowerCase()
-  if (!q) return 1
+// ============================================================
+// C. Improved unified scoring with Arabic normalization
+// ============================================================
 
-  const words = q.split(/\s+/).filter(Boolean)
-  const fields = [
-    String(item?.name || "").toLowerCase(),
-    String(item?.description || "").toLowerCase(),
-    String(item?.source_type || "").toLowerCase(),
-    ...(Array.isArray(item?.sections)
-      ? item.sections.map((s: any) => String(s?.name || "").toLowerCase())
-      : [])
-  ]
+interface ScoredField {
+  text: string
+  weight: number
+}
 
-  let score = 0
-  for (const f of fields) {
-    if (!f) continue
-    if (f.includes(q)) score += 10
-    for (const w of words) {
-      if (w.length > 1 && f.includes(w)) score += 3
+function getUnifiedSearchableFields(item: any): ScoredField[] {
+  const fields: ScoredField[] = []
+
+  const push = (val: any, weight: number) => {
+    if (typeof val === "string" && val.trim().length > 0) {
+      fields.push({ text: normalizeArabic(val), weight })
     }
   }
+
+  // name/title — highest weight
+  push(item?.name, 12)
+
+  // description — high weight
+  push(item?.description, 6)
+
+  // address
+  push(item?.address, 5)
+
+  // sections
+  if (Array.isArray(item?.sections)) {
+    for (const s of item.sections) {
+      push(s?.name, 3)
+    }
+  }
+
+  // properties (name + value)
+  if (Array.isArray(item?.properties)) {
+    for (const prop of item.properties) {
+      push(prop?.name, 3)
+      const val = prop?.pivot?.value || prop?.value
+      push(val, 4)
+    }
+  }
+
+  // tags
+  if (Array.isArray(item?.kftags)) {
+    for (const tag of item.kftags) {
+      push(tag?.title, 3)
+      push(tag?.name, 3)
+    }
+  }
+
+  // kfnews
+  if (Array.isArray(item?.kfnews)) {
+    for (const news of item.kfnews) {
+      push(news?.title, 2)
+      push(news?.description, 1)
+    }
+  }
+
+  // source_raw useful text (low weight secondary fields)
+  if (item?.source_raw) {
+    push(item.source_raw?.caption, 2)
+    push(item.source_raw?.summary, 2)
+    push(item.source_raw?.cat_title, 2)
+  }
+
+  return fields
+}
+
+function scoreUnifiedItem(item: any, query: string): number {
+  const normQuery = normalizeArabic(query)
+  if (!normQuery) return 1
+
+  const tokens = tokenizeArabicQuery(query)
+  const fields = getUnifiedSearchableFields(item)
+
+  let score = 0
+  const totalTokens = tokens.length
+
+  for (const { text, weight } of fields) {
+    if (!text) continue
+
+    // Exact full-query match — highest boost
+    if (text.includes(normQuery)) {
+      score += weight * 4
+    }
+
+    // Token-level matching
+    let matchedTokens = 0
+    for (const token of tokens) {
+      if (text.includes(token)) {
+        matchedTokens++
+        score += weight
+      }
+    }
+
+    // All-tokens-present bonus
+    if (totalTokens >= 2 && matchedTokens === totalTokens) {
+      score += weight * 2
+    }
+  }
+
+  // Penalize very short generic names that match weakly
+  const nameLen = (item?.name || "").length
+  if (nameLen < 5 && score > 0 && score < 10) {
+    score = Math.floor(score * 0.5)
+  }
+
   return score
+}
+
+// ============================================================
+// D. Evidence snippet builder
+// ============================================================
+
+function buildEvidenceSnippet(item: any, query: string): string {
+  const normQuery = normalizeArabic(query)
+  const tokens = tokenizeArabicQuery(query)
+  if (!normQuery || tokens.length === 0) {
+    return truncateSnippet(item?.description || item?.name || "", 200)
+  }
+
+  // Collect candidate texts ordered by relevance
+  const candidates: { text: string; original: string; weight: number }[] = []
+  const addCandidate = (original: string | undefined, weight: number) => {
+    if (typeof original === "string" && original.trim().length > 0) {
+      candidates.push({ text: normalizeArabic(original), original, weight })
+    }
+  }
+
+  addCandidate(item?.name, 10)
+  addCandidate(item?.description, 7)
+  addCandidate(item?.address, 5)
+  if (item?.source_raw?.text) addCandidate(item.source_raw.text, 6)
+  if (item?.source_raw?.caption) addCandidate(item.source_raw.caption, 4)
+  if (item?.source_raw?.summary) addCandidate(item.source_raw.summary, 4)
+  if (Array.isArray(item?.properties)) {
+    for (const prop of item.properties) {
+      const val = prop?.pivot?.value || prop?.value
+      if (typeof val === "string") addCandidate(val, 3)
+    }
+  }
+
+  // Find best match: prefer field with full-query or most tokens
+  let bestOriginal = ""
+  let bestScore = -1
+  let bestMatchPos = -1
+
+  for (const { text, original, weight } of candidates) {
+    let fieldScore = 0
+    let matchPos = -1
+
+    const fullIdx = text.indexOf(normQuery)
+    if (fullIdx >= 0) {
+      fieldScore = weight * 4
+      matchPos = fullIdx
+    } else {
+      let matched = 0
+      for (const t of tokens) {
+        const idx = text.indexOf(t)
+        if (idx >= 0) {
+          matched++
+          if (matchPos < 0) matchPos = idx
+        }
+      }
+      fieldScore = matched * weight
+    }
+
+    if (fieldScore > bestScore) {
+      bestScore = fieldScore
+      bestOriginal = original
+      bestMatchPos = matchPos
+    }
+  }
+
+  if (!bestOriginal) {
+    return truncateSnippet(item?.description || item?.name || "", 200)
+  }
+
+  // Extract window around match
+  return extractWindow(bestOriginal, bestMatchPos, 250)
+}
+
+function truncateSnippet(text: string, max: number): string {
+  if (!text) return ""
+  const clean = text.replace(/\s+/g, " ").trim()
+  if (clean.length <= max) return clean
+  return clean.substring(0, max) + "…"
+}
+
+function extractWindow(text: string, matchPos: number, windowSize: number): string {
+  const clean = text.replace(/\s+/g, " ").trim()
+  if (clean.length <= windowSize) return clean
+
+  if (matchPos < 0) matchPos = 0
+  // Map matchPos proportionally if text was cleaned
+  const ratio = clean.length / Math.max(text.length, 1)
+  const approxPos = Math.floor(matchPos * ratio)
+
+  const half = Math.floor(windowSize / 2)
+  let start = Math.max(0, approxPos - half)
+  let end = Math.min(clean.length, start + windowSize)
+  if (end - start < windowSize) start = Math.max(0, end - windowSize)
+
+  let snippet = clean.substring(start, end)
+  if (start > 0) snippet = "…" + snippet
+  if (end < clean.length) snippet = snippet + "…"
+  return snippet
 }
 
 export async function siteSearchContent(
@@ -977,11 +1264,22 @@ export async function siteSearchContent(
 ): Promise<APICallResult> {
   const safeLimit = Math.min(Math.max(limit || 5, 1), 50)
   const candidates = source === "auto"
-    ? detectQueryIntentSources(query).slice(0, 3)
+    ? rankCandidateSources(query, params)
     : [source]
 
+  // Limit concurrent fetches to top-ranked sources (max 4)
+  const fetchCandidates = candidates.slice(0, 4)
+
+  // Skip parametric sources that would throw due to missing params
+  const safeCandidates = fetchCandidates.filter(s => {
+    const req = PARAMETRIC_REQUIREMENTS[s]
+    if (!req) return true
+    if (s === "shrine_history_by_section") return true // has safe default
+    return params && params[req]
+  })
+
   const fetched = await Promise.all(
-    candidates.map(async s => ({ source: s, result: await getSourceDocuments(s, params) }))
+    safeCandidates.map(async s => ({ source: s, result: await getSourceDocuments(s, params) }))
   )
 
   let merged: any[] = []
@@ -991,10 +1289,18 @@ export async function siteSearchContent(
     }
   }
 
-  // fallback موسع في حال لم نجد نتائج
+  // Broader fallback if no results from ranked sources
   if (merged.length === 0 && source === "auto") {
+    const tried = new Set(safeCandidates)
+    const fallbackSources = ALL_SOURCES.filter(s => {
+      if (tried.has(s)) return false
+      const req = PARAMETRIC_REQUIREMENTS[s]
+      if (req && s !== "shrine_history_by_section" && (!params || !params[req])) return false
+      return true
+    }).slice(0, 4)
+
     const fallback = await Promise.all(
-      ALL_SOURCES.slice(0, 5).map(async s => ({ source: s, result: await getSourceDocuments(s, params) }))
+      fallbackSources.map(async s => ({ source: s, result: await getSourceDocuments(s, params) }))
     )
     for (const entry of fallback) {
       if (entry.result.success && Array.isArray(entry.result.data)) {
@@ -1003,106 +1309,53 @@ export async function siteSearchContent(
     }
   }
 
+  // Deduplicate
   const deduped = new Map<string, any>()
   for (const item of merged) {
     const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
     if (!deduped.has(key)) deduped.set(key, item)
   }
 
-  let scored = Array.from(deduped.values())
+  // Score, filter, sort
+  let scoredResults = Array.from(deduped.values())
     .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, safeLimit)
-    .map(x => x.item)
 
-  // ✅ بحث موسّع: إذا لم نجد نتائج كافية، نبحث في صفحات إضافية
-  if (scored.length < safeLimit && query.trim().length > 2) {
-    const paginatedSources: Partial<Record<SiteSourceName, string>> = {
-      articles_latest: "/alkafeel_back_test/api/v1/articles/GetLast/50/all?page=",
-      videos_latest: "/alkafeel_back_test/api/v1/videos/latest/50?page="
-    }
-
-    const additionalItems: any[] = []
-
-    for (const s of candidates) {
-      const baseEndpoint = paginatedSources[s]
-      if (!baseEndpoint) continue
-
-      // المرحلة 1: الصفحات القريبة (2-6)
-      const nearPages = [2, 3, 4, 5, 6]
-      for (const page of nearPages) {
-        if (additionalItems.length + scored.length >= safeLimit) break
-        const result = await callSiteAPI(`${baseEndpoint}${page}`)
-        if (!result.success || !result.data?.data) continue
-
-        const normalized = normalizeSourceDataset(s, result.data)
-        const pageScored = normalized
-          .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
-          .filter(x => x.score > 0)
-
-        if (pageScored.length > 0) {
-          additionalItems.push(...pageScored.map(x => x.item))
-        }
-      }
-
-      // المرحلة 2: إذا لا زلنا لم نجد — نبحث في عينة من الصفحات القديمة
-      if (additionalItems.length + scored.length < safeLimit) {
-        const metaEndpoint = s === "articles_latest"
-          ? "/alkafeel_back_test/api/v1/articles/GetLast/1/all?page=1"
-          : "/alkafeel_back_test/api/v1/videos/latest/1?page=1"
-        const meta = await callSiteAPI(metaEndpoint)
-        if (meta.success && meta.data?.last_page) {
-          const lastPage = Math.ceil(meta.data.total / 50)
-          // عينة: صفحات من المنتصف والنهاية
-          const samplePages = [
-            Math.floor(lastPage * 0.25),
-            Math.floor(lastPage * 0.5),
-            Math.floor(lastPage * 0.75),
-            lastPage - 1,
-            lastPage
-          ].filter(p => p > 6 && p <= lastPage)
-
-          for (const page of samplePages) {
-            if (additionalItems.length + scored.length >= safeLimit) break
-            const result = await callSiteAPI(`${baseEndpoint}${page}`)
-            if (!result.success || !result.data?.data) continue
-
-            const normalized = normalizeSourceDataset(s, result.data)
-            const pageScored = normalized
-              .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
-              .filter(x => x.score > 0)
-
-            if (pageScored.length > 0) {
-              additionalItems.push(...pageScored.map(x => x.item))
-            }
-          }
-        }
-      }
-    }
+  // ✅ Expanded pagination search if not enough results
+  if (scoredResults.length < safeLimit && query.trim().length > 2) {
+    const additionalItems = await expandedPaginationSearch(query, safeCandidates, safeLimit - scoredResults.length)
 
     if (additionalItems.length > 0) {
-      // دمج وإزالة التكرار
-      const allItems = [...scored, ...additionalItems]
+      const allItems = [...scoredResults.map(x => x.item), ...additionalItems]
       const finalDeduped = new Map<string, any>()
       for (const item of allItems) {
         const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
         if (!finalDeduped.has(key)) finalDeduped.set(key, item)
       }
-      scored = Array.from(finalDeduped.values())
+      scoredResults = Array.from(finalDeduped.values())
         .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
+        .filter(x => x.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, safeLimit)
-        .map(x => x.item)
     }
   }
 
-  // تقييم جودة النتائج — إذا أفضل نتيجة لا تطابق بشكل قوي، نضيف تلميح
-  const bestScore = scored.length > 0 ? scoreUnifiedItem(scored[0], query) : 0
-  const queryWords = query.trim().split(/\s+/).filter(w => w.length > 2)
-  const hasExactMatch = scored.some(item => {
-    const name = String(item?.name || "").toLowerCase()
-    return queryWords.length >= 3 && queryWords.every(w => name.includes(w.toLowerCase()))
+  const scored = scoredResults.map(x => x.item)
+
+  // Attach evidence snippet to each result
+  for (const item of scored) {
+    item._snippet = buildEvidenceSnippet(item, query)
+  }
+
+  // Quality hint
+  const normQuery = normalizeArabic(query)
+  const queryTokens = tokenizeArabicQuery(query)
+  const hasStrongMatch = scored.some(item => {
+    const normName = normalizeArabic(item?.name || "")
+    return normName.includes(normQuery) ||
+      (queryTokens.length >= 2 && queryTokens.every(t => normName.includes(t)))
   })
 
   return {
@@ -1112,12 +1365,82 @@ export async function siteSearchContent(
       total: scored.length,
       query,
       source_used: source,
-      candidate_sources: candidates,
-      ...(!hasExactMatch && scored.length < safeLimit && {
+      candidate_sources: safeCandidates,
+      ...(!hasStrongMatch && scored.length < safeLimit && {
         hint: "البحث شمل أحدث المحتوى فقط. إذا كان السؤال عن محتوى قديم أو محدد، جرّب browse_source_page مع order=oldest للوصول لأقدم المحتوى، أو get_content_by_id إذا تعرف رقم المعرّف."
       })
     }
   }
+}
+
+/** Expanded pagination search helper for siteSearchContent */
+async function expandedPaginationSearch(
+  query: string,
+  candidates: SiteSourceName[],
+  needed: number
+): Promise<any[]> {
+  const paginatedSources: Partial<Record<SiteSourceName, string>> = {
+    articles_latest: "/alkafeel_back_test/api/v1/articles/GetLast/50/all?page=",
+    videos_latest: "/alkafeel_back_test/api/v1/videos/latest/50?page="
+  }
+
+  const additionalItems: any[] = []
+
+  for (const s of candidates) {
+    const baseEndpoint = paginatedSources[s]
+    if (!baseEndpoint) continue
+
+    // Phase 1: near pages (2-6)
+    for (const page of [2, 3, 4, 5, 6]) {
+      if (additionalItems.length >= needed) break
+      const result = await callSiteAPI(`${baseEndpoint}${page}`)
+      if (!result.success || !result.data?.data) continue
+
+      const normalized = normalizeSourceDataset(s, result.data)
+      const pageScored = normalized
+        .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
+        .filter(x => x.score > 0)
+
+      if (pageScored.length > 0) {
+        additionalItems.push(...pageScored.map(x => x.item))
+      }
+    }
+
+    // Phase 2: sample older pages
+    if (additionalItems.length < needed) {
+      const metaEndpoint = s === "articles_latest"
+        ? "/alkafeel_back_test/api/v1/articles/GetLast/1/all?page=1"
+        : "/alkafeel_back_test/api/v1/videos/latest/1?page=1"
+      const meta = await callSiteAPI(metaEndpoint)
+      if (meta.success && meta.data?.last_page) {
+        const lastPage = Math.ceil(meta.data.total / 50)
+        const samplePages = [
+          Math.floor(lastPage * 0.25),
+          Math.floor(lastPage * 0.5),
+          Math.floor(lastPage * 0.75),
+          lastPage - 1,
+          lastPage
+        ].filter(p => p > 6 && p <= lastPage)
+
+        for (const page of samplePages) {
+          if (additionalItems.length >= needed) break
+          const result = await callSiteAPI(`${baseEndpoint}${page}`)
+          if (!result.success || !result.data?.data) continue
+
+          const normalized = normalizeSourceDataset(s, result.data)
+          const pageScored = normalized
+            .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
+            .filter(x => x.score > 0)
+
+          if (pageScored.length > 0) {
+            additionalItems.push(...pageScored.map(x => x.item))
+          }
+        }
+      }
+    }
+  }
+
+  return additionalItems
 }
 
 export async function siteGetContentById(
