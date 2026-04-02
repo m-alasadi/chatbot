@@ -1,0 +1,481 @@
+================================================================================
+               آلية البحث الكاملة في شات بوت العتبة العباسية المقدسة
+================================================================================
+                          تاريخ التوثيق: 2 أبريل 2026
+================================================================================
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. نظرة عامة على التدفق (Overview)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+المستخدم يرسل سؤال
+    ↓
+[route.ts] يستقبل الطلب POST /api/chat/site
+    ↓
+Rate Limiting (20 طلب/دقيقة، حظر 5 دقائق عند التجاوز)
+    ↓
+Data Sanitization (تنظيف المدخلات من XSS/Injection)
+    ↓
+حقن System Prompt + إرسال لـ OpenAI مع قائمة الأدوات
+    ↓
+OpenAI (GPT) يقرر: رد مباشر أو استدعاء أداة (Function Calling)
+    ↓
+[function-calling-handler.ts] ينفذ الأدوات (حتى 3 تكرارات)
+    ↓
+[site-api-service.ts] يتصل بـ REST API الخاص بـ alkafeel.net
+    ↓
+النتائج تُنظف وتُرسل لـ GPT لصياغة الرد
+    ↓
+الرد يُرسل للمستخدم عبر Streaming
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. الملفات الأساسية ودور كل ملف
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  الملف                                    | الدور
+  -----------------------------------------|-------------------------------------------
+  app/api/chat/site/route.ts               | نقطة الدخول (API Endpoint)
+  lib/server/system-prompts.ts             | System Prompt الثابت + رسائل Fallback
+  lib/server/site-tools-definitions.ts     | تعريف الأدوات (11 أداة) لـ OpenAI
+  lib/server/site-api-config.ts            | إعدادات الاتصال بـ API + الـ endpoints
+  lib/server/site-api-service.ts           | طبقة الخدمة: البحث، الجلب، التطبيع
+  lib/server/function-calling-handler.ts   | إدارة تدفق Function Calling
+  lib/server/data-sanitizer.ts             | تنظيف البيانات (أمان)
+  lib/server/rate-limiter.ts               | تحديد عدد الطلبات
+  lib/server/smart-suggestions.ts          | اقتراحات ذكية عند عدم وجود نتائج
+  lib/server/site-categories.ts            | تصنيفات الموقع وكلمات مفتاحية
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. المرحلة الأولى: استقبال الطلب (route.ts)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3.1 CORS:
+    - السماح من: alkafeel.net، localhost:3000، localhost:3001، null (للملفات المحلية)
+    - Security Headers: nosniff, DENY frame, XSS protection
+
+3.2 Rate Limiting:
+    - 20 طلب لكل IP في الدقيقة
+    - عند التجاوز: حظر 5 دقائق
+    - التخزين: في الذاكرة (Map) مع تنظيف تلقائي كل 5 دقائق
+    - استخراج IP من: x-forwarded-for → x-real-ip → cf-connecting-ip
+
+3.3 Data Sanitization:
+    - إزالة HTML tags (حماية XSS)
+    - حذف حقول حساسة: password, token, apiKey, credit_card, ssn...
+    - فحص أنماط خطرة: emails, phones, credit cards في النصوص
+
+3.4 معاملات الطلب:
+    - messages: مصفوفة رسائل المحادثة (مطلوب)
+    - temperature: 0.5 (افتراضي)
+    - max_tokens: 1200 (افتراضي)
+    - use_tools: true (افتراضي) - لتفعيل/تعطيل Function Calling
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. المرحلة الثانية: System Prompt (system-prompts.ts)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+System Prompt يُحقن في بداية كل محادثة ويتضمن:
+
+4.1 القواعد:
+    - الإجابة فقط من نتائج الأدوات، لا اختراع معلومات
+    - البدء بـ search_content مع source="auto" قبل أي رفض
+    - تجربة مصادر مختلفة قبل الرد بعدم التوفر
+    - عدم سرد JSON خام أو طلب معلومات شخصية
+
+4.2 استراتيجية البحث المُبرمجة في الـ Prompt:
+    1. ابدأ بـ search_content (تبحث في أحدث 300 عنصر)
+    2. إذا لم تجد → browse_source_page مع order="oldest"
+    3. إذا المستخدم يعرف ID → get_content_by_id مباشرة
+    4. لا ترفض إلا بعد تجربة أكثر من أداة
+
+4.3 صياغة الردود:
+    - جملة افتتاحية + عدد النتائج + القسم
+    - قائمة: **عنوان** + وصف سطر + رابط مباشر (من حقل url)
+    - اختم بـ "هل تريد تفاصيل أكثر؟"
+
+4.4 رسائل Fallback:
+    - FALLBACK_NO_RESULTS: عند عدم وجود نتائج
+    - FALLBACK_API_ERROR: عند خطأ في API
+    - FALLBACK_OUT_OF_SCOPE: عند سؤال خارج النطاق
+    - WELCOME_MESSAGE: رسالة ترحيبية
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. المرحلة الثالثة: الأدوات المتاحة (site-tools-definitions.ts)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+11 أداة معرّفة ومسموحة (Whitelist):
+
+  #  | اسم الأداة              | الوصف                                      | المعاملات المطلوبة
+  ---|-------------------------|--------------------------------------------|-----------------
+  1  | search_projects         | بحث داخل مصادر الموقع المتعددة              | query
+  2  | search_content          | بحث اتحادي متعدد المصادر + fallback ذكي     | query
+  3  | get_project_by_id       | جلب تفاصيل سجل بالمعرف                      | id
+  4  | get_content_by_id       | تفاصيل عنصر واحد بالمعرف                    | id
+  5  | filter_projects         | قائمة التصنيفات المتاحة                     | (لا شيء)
+  6  | list_source_categories  | أقسام/تصنيفات المحتوى                       | (لا شيء)
+  7  | get_latest_projects     | أحدث العناصر                                | (لا شيء)
+  8  | get_latest_by_source    | أحدث المحتوى حسب المصدر                     | (لا شيء)
+  9  | get_statistics          | إحصائيات العدد الكلي                        | (لا شيء)
+  10 | get_source_metadata     | معلومات وصفية (عدد كلي + صفحات)             | (لا شيء)
+  11 | browse_source_page      | تصفح صفحة محددة                             | (لا شيء)
+
+5.1 المصادر المتاحة (SOURCE_ENUM):
+    - auto              → اختيار تلقائي حسب نية السؤال
+    - articles_latest   → أحدث الأخبار/المقالات
+    - videos_latest     → أحدث الفيديوهات
+    - videos_categories → أقسام الفيديو
+    - videos_by_category→ فيديوهات حسب التصنيف
+    - shrine_history_sections    → أقسام تاريخ العتبة
+    - shrine_history_by_section  → تاريخ العتبة حسب القسم
+    - abbas_history_by_id        → تاريخ العباس بالمعرف
+    - lang_words_ar              → القاموس اللغوي العربي
+
+5.2 الأمان (Whitelist):
+    - فقط الأدوات الـ 11 المذكورة أعلاه مسموحة
+    - أي أداة خارج القائمة تُرفض فوراً
+    - التحقق يتم عبر isAllowedTool()
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. المرحلة الرابعة: إعدادات API (site-api-config.ts)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6.1 متغيرات البيئة:
+    - SITE_API_BASE_URL          → عنوان API الأساسي (مطلوب)
+    - SITE_API_TOKEN             → رمز المصادقة (اختياري)
+    - OPENAI_MODEL               → نموذج GPT (افتراضي: gpt-4o-mini)
+    - OPENAI_API_KEY             → مفتاح OpenAI (مطلوب)
+    - SITE_API_ACCEPT_LANGUAGE   → اللغة (افتراضي: ar)
+    - SITE_DOMAIN                → دومين الموقع (افتراضي: https://alkafeel.net)
+    - SITE_ARTICLE_URL_TEMPLATE  → قالب رابط المقال (افتراضي: /news/index?id={id})
+
+6.2 الـ Endpoints الافتراضية:
+    articles_latest          → /alkafeel_back_test/api/v1/articles/GetLast/50/all?page=1
+    videos_latest            → /alkafeel_back_test/api/v1/videos/latest/50?page=1
+    videos_categories        → /alkafeel_back_test/api/v1/videos/getCats
+    videos_by_category       → /alkafeel_back_test/api/v1/videos/ByCat/{catId}/50?page=1
+    shrine_history_sections  → /alkafeel_back_test/api/v1/alkafeel-histories/getOtherSec
+    shrine_history_by_section→ /alkafeel_back_test/api/v1/alkafeel-histories/getBySecId/{secId}
+    abbas_history_by_id      → /alkafeel_back_test/api/v1/abbas-histories/getById/{id}
+    lang_words_ar            → /alkafeel_back_test/api/v1/lang/getWord/ar
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. المرحلة الخامسة: طبقة الخدمة - محرك البحث (site-api-service.ts)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+هذا الملف هو قلب النظام ويحتوي على:
+
+7.1 إعدادات الاتصال:
+    - Timeout: 30 ثانية
+    - Retry: محاولة واحدة إضافية مع Exponential Backoff
+    - Retry Delay: يبدأ من 1 ثانية ويتضاعف
+
+7.2 نظام الكاش (Cache):
+    كل مصدر له مدة كاش مختلفة:
+    - articles_latest:           15 دقيقة
+    - videos_latest:             15 دقيقة
+    - videos_categories:         6 ساعات
+    - videos_by_category:        20 دقيقة
+    - shrine_history_sections:   12 ساعة
+    - shrine_history_by_section: ساعة واحدة
+    - abbas_history_by_id:       ساعة واحدة
+    - lang_words_ar:             24 ساعة
+    - allProjects cache:         30 دقيقة
+
+7.3 دالة detectQueryIntentSources — اختيار المصدر الذكي:
+    ─────────────────────────────────────────────────────
+    هذه الدالة تحلل نص السؤال وتختار المصادر المناسبة تلقائياً:
+
+    الكلمات المفتاحية          → المصادر المختارة
+    ─────────────────────────  ──────────────────────────────────────
+    فيديو، فديو، مرئي،        → videos_latest, videos_categories,
+    يوتيوب، مقطع                 videos_by_category, articles_latest
+
+    تاريخ، سيرة، العباس،      → shrine_history_by_section,
+    العتبة، أبو الفضل            abbas_history_by_id,
+                                  shrine_history_sections, articles_latest
+
+    ترجمة، لغة، كلمة،         → lang_words_ar, articles_latest,
+    مصطلح، معنى                   videos_latest
+
+    (افتراضي - أي سؤال آخر)    → articles_latest, videos_latest,
+                                  shrine_history_by_section, lang_words_ar
+
+    ⚠️ ملاحظة مهمة: لا توجد كلمات مفتاحية لـ "خطبة" أو "جمعة" أو "خطب"
+    لذا أسئلة خطب الجمعة تقع في الـ fallback الافتراضي.
+
+7.4 دالة siteSearchContent — البحث الرئيسي:
+    ─────────────────────────────────────────
+    المعاملات: query, source, limit, params
+
+    الخطوات:
+    1. تحديد المصادر المرشحة:
+       - إذا source="auto" → detectQueryIntentSources() تختار أول 3 مصادر
+       - إذا محدد → المصدر المحدد فقط
+
+    2. جلب البيانات من المصادر بالتوازي (Promise.all)
+
+    3. fallback موسع:
+       - إذا لم تُرجع المصادر المختارة أي نتائج وكان source="auto"
+       - يبحث في أول 5 مصادر من ALL_SOURCES
+
+    4. إزالة التكرار (dedup) بمفتاح: source_type:id
+
+    5. حساب درجة التطابق (scoring) لكل نتيجة:
+       - مطابقة الاستعلام الكامل في الحقل → weight × 3
+       - مطابقة كلمة فردية → weight × 1
+       
+       أوزان الحقول:
+       - name (الاسم):        weight = 10 (في siteSearch) أو ضمن scoreUnifiedItem
+       - description (الوصف): weight = 5
+       - address (العنوان):   weight = 5
+       - sections (الأقسام):  weight = 3
+       - properties (خصائص):  weight = 3-4
+       - kftags (العلامات):   weight = 3
+       - kfnews (الأخبار):    weight = 1-2
+
+    6. ترتيب حسب الدرجة (الأعلى أولاً) وقص بـ limit
+
+    7. بحث موسّع إذا النتائج غير كافية:
+       المرحلة 1: البحث في الصفحات القريبة (2-6) من articles_latest و videos_latest
+       المرحلة 2: البحث في عينة من الصفحات القديمة (25%، 50%، 75%، الأخيرة)
+
+    8. إضافة hint إذا لم يكن هناك exact match:
+       "البحث شمل أحدث المحتوى فقط. جرّب browse_source_page..."
+
+7.5 دالة normalizeSourceDataset — توحيد البيانات:
+    ──────────────────────────────────────────────
+    كل مصدر يُرجع بيانات بشكل مختلف. هذه الدالة توحد الكل إلى:
+
+    {
+      id: string,
+      name: string,
+      description: string,
+      image: string | null,
+      created_at: string (ISO),
+      address: string,
+      sections: [{ id, name }],
+      kftags: [],
+      properties: [],
+      url: string,
+      source_type: string,
+      source_raw: object (البيانات الأصلية)
+    }
+
+    التطبيع حسب المصدر:
+    - articles_latest:          يستخدم normalizeProjectsDataset()
+    - videos_latest/by_cat:     يبني URL من /media/{request}?lang=ar
+    - videos_categories:        يوحد أقسام الفيديو
+    - shrine_history_sections:  يوحد أقسام التاريخ
+    - shrine_history/abbas:     يبني URL من /history?lang=ar أو /abbas?lang=ar
+    - lang_words_ar:            يحول key/value لعناصر موحدة
+
+7.6 دالة normalizeProjectsDataset — تطبيع المقالات:
+    ──────────────────────────────────────────────────
+    تعالج البيانات من allProjects endpoint وتحول:
+    - rawData.data[] → مصفوفة موحدة
+    - cat_title → sections
+    - time (unix) → created_at (ISO)
+    - بناء URL من: item.url || item.link || template /news/index?id={id}
+
+7.7 دالة siteGetContentById — جلب عنصر بالمعرف:
+    ──────────────────────────────────────────────
+    1. البحث في الكاش المحلي أولاً (جميع المصادر)
+    2. إذا لم يُجد → بحث ذكي بالصفحات:
+       - تقدير الصفحة من ID الرقمي
+       - بحث في الصفحات المحيطة
+       - بحث عكسي إذا لم يُجد
+
+7.8 دالة siteBrowseSourcePage — تصفح صفحة:
+    ───────────────────────────────────────
+    - تدعم articles_latest و videos_latest فقط
+    - تدعم order="oldest" (عكس الترتيب) و "newest"
+    - تحسب last_page من metadata
+
+7.9 دالة siteGetMultiSourceStatistics — الإحصائيات:
+    ──────────────────────────────────────────────
+    - تجلب من كل المصادر بالتوازي
+    - تُرجع: إجمالي كل مصدر + تفاصيل
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. المرحلة السادسة: Function Calling Handler
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8.1 دالة resolveToolCalls — التدفق الرئيسي:
+    ─────────────────────────────────────────
+    المعاملات: openai, model, messages, tools, maxIterations=3
+
+    الخطوات:
+    1. إرسال الرسائل + الأدوات لـ OpenAI (بدون stream)
+    2. فحص الرد:
+       - إذا لم يستدعِ أدوات + لم تُستدعَ أدوات سابقاً → directAnswer
+       - إذا لم يستدعِ أدوات + استُدعيت أدوات سابقاً → needsFinalCall=true
+       - إذا استدعى أدوات → تنفيذها + إعادة الإرسال (loop)
+    3. الحلقة تستمر حتى maxIterations=3
+
+    الإرجاع:
+    {
+      resolvedMessages: الرسائل كاملة مع نتائج الأدوات
+      needsFinalCall: هل نحتاج استدعاء streaming نهائي؟
+      iterations: عدد التكرارات
+      directAnswer: الرد المباشر (إذا لم تُستدعَ أدوات)
+    }
+
+8.2 دالة processToolCall — تنفيذ أداة واحدة:
+    ──────────────────────────────────────────
+    1. التحقق من Whitelist (isAllowedTool)
+    2. تحليل المعاملات (JSON.parse)
+    3. تنفيذ الأداة عبر executeToolByName()
+    4. معالجة النتائج:
+       - فارغة → اقتراحات ذكية (generateNoResultsSuggestions)
+       - خطأ → اقتراحات خطأ (generateAPIErrorSuggestions)
+       - نتائج → تنظيف (cleanResultForGPT)
+
+8.3 دالة cleanResultForGPT — تنظيف النتائج:
+    ─────────────────────────────────────────
+    - بحث (results[]): تنظيف كل مشروع مختصراً
+    - أحدث (projects[]): تنظيف + friendlySourceName
+    - تصنيفات (categories[]): قص لـ 50 عنصر
+    - مشروع واحد: تنظيف تفصيلي (detailed=true)
+
+8.4 دالة cleanProject — تنظيف مشروع:
+    ─────────────────────────────────────
+    - تاريخ/عباس: id + name + description(150/500 حرف) + url ثابت
+    - فيديو: يبني URL من /media/{mediaSlug}?lang=ar
+    - مقال: يبني URL من القالب أو source_raw
+    - قص الوصف: 150 حرف (بحث) / 500 حرف (تفاصيل)
+    - قص الخصائص: 300 حرف (بحث) / 2000 حرف (تفاصيل)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. المرحلة السابعة: Streaming والإرسال للمستخدم (route.ts)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+بعد حل جميع tool calls:
+
+  إذا needsFinalCall=true:
+    → إرسال resolvedMessages لـ OpenAI كـ stream حقيقي
+    → GPT يصيغ الرد النهائي بناءً على نتائج الأدوات
+    → الرد يُرسل chunk بـ chunk للمستخدم
+
+  إذا needsFinalCall=false (سؤال بسيط):
+    → إرسال messagesWithSystem لـ OpenAI كـ stream
+    → الرد يُرسل مباشرة
+
+  Fallback (عند فشل Function Calling):
+    → يعمل بدون أدوات، stream عادي من OpenAI
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. الاقتراحات الذكية (smart-suggestions.ts)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+تُستخدم في 3 حالات:
+
+  الحالة            | الدالة                          | المحتوى
+  ──────────────────|─────────────────────────────────|───────────────────
+  لا نتائج          | generateNoResultsSuggestions()  | تصنيف قريب + أمثلة + أحدث المشاريع
+  خارج النطاق       | generateOutOfScopeSuggestions() | تصنيفات متنوعة (تعليم، صحة، دينية)
+  خطأ API           | generateAPIErrorSuggestions()   | أحدث المشاريع + الفئات + سؤال مقترح
+
+  كل اقتراح يحتوي: type (search/category/question/latest) + text + description
+  الحد الأقصى: 3 اقتراحات
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. مثال كامل: ماذا يحدث عند السؤال "أحدث أخبار العتبة"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. المستخدم يرسل: "أحدث أخبار العتبة"
+2. route.ts: Rate limit OK → Sanitize OK
+3. يُحقن System Prompt + يُرسل لـ OpenAI مع 11 أداة
+4. OpenAI يختار: search_content(query="أحدث أخبار العتبة", source="auto")
+5. resolveToolCalls: iteration 1 → processToolCall
+6. isAllowedTool("search_content") → true
+7. executeToolByName → siteSearchContent()
+8. detectQueryIntentSources("أحدث أخبار العتبة"):
+   - "العتبة" تطابق historyHints → [shrine_history_by_section, abbas_history_by_id, shrine_history_sections, articles_latest]
+   - يأخذ أول 3: shrine_history_by_section, abbas_history_by_id, shrine_history_sections
+9. Promise.all: يجلب من 3 مصادر بالتوازي (مع كاش)
+10. normalizeSourceDataset لكل مصدر
+11. scoreUnifiedItem لكل عنصر مع query
+12. ترتيب + قص لـ limit=5
+13. cleanResultForGPT → تنظيف + إزالة source_raw
+14. النتيجة ترجع لـ resolveToolCalls
+15. iteration 2: OpenAI يحصل على النتائج → يصيغ رداً نهائياً (لم يستدعِ أدوات)
+16. needsFinalCall=true → streaming نهائي
+17. الرد يُرسل chunk بـ chunk للمستخدم
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. المشاكل المعروفة والثغرات
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+12.1 خطب الجمعة غير مدعومة:
+     - لا يوجد endpoint API لخطب الجمعة في sourceEndpoints
+     - لا يوجد "friday_sermons" في SOURCE_ENUM
+     - detectQueryIntentSources لا تحتوي كلمات: خطبة، خطب، جمعة
+     - الموقع يحتوي قسم خطب الجمعة (ترجمات friday_ser في ar.json)
+     - لكن لا يوجد API endpoint معروف لجلب بياناتها
+
+12.2 البحث محدود بأحدث المحتوى:
+     - الصفحة الأولى فقط (50 عنصر) تُجلب ابتداءً
+     - البحث الموسع يغطي صفحات 2-6 + عينة من القديم
+     - لكن قد يفوت محتوى في الوسط
+
+12.3 الكاش في الذاكرة:
+     - يُفقد عند إعادة تشغيل السيرفر
+     - لا يُشارك بين instances مختلفة
+     - يُفضل استخدام Redis في Production
+
+12.4 Rate Limiter في الذاكرة:
+     - نفس مشكلة الكاش
+     - لا يعمل مع Multiple Workers/Instances
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. الربط بين الأدوات والدوال الفعلية (executeToolByName)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  اسم الأداة               | الدالة المنفذة                   
+  ─────────────────────────|──────────────────────────────────
+  search_projects          | siteSearchContent()              
+  search_content           | siteSearchContent()              
+  get_project_by_id        | siteGetContentById()             
+  get_content_by_id        | siteGetContentById()             
+  filter_projects          | siteListSourceCategories()       
+  list_source_categories   | siteListSourceCategories()       
+  get_latest_projects      | siteGetLatestBySource()          
+  get_latest_by_source     | siteGetLatestBySource()          
+  get_statistics           | siteGetMultiSourceStatistics()   
+  get_source_metadata      | siteGetSourceMetadata()          
+  browse_source_page       | siteBrowseSourcePage()           
+
+  ملاحظة: search_projects و search_content يستدعيان نفس الدالة
+  وكذلك get_project_by_id و get_content_by_id
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. بنية الروابط المولّدة
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  نوع المحتوى    | نمط الرابط
+  ────────────────|─────────────────────────────────────────────
+  مقال/خبر        | https://alkafeel.net/news/index?id={id}
+  فيديو           | https://alkafeel.net/media/{request}?lang=ar
+  تاريخ العتبة    | https://alkafeel.net/history?lang=ar
+  تاريخ العباس    | https://alkafeel.net/abbas?lang=ar
+  قاموس           | https://alkafeel.net
+  عام             | https://alkafeel.net
+
+
+================================================================================
+                              نهاية الوثيقة
+================================================================================
