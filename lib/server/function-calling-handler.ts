@@ -687,11 +687,15 @@ function isHardEvidenceSensitive(text: string): boolean {
 function hasStrongAnswerEvidence(toolContent: string, query: string): boolean {
   if (!toolContent || toolContent.length < 30) return false
   const norm = normalizeArabicLight(query)
-  // If asking about dates/years, look for year patterns in content
+  // If asking about dates/years, look for year patterns or named events in content
   const asksDate = ["متي", "تاريخ", "سنه", "عام"].some(k => norm.includes(k))
   if (asksDate) {
     const hasYear = /\d{3,4}/.test(toolContent) || /[\u0660-\u0669]{3,4}/.test(toolContent)
-    return hasYear
+    if (hasYear) return true
+    // Named historical events count as date evidence (e.g., "يوم الطف" = 10 Muharram 61 AH)
+    const eventNames = ["الطف", "كربلاء", "عاشوراء", "محرم"]
+    if (eventNames.some(e => toolContent.includes(e))) return true
+    return false
   }
   // If asking about age/count, look for numbers
   const asksNumber = ["عمر", "عدد", "كم"].some(k => norm.includes(k))
