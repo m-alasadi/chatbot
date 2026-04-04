@@ -23,6 +23,65 @@ import {
   extractQueryFromMessage,
   formatSuggestionsForResponse
 } from "./smart-suggestions"
+import { ensureKnowledgeReady } from "./knowledge/content-ingestion"
+import { searchKnowledgeChunks, searchKnowledgeWithBackfill } from "./knowledge/knowledge-search"
+
+// ── Light Arabic normalization for intent detection ────────────────
+function normalizeArabicLight(text: string): string {
+  return (text || "")
+    .replace(/[\u0610-\u061A\u064B-\u065F\u0670]/g, "")
+    .replace(/\u0640/g, "")
+    .replace(/[\u0622\u0623\u0625\u0627]/g, "\u0627")
+    .replace(/\u0649/g, "\u064A")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+/**
+ * Detect user intents that require a deterministic tool call
+ * instead of letting the model freely choose (possibly wrong) tools.
+ */
+function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args: Record<string, any> } | null {
+  const norm = normalizeArabicLight(userText)
+
+  const newsHints = ["اخبار", "خبر", "مقال", "مقالات"]
+  const videoHints = ["فيديو", "فديو", "فيديوهات", "مقاطع", "مرئي"]
+  const isNews = newsHints.some(h => norm.includes(h))
+  const isVideo = videoHints.some(h => norm.includes(h))
+
+  // 1. Source-specific count → get_source_metadata
+  const countKeywords = ["عدد", "كم", "اجمالي", "كلي", "مجموع"]
+  if (countKeywords.some(k => norm.includes(k))) {
+    if (isNews && !isVideo) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
+    if (isVideo && !isNews) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "videos_latest" } }
+  }
+
+  // 2. Metadata / descriptive info → get_source_metadata
+  const metaKeywords = ["معلومات وصفيه", "وصفي", "ميتاداتا"]
+  if (metaKeywords.some(k => norm.includes(k))) {
+    if (isNews || (!isVideo && norm.includes("مصدر"))) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
+    if (isVideo) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "videos_latest" } }
+  }
+
+  // 3. Oldest / first → browse_source_page with order=oldest
+  const oldestKeywords = ["اول", "اقدم", "oldest", "first"]
+  if (oldestKeywords.some(k => norm.includes(k))) {
+    if (isVideo && !isNews) return { tool: "browse_source_page" as AllowedToolName, args: { source: "videos_latest", page: 1, order: "oldest" } }
+    if (isNews || norm.includes("نشر") || norm.includes("موقع")) {
+      return { tool: "browse_source_page" as AllowedToolName, args: { source: "articles_latest", page: 1, order: "oldest" } }
+    }
+  }
+
+  // 4. Abbas biography → force search_content with source=auto to trigger history auto-resolution
+  const abbasHints = ["العباس", "ابو الفضل", "ابا الفضل", "ابوالفضل", "ابي الفضل"]
+  const bioHints = ["نبذه", "حياه", "سيره", "من هو", "من هي", "تعريف", "استشهد", "استشهاد"]
+  if (abbasHints.some(h => norm.includes(h)) && bioHints.some(h => norm.includes(h))) {
+    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
+  }
+
+  return null
+}
 
 /**
  * تنظيف بيانات المشروع لتكون مختصرة ومفيدة لـ GPT
@@ -171,9 +230,16 @@ function cleanResultForGPT(result: APICallResult): any {
     return {
       success: true,
       data: {
-        results: data.results.map((p: any) => cleanProject(p, false)),
+        results: data.results.map((p: any) => {
+          const cleaned = cleanProject(p, false)
+          // Preserve evidence snippet from search scoring
+          if (p._snippet) cleaned._snippet = p._snippet
+          return cleaned
+        }),
         total: data.total,
-        query: data.query
+        query: data.query,
+        source_used: data.source_used ? friendlySourceName(data.source_used) : undefined,
+        candidate_sources: data.candidate_sources,
       }
     }
   }
@@ -187,6 +253,55 @@ function cleanResultForGPT(result: APICallResult): any {
         total: data.total,
         limit: data.limit,
         source_used: friendlySourceName(data.source_used),
+      }
+    }
+  }
+
+  // نتائج تصفح صفحة (browse_source_page)
+  if (data?.items && Array.isArray(data.items) && data?.source) {
+    return {
+      success: true,
+      data: {
+        items: data.items.map((p: any) => cleanProject(p, false)),
+        total_in_page: data.total_in_page,
+        total_all: data.total_all,
+        page: data.page,
+        order: data.order,
+        source: friendlySourceName(data.source),
+        has_more: data.has_more
+      }
+    }
+  }
+
+  // بيانات وصفية عن مصدر واحد (get_source_metadata)
+  if (data?.source && data?.friendly_name && typeof data?.total === "number") {
+    return {
+      success: true,
+      data: {
+        source: friendlySourceName(data.source),
+        friendly_name: data.friendly_name,
+        total: data.total,
+        current_page: data.current_page,
+        last_page: data.last_page,
+        per_page: data.per_page,
+        has_pagination: data.has_pagination,
+      }
+    }
+  }
+
+  // بيانات وصفية لعدة مصادر (auto)
+  if (data?.sources && Array.isArray(data.sources)) {
+    return {
+      success: true,
+      data: {
+        sources: data.sources.map((s: any) => ({
+          source: friendlySourceName(s.source),
+          friendly_name: s.friendly_name,
+          total: s.total,
+          per_page: s.per_page,
+          last_page: s.last_page,
+          has_pagination: s.has_pagination,
+        }))
       }
     }
   }
@@ -381,6 +496,213 @@ export async function handleToolCalls(
  * الفكرة: ننفذ كل tool calls بدون stream، ثم نرجع الرسائل
  * الجاهزة ليقوم route.ts بالاستدعاء الأخير كـ stream مباشرة للمستخدم
  */
+
+/** Extract the last user message text from a messages array */
+function getLastUserMessage(messages: ChatCompletionMessageParam[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role === "user") {
+      if (typeof m.content === "string") return m.content
+      if (Array.isArray(m.content)) {
+        const textPart = m.content.find((p: any) => p.type === "text")
+        if (textPart && "text" in textPart) return textPart.text
+      }
+    }
+  }
+  return ""
+}
+
+/** Detect whether a user message is asking about site content (news, videos, history, etc.) */
+function looksLikeSiteContentQuery(text: string): boolean {
+  if (!text || text.trim().length < 4) return false
+  const norm = text.trim().toLowerCase()
+
+  // Skip short greetings / trivial chat
+  const greetings = ["مرحبا", "اهلا", "سلام", "هلا", "hi", "hello", "hey", "شكرا", "thanks"]
+  if (greetings.some(g => norm === g || norm === g + "!")) return false
+
+  // Positive signals: keywords that suggest site-content retrieval
+  const contentSignals = [
+    "خبر", "اخبار", "مقال", "مقالات", "فيديو", "فديو", "تاريخ",
+    "العتبه", "العباس", "الكفيل", "عتبه", "عباس",
+    "قاموس", "ترجم", "كلم", "مصطلح",
+    "اقسام", "تصنيف", "فئ",
+    "احدث", "اخر", "جديد",
+    "ابحث", "بحث", "اريد", "اعرف", "عايز",
+    "ماهو", "ماهي", "ما هو", "ما هي", "ماذا",
+    "شنو", "شنهو", "شكد",
+    "زيار", "حرم", "صحن", "ضريح", "مرقد",
+    "مشروع", "مشاريع", "المشاريع"
+  ]
+
+  return contentSignals.some(signal => norm.includes(signal))
+}
+
+// ── Knowledge layer helpers ─────────────────────────────────────────
+
+/**
+ * Determine whether the user query benefits from the knowledge layer
+ * (full-text deep search). Skip for trivial / deterministic queries
+ * like counts, metadata, categories, latest/oldest listings.
+ */
+function shouldUseKnowledgeLayer(text: string): boolean {
+  const norm = normalizeArabicLight(text)
+
+  // Skip: counts, metadata, category listing, latest/oldest
+  const skipPatterns = [
+    "عدد", "كم", "اجمالي", "كلي", "مجموع",        // counts
+    "ميتاداتا", "وصفي", "معلومات وصفيه",            // metadata
+    "اقسام الفيديو", "تصنيفات", "فئات",             // category listing
+    "احدث خبر", "اخر خبر", "اخر فيديو",             // latest
+    "اول خبر", "اقدم خبر", "اول فيديو",             // oldest
+  ]
+  if (skipPatterns.some(p => norm.includes(p))) return false
+
+  // Positive: biography, history, descriptive, search-oriented queries
+  const deepPatterns = [
+    "من هو", "من هي", "ما هو", "ما هي", "ماهو", "ماهي",
+    "تاريخ", "سيره", "حياه", "نبذه", "استشهاد",
+    "عتبه", "عباس", "ضريح", "مرقد", "حرم", "صحن",
+    "سدنه", "كلدار", "وصف",
+    "زياره", "ابحث", "بحث", "معلومات عن", "تحدث عن", "حدثني",
+    "اخبرني عن", "عرفني",
+  ]
+  if (deepPatterns.some(p => norm.includes(p))) return true
+
+  // Generic: if it's a lengthy question (>20 chars after trim), assume it's descriptive
+  return norm.length > 20
+}
+
+/**
+ * Format knowledge search results compactly for the model.
+ * Returns a short structured block instead of raw 800-char dumps.
+ */
+function formatKnowledgeResults(
+  chunks: { chunk: { title: string; section: string; url: string; chunk_text: string }; evidence_snippet: string; score: number }[]
+): string {
+  if (!chunks || chunks.length === 0) return ""
+  const lines: string[] = ["[سياق معرفي إضافي من النصوص الكاملة]"]
+  for (const r of chunks) {
+    const title = r.chunk.title || ""
+    const section = r.chunk.section || ""
+    const url = r.chunk.url || ""
+    // Use a generous snippet: evidence_snippet, or first 400 chars of chunk text
+    const snippet = r.evidence_snippet || r.chunk.chunk_text.substring(0, 400)
+    lines.push(`• ${title}${section ? ` — ${section}` : ""}`)
+    lines.push(`  ${snippet}`)
+    if (url) lines.push(`  ${url}`)
+  }
+  return lines.join("\n")
+}
+
+/**
+ * Search knowledge index and return compact formatted context, or null.
+ * Single entry point for all knowledge injection — avoids duplication.
+ */
+async function getKnowledgeContext(query: string): Promise<string | null> {
+  try {
+    await ensureKnowledgeReady()
+    const response = await searchKnowledgeWithBackfill(query, { limit: 4, minScore: 1.5 })
+    if (response.chunks.length === 0) {
+      console.log(`[Knowledge] No chunks for: "${query}"${response.backfilled ? " (after backfill)" : ""}`)
+      return null
+    }
+    console.log(`[Knowledge] Found ${response.chunks.length} chunks (scores: ${response.chunks.map(c => c.score.toFixed(1)).join(",")})${response.backfilled ? " [backfilled]" : ""}`)
+    return formatKnowledgeResults(response.chunks)
+  } catch (e) {
+    console.warn("[Knowledge] Search failed:", (e as Error).message)
+    return null
+  }
+}
+
+/**
+ * Inject knowledge context + evidence guard into the message array.
+ * Called from ONE place to avoid duplication (P5).
+ */
+async function injectKnowledgeAndGuard(
+  messages: ChatCompletionMessageParam[],
+  userQuery: string
+): Promise<void> {
+  // Only use knowledge layer for qualifying queries
+  if (shouldUseKnowledgeLayer(userQuery)) {
+    const kCtx = await getKnowledgeContext(userQuery)
+    if (kCtx) {
+      // If any tool returned empty results, replace that message content with
+      // knowledge results to prevent the model from fixating on "empty"
+      const emptyToolIdx = messages.findIndex(m =>
+        m.role === "tool" && typeof m.content === "string" && m.content.includes('"empty_results":true')
+      )
+      if (emptyToolIdx >= 0) {
+        console.log(`[Knowledge] Tool returned empty — overriding with knowledge context`)
+        ;(messages[emptyToolIdx] as any).content = JSON.stringify({
+          success: true,
+          data: {
+            source_used: "النصوص الكاملة للموقع",
+            note: "النتائج التالية من البحث في النصوص الكاملة المفهرسة"
+          }
+        }) + "\n\n" + kCtx
+      } else {
+        // Normal injection: add as supplementary system context
+        messages.push({ role: "system", content: kCtx })
+      }
+    }
+  }
+
+  // Evidence guard: if the question demands hard facts and results lack them
+  if (isHardEvidenceSensitive(userQuery)) {
+    const allToolContent = messages
+      .filter(m => m.role === "tool" || m.role === "system")
+      .map(m => typeof m.content === "string" ? m.content : "")
+      .join(" ")
+    if (!hasStrongAnswerEvidence(allToolContent, userQuery)) {
+      messages.push({
+        role: "system",
+        content: "⚠️ البيانات المسترجعة لا تحتوي على الأرقام أو التواريخ المطلوبة. أجب فقط بما هو موجود في النتائج. لا تذكر أي تاريخ أو عمر أو رقم من معرفتك العامة. إذا لم تجد المعلومة المحددة، قل: 'لم أجد هذه المعلومة في البيانات المتاحة حالياً'."
+      })
+    }
+  }
+}
+
+/**
+ * Detect if the user question is asking for hard-evidence facts
+ * (dates, ages, numbers, specific historical facts) that must come from data.
+ */
+function isHardEvidenceSensitive(text: string): boolean {
+  const norm = normalizeArabicLight(text)
+  const dateAgePatterns = [
+    "متي", "تاريخ استشهاد", "تاريخ ولاده", "تاريخ وفاه",
+    "سنه استشهاد", "سنه ولاده", "سنه وفاه",
+    "عمر", "كم عمر", "كم كان عمر",
+    "في اي سنه", "في اي عام",
+    "هجري", "ميلادي",
+    "عدد ابناء", "عدد اولاد", "عدد زوجات",
+  ]
+  return dateAgePatterns.some(p => norm.includes(p))
+}
+
+/**
+ * Check if the retrieved tool results contain strong evidence
+ * (actual dates, numbers, biographical facts) for the query.
+ */
+function hasStrongAnswerEvidence(toolContent: string, query: string): boolean {
+  if (!toolContent || toolContent.length < 30) return false
+  const norm = normalizeArabicLight(query)
+  // If asking about dates/years, look for year patterns in content
+  const asksDate = ["متي", "تاريخ", "سنه", "عام"].some(k => norm.includes(k))
+  if (asksDate) {
+    const hasYear = /\d{3,4}/.test(toolContent) || /[\u0660-\u0669]{3,4}/.test(toolContent)
+    return hasYear
+  }
+  // If asking about age/count, look for numbers
+  const asksNumber = ["عمر", "عدد", "كم"].some(k => norm.includes(k))
+  if (asksNumber) {
+    const hasNumber = /\d+/.test(toolContent) || /[\u0660-\u0669]+/.test(toolContent)
+    return hasNumber
+  }
+  // Generic: if content is substantial, it's evidence enough
+  return toolContent.length > 100
+}
+
 export async function resolveToolCalls(
   openai: OpenAI,
   model: string,
@@ -396,6 +718,40 @@ export async function resolveToolCalls(
   let currentMessages = [...messages]
   let iterations = 0
   let toolsWereCalled = false
+  let retrievalForced = false
+
+  // Forced tool intent: deterministic routing for count/metadata/oldest/biography queries
+  const userQueryForIntent = getLastUserMessage(messages)
+  const forcedIntent = detectForcedToolIntent(userQueryForIntent)
+  if (forcedIntent) {
+    console.log(`[Tool Resolution] Forced intent: ${forcedIntent.tool}`, forcedIntent.args)
+    const forcedResult = await executeToolByName(forcedIntent.tool, forcedIntent.args)
+    const cleanedForced = cleanResultForGPT(forcedResult)
+    const syntheticToolCallId = `forced_${forcedIntent.tool}_${Date.now()}`
+    currentMessages.push({
+      role: "assistant",
+      content: null,
+      tool_calls: [{
+        id: syntheticToolCallId,
+        type: "function",
+        function: { name: forcedIntent.tool, arguments: JSON.stringify(forcedIntent.args) }
+      }]
+    })
+    currentMessages.push({
+      role: "tool",
+      tool_call_id: syntheticToolCallId,
+      content: JSON.stringify(cleanedForced)
+    })
+
+    // Augment forced-intent results with deep-text knowledge + evidence guard
+    await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+
+    return {
+      resolvedMessages: currentMessages,
+      needsFinalCall: true,
+      iterations: 0
+    }
+  }
 
   while (iterations < maxIterations) {
     iterations++
@@ -420,12 +776,60 @@ export async function resolveToolCalls(
         // route.ts سيعمل streaming حقيقي من OpenAI
         currentMessages.pop()
         console.log(`[Tool Resolution] Tools done, popped answer for streaming`)
+
+        // Augment with knowledge search + evidence guard
+        await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+
         return {
           resolvedMessages: currentMessages,
           needsFinalCall: true,
           iterations
         }
       }
+
+      // ✅ Retrieval-first safety: if no tools were called yet and the user
+      // is asking about site content, force one search_content call
+      const userQuery = getLastUserMessage(messages)
+      if (!retrievalForced && looksLikeSiteContentQuery(userQuery)) {
+        retrievalForced = true
+        console.log(`[Tool Resolution] Forcing retrieval for site-content query`)
+
+        // Remove the direct answer so we can retry with tool results
+        currentMessages.pop()
+
+        // Build a synthetic search_content tool call result
+        const forcedResult = await executeToolByName("search_content" as AllowedToolName, {
+          query: userQuery,
+          source: "auto"
+        })
+
+        const cleanedForced = cleanResultForGPT(forcedResult)
+
+        // Inject as if assistant called search_content and got a result
+        const syntheticToolCallId = `forced_search_${Date.now()}`
+        currentMessages.push({
+          role: "assistant",
+          content: null,
+          tool_calls: [{
+            id: syntheticToolCallId,
+            type: "function",
+            function: { name: "search_content", arguments: JSON.stringify({ query: userQuery, source: "auto" }) }
+          }]
+        })
+        currentMessages.push({
+          role: "tool",
+          tool_call_id: syntheticToolCallId,
+          content: JSON.stringify(cleanedForced)
+        })
+
+        // Also inject deep-text knowledge + evidence guard
+        await injectKnowledgeAndGuard(currentMessages, userQuery)
+
+        toolsWereCalled = true
+        // Continue the loop — OpenAI will now see the search results
+        continue
+      }
+
       // سؤال بسيط بدون أدوات → نرجعه كـ directAnswer
       return {
         resolvedMessages: currentMessages,
@@ -442,7 +846,10 @@ export async function resolveToolCalls(
     currentMessages.push(...toolResponses)
   }
 
-  // وصلنا هنا = tool calls تمت معالجتها → نحتاج streaming call
+  // Max iterations reached — tools were processed, need streaming call
+  // Final knowledge augmentation + evidence guard
+  await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+
   return {
     resolvedMessages: currentMessages,
     needsFinalCall: true,

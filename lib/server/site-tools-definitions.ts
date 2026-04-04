@@ -286,6 +286,63 @@ export const TOOL_GET_STATISTICS: ChatCompletionTool = {
 }
 
 /**
+ * أداة استرجاع بيانات وصفية عن مصدر معين
+ */
+export const TOOL_GET_SOURCE_METADATA: ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "get_source_metadata",
+    description: "الحصول على معلومات وصفية عن مصدر معين: عدد العناصر المخزنة مؤقتاً، هل يدعم التصفح بالصفحات، هل يحتاج معاملات إضافية.",
+    parameters: {
+      type: "object",
+      properties: {
+        source: {
+          type: "string",
+          description: "اسم المصدر",
+          enum: SOURCE_ENUM.filter(s => s !== "auto")
+        }
+      },
+      required: ["source"]
+    }
+  }
+}
+
+/**
+ * أداة تصفح صفحة محددة من مصدر مُرقّم
+ */
+export const TOOL_BROWSE_SOURCE_PAGE: ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "browse_source_page",
+    description: "تصفح صفحة محددة من مصدر يدعم التقسيم بالصفحات (الأخبار أو الفيديوهات). مفيد للبحث عن محتوى أقدم غير موجود في الصفحة الأولى.",
+    parameters: {
+      type: "object",
+      properties: {
+        source: {
+          type: "string",
+          description: "اسم المصدر (articles_latest أو videos_latest فقط)",
+          enum: ["articles_latest", "videos_latest"]
+        },
+        page: {
+          type: "integer",
+          description: "رقم الصفحة (الافتراضي 1)"
+        },
+        per_page: {
+          type: "integer",
+          description: "عدد النتائج لكل صفحة (الافتراضي 10، الحد الأقصى 20)"
+        },
+        order: {
+          type: "string",
+          description: "ترتيب النتائج: newest (الأحدث أولاً، افتراضي) أو oldest (الأقدم أولاً)",
+          enum: ["newest", "oldest"]
+        }
+      },
+      required: ["source"]
+    }
+  }
+}
+
+/**
  * قائمة جميع الأدوات المتاحة
  */
 export const ALL_SITE_TOOLS: ChatCompletionTool[] = [
@@ -297,7 +354,9 @@ export const ALL_SITE_TOOLS: ChatCompletionTool[] = [
   TOOL_LIST_SOURCE_CATEGORIES,
   TOOL_GET_LATEST_PROJECTS,
   TOOL_GET_LATEST_BY_SOURCE,
-  TOOL_GET_STATISTICS
+  TOOL_GET_STATISTICS,
+  TOOL_GET_SOURCE_METADATA,
+  TOOL_BROWSE_SOURCE_PAGE
 ]
 
 /**
@@ -312,7 +371,9 @@ export const ALLOWED_TOOL_NAMES = [
   "list_source_categories",
   "get_latest_projects",
   "get_latest_by_source",
-  "get_statistics"
+  "get_statistics",
+  "get_source_metadata",
+  "browse_source_page"
 ] as const
 
 export type AllowedToolName = (typeof ALLOWED_TOOL_NAMES)[number]
