@@ -92,7 +92,7 @@ function normalizeArticle(raw: any): NormalizedContent {
 
 function normalizeVideo(
   raw: any,
-  source: "videos_latest" | "videos_by_category"
+  source: "videos_latest" | "videos_by_category" | "friday_sermons" | "wahy_friday"
 ): NormalizedContent {
   const id = String(raw.id || raw.video_id || "")
   const title = pickText(raw.title, raw.name, "فيديو بدون عنوان")
@@ -105,12 +105,17 @@ function normalizeVideo(
     ? `${domain}/media/${encodeURIComponent(String(slug))}?lang=ar`
     : domain
 
+  const family = (source === "friday_sermons" || source === "wahy_friday") ? "sermon" as const : "video" as const
+  const defaultSection = source === "friday_sermons" ? "خطب الجمعة"
+    : source === "wahy_friday" ? "من وحي الجمعة"
+    : "فيديوهات"
+
   return {
     id: `${source}::${id}`,
     source,
-    family: "video",
+    family,
     title,
-    section: pickText(raw.cat_title, raw.category, "فيديوهات"),
+    section: pickText(raw.cat_title, raw.category, defaultSection),
     url,
     published_at: toISODate(raw.time || raw.created_at),
     summary: summarize(bodyText),
@@ -220,7 +225,9 @@ export function normalizeRawToContent(
 
     case "videos_latest":
     case "videos_by_category":
-      return (arr ?? []).map((r: any) => normalizeVideo(r, source))
+    case "friday_sermons":
+    case "wahy_friday":
+      return (arr ?? []).map((r: any) => normalizeVideo(r, source as any))
 
     case "videos_categories":
       return (arr ?? []).map(normalizeVideoCategory)

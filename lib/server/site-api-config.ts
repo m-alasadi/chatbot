@@ -46,7 +46,13 @@ export function getSiteAPIConfig(): SiteAPIConfig {
       "/alkafeel_back_test/api/v1/abbas-histories/getById/{id}",
     lang_words_ar:
       process.env.SITE_API_LANG_WORDS_AR_ENDPOINT ||
-      "/alkafeel_back_test/api/v1/lang/getWord/ar"
+      "/alkafeel_back_test/api/v1/lang/getWord/ar",
+    friday_sermons:
+      process.env.SITE_API_FRIDAY_SERMONS_ENDPOINT ||
+      "/alkafeel_back_test/api/v1/videos/ByCat/35c0c/16?page=1",
+    wahy_friday:
+      process.env.SITE_API_WAHY_FRIDAY_ENDPOINT ||
+      "/alkafeel_back_test/api/v1/videos/ByCat/0b336/16?page=1"
   }
 
   if (!baseUrl) {

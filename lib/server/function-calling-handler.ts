@@ -566,6 +566,7 @@ function shouldUseKnowledgeLayer(text: string): boolean {
     "سدنه", "كلدار", "وصف",
     "زياره", "ابحث", "بحث", "معلومات عن", "تحدث عن", "حدثني",
     "اخبرني عن", "عرفني",
+    "خطبه", "خطب", "جمعه", "وحي الجمعه", "اصدار", "اصدارات",
   ]
   if (deepPatterns.some(p => norm.includes(p))) return true
 

@@ -16,7 +16,9 @@ const SOURCE_ENUM = [
   "shrine_history_sections",
   "shrine_history_by_section",
   "abbas_history_by_id",
-  "lang_words_ar"
+  "lang_words_ar",
+  "friday_sermons",
+  "wahy_friday"
 ]
 
 /**

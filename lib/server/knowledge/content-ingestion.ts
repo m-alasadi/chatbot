@@ -32,6 +32,8 @@ const INGESTION_TTL: Record<ContentSourceId, number> = {
   abbas_history_by_id:       60 * 60 * 1000,
   abbas_local_dataset:       24 * 60 * 60 * 1000,
   lang_words_ar:             24 * 60 * 60 * 1000,
+  friday_sermons:            30 * 60 * 1000,
+  wahy_friday:               30 * 60 * 1000,
 }
 
 /** Sources to ingest on startup (non-parametric) */
@@ -41,6 +43,8 @@ const AUTO_INGEST_SOURCES: ContentSourceId[] = [
   "videos_categories",
   "shrine_history_sections",
   "lang_words_ar",
+  "friday_sermons",
+  "wahy_friday",
 ]
 
 /** Eager page cap for initial ingestion */
@@ -173,7 +177,7 @@ async function ingestSource(
   }
 
   // Paginated sources use progressive ingestion
-  const isPaginated = ["articles_latest", "videos_latest", "videos_by_category"].includes(source)
+  const isPaginated = ["articles_latest", "videos_latest", "videos_by_category", "friday_sermons", "wahy_friday"].includes(source)
   let allRawItems: any[]
   let meta = { lastPage: 0, perPage: 16 }
 
@@ -467,6 +471,14 @@ export function getBackfillSourcesForQuery(query: string): ContentSourceId[] {
   const historyOnly = ["تاريخ", "سدنه", "كلدار", "سيره", "نبذه"].some(h => norm.includes(h))
   if (!historyOnly && hasBackfillRoom("videos_latest")) {
     sources.push("videos_latest")
+  }
+
+  // Friday sermons — include if query mentions sermon/friday keywords
+  const sermonHints = ["خطبه", "خطب", "جمعه", "وحي", "منبر"]
+  const isSermonQuery = sermonHints.some(h => norm.includes(h))
+  if (isSermonQuery) {
+    if (hasBackfillRoom("friday_sermons")) sources.push("friday_sermons")
+    if (hasBackfillRoom("wahy_friday")) sources.push("wahy_friday")
   }
 
   return sources

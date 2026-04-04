@@ -46,6 +46,8 @@ type SiteSourceName =
   | "shrine_history_by_section"
   | "abbas_history_by_id"
   | "lang_words_ar"
+  | "friday_sermons"
+  | "wahy_friday"
 
 interface SourceFetchParams {
   source?: SiteSourceName | "auto"
@@ -62,7 +64,9 @@ const ALL_SOURCES: SiteSourceName[] = [
   "shrine_history_sections",
   "shrine_history_by_section",
   "abbas_history_by_id",
-  "lang_words_ar"
+  "lang_words_ar",
+  "friday_sermons",
+  "wahy_friday"
 ]
 
 const SOURCE_CACHE_DURATION_MS: Record<SiteSourceName, number> = {
@@ -73,7 +77,9 @@ const SOURCE_CACHE_DURATION_MS: Record<SiteSourceName, number> = {
   shrine_history_sections: 12 * 60 * 60 * 1000,
   shrine_history_by_section: 60 * 60 * 1000,
   abbas_history_by_id: 60 * 60 * 1000,
-  lang_words_ar: 24 * 60 * 60 * 1000
+  lang_words_ar: 24 * 60 * 60 * 1000,
+  friday_sermons: 30 * 60 * 1000,
+  wahy_friday: 30 * 60 * 1000
 }
 
 /**
@@ -1291,6 +1297,14 @@ function rankCandidateSources(query: string, params: SourceFetchParams = {}): Si
   const isAbbasIntent = abbasHints.some(h => norm.includes(normalizeArabic(h)))
   if (isAbbasIntent && !params.section_id && !params.id) {
     scores.push({ source: "shrine_history_sections", score: 6 + histBoost })
+  }
+
+  // Friday sermon signals
+  const sermonHints = ["خطبه", "خطب", "جمعه", "صلاه الجمعه", "وحي الجمعه", "خطيب"]
+  const sermonBoost = sermonHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 6 : 0), 0)
+  if (sermonBoost > 0) {
+    scores.push({ source: "friday_sermons", score: 6 + sermonBoost })
+    scores.push({ source: "wahy_friday", score: 5 + sermonBoost })
   }
 
   // Language signals

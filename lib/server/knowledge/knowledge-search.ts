@@ -61,6 +61,7 @@ interface RankSignals {
   textDensity: number     // fraction of tokens found in chunk_text specifically
   exactTitleHit: number   // 1 if query is an exact substring of title (or vice-versa)
   familyBoost: number     // boost for history-family chunks on history queries
+  typeConstraint: number  // boost when user explicitly requests a content type
 }
 
 /** Quick check: does the query look like it's asking about history / biography */
@@ -90,6 +91,30 @@ function isAbbasQuery(normQuery: string): boolean {
     if (bioHints.some(h => normQuery.includes(h))) return true
   }
   return false
+}
+
+/** Check if query is about Friday sermons / وحي الجمعة */
+function isFridayQuery(normQuery: string): boolean {
+  const hints = [
+    "خطبه", "خطب", "جمعه", "صلاه الجمعه", "وحي الجمعه",
+    "خطيب", "منبر", "صلاه جمعه",
+  ]
+  return hints.some(h => normQuery.includes(h))
+}
+
+/** Detect explicit content-type constraint from the query.
+ *  Returns the preferred ContentSourceFamily, or null. */
+function detectTypeConstraint(normQuery: string): import("./content-types").ContentSourceFamily | null {
+  const typeMap: [string[], import("./content-types").ContentSourceFamily][] = [
+    [["فيديو", "فديو", "مرئي", "مقطع", "يوتيوب"], "video"],
+    [["خبر", "مقال", "مقاله", "اخبار"], "news"],
+    [["خطبه", "خطب الجمعه", "صلاه الجمعه"], "sermon"],
+    [["اصدار", "اصدارات", "كتاب", "كتب", "مطبوع"], "news"],  // publications are articles
+  ]
+  for (const [hints, family] of typeMap) {
+    if (hints.some(h => normQuery.includes(h))) return family
+  }
+  return null
 }
 
 /**
@@ -159,6 +184,7 @@ function rerank(
     textDensity: 0,
     exactTitleHit: 0,
     familyBoost: 0,
+    typeConstraint: 0,
   }
 
   const normTitle = normalizeArabic(chunk.title)
@@ -182,6 +208,16 @@ function rerank(
   // Exact phrase match: full normalized query appears as substring
   if (normQuery.length > 4 && normText.includes(normQuery)) {
     signals.exactPhraseMatch = 1
+  } else if (queryTokens.length >= 2) {
+    // Partial phrase: count how many consecutive bigrams match in body text
+    let bigramHits = 0
+    for (let i = 0; i < queryTokens.length - 1; i++) {
+      const bigram = queryTokens[i] + " " + queryTokens[i + 1]
+      if (normText.includes(bigram)) bigramHits++
+    }
+    if (bigramHits > 0) {
+      signals.exactPhraseMatch = Math.min(1, bigramHits / (queryTokens.length - 1)) * 0.6
+    }
   }
 
   // Text density: token hits in chunk_text specifically
@@ -196,6 +232,16 @@ function rerank(
   if (isAbbasQuery(normQuery) && chunk.family === "abbas") {
     signals.familyBoost = 1.5
   }
+  // Boost sermon-family chunks on Friday sermon queries
+  if (isFridayQuery(normQuery) && chunk.family === "sermon") {
+    signals.familyBoost = 1.2
+  }
+
+  // Type constraint: explicit content-type preference from query
+  const preferredType = detectTypeConstraint(normQuery)
+  if (preferredType && chunk.family === preferredType) {
+    signals.typeConstraint = 1
+  }
 
   // Weighted combination
   const score =
@@ -205,7 +251,8 @@ function rerank(
     signals.exactPhraseMatch * 5.0 +
     signals.textDensity * 2.5 +
     signals.exactTitleHit * 3.5 +
-    signals.familyBoost * 2.0
+    signals.familyBoost * 2.0 +
+    signals.typeConstraint * 3.0
 
   return score
 }
@@ -265,8 +312,13 @@ export function searchKnowledgeChunks(
     })
   }
 
-  // Sort by final score descending
-  scored.sort((a, b) => b.score - a.score)
+  // Sort by final score descending, with recency tiebreaker
+  scored.sort((a, b) => {
+    const scoreDiff = b.score - a.score
+    if (Math.abs(scoreDiff) > 0.5) return scoreDiff
+    // Tiebreaker: newer content first
+    return (b.chunk.published_at || "").localeCompare(a.chunk.published_at || "")
+  })
 
   // Deduplicate: keep best chunk per parent_id
   const seenParents = new Set<string>()

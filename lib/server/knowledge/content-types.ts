@@ -11,6 +11,7 @@ export type ContentSourceFamily =
   | "abbas"
   | "language"
   | "category"
+  | "sermon"
 
 export type ContentSourceId =
   | "articles_latest"
@@ -22,6 +23,8 @@ export type ContentSourceId =
   | "abbas_history_by_id"
   | "abbas_local_dataset"
   | "lang_words_ar"
+  | "friday_sermons"
+  | "wahy_friday"
 
 // ── Normalized content item ─────────────────────────────────────────
 export interface NormalizedContent {
