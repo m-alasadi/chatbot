@@ -16,7 +16,7 @@
   const DEFAULT_CONFIG = {
     apiEndpoint: '/api/chat/site',
     title: 'مساعدك في المشاريع',
-    subtitle: 'اسأل عن مشاريع العتبة العباسية',
+    subtitle: 'اسأل عن  العتبة العباسية المقدسة',
     position: 'left', // left or right
     buttonColor: '#1e40af',
     buttonText: '💬',

@@ -24,7 +24,7 @@ export default function HomePage() {
         onLoad={() => {
           (window as any).AlkafeelWidget?.init({
             apiEndpoint: "/api/chat/site",
-            title: "مشاريع العتبة العباسية",
+            title: " العتبة العباسية المقدسة",
             position: "left",
           })
         }}

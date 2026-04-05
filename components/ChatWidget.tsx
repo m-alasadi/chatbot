@@ -16,7 +16,7 @@ interface ChatWidgetProps {
 export default function ChatWidget({
   apiEndpoint = "/api/chat/site",
   title = "مساعدك في المشاريع",
-  subtitle = "اسأل عن مشاريع العتبة العباسية"
+  subtitle = "اسأل عن  العتبة العباسية المقدسة"
 }: ChatWidgetProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
