@@ -322,8 +322,8 @@ export const TOOL_BROWSE_SOURCE_PAGE: ChatCompletionTool = {
       properties: {
         source: {
           type: "string",
-          description: "اسم المصدر (articles_latest أو videos_latest فقط)",
-          enum: ["articles_latest", "videos_latest"]
+          description: "اسم المصدر (articles_latest أو videos_latest أو friday_sermons أو wahy_friday)",
+          enum: ["articles_latest", "videos_latest", "friday_sermons", "wahy_friday"]
         },
         page: {
           type: "integer",

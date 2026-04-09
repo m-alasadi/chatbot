@@ -47,12 +47,18 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
 
   const newsHints = ["اخبار", "خبر", "مقال", "مقالات"]
   const videoHints = ["فيديو", "فديو", "فيديوهات", "مقاطع", "مرئي"]
+  const wahyFridayHints = ["وحي الجمعه", "من وحي", "وحي"]
+  const sermonHints = ["خطبه", "خطب", "جمعه", "خطيب", "منبر", "صلاه الجمعه", "صلاه جمعه"]
   const isNews = newsHints.some(h => norm.includes(h))
   const isVideo = videoHints.some(h => norm.includes(h))
+  const isWahyFriday = wahyFridayHints.some(h => norm.includes(h))
+  const isSermon = sermonHints.some(h => norm.includes(h))
 
   // 1. Source-specific count → get_source_metadata
   const countKeywords = ["عدد", "كم", "اجمالي", "كلي", "مجموع"]
   if (countKeywords.some(k => norm.includes(k))) {
+    if (isWahyFriday) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "wahy_friday" } }
+    if (isSermon) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "friday_sermons" } }
     if (isNews && !isVideo) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
     if (isVideo && !isNews) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "videos_latest" } }
   }
@@ -67,17 +73,47 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
   // 3. Oldest / first → browse_source_page with order=oldest
   const oldestKeywords = ["اول", "اقدم", "oldest", "first"]
   if (oldestKeywords.some(k => norm.includes(k))) {
+    if (isWahyFriday) return { tool: "browse_source_page" as AllowedToolName, args: { source: "wahy_friday", page: 1, order: "oldest" } }
+    if (isSermon) return { tool: "browse_source_page" as AllowedToolName, args: { source: "friday_sermons", page: 1, order: "oldest" } }
     if (isVideo && !isNews) return { tool: "browse_source_page" as AllowedToolName, args: { source: "videos_latest", page: 1, order: "oldest" } }
     if (isNews || norm.includes("نشر") || norm.includes("موقع")) {
       return { tool: "browse_source_page" as AllowedToolName, args: { source: "articles_latest", page: 1, order: "oldest" } }
     }
   }
 
-  // 4. Abbas biography → force search_content with source=auto to trigger history auto-resolution
-  const abbasHints = ["العباس", "ابو الفضل", "ابا الفضل", "ابوالفضل", "ابي الفضل"]
-  const bioHints = ["نبذه", "حياه", "سيره", "من هو", "من هي", "تعريف", "استشهد", "استشهاد"]
+  // 4. Abbas biography → force search_content with source=auto to trigger knowledge layer
+  const abbasHints = ["العباس", "ابو الفضل", "ابا الفضل", "ابوالفضل", "ابي الفضل", "قمر بني هاشم"]
+  const bioHints = [
+    "نبذه", "حياه", "سيره", "من هو", "من هي", "تعريف", "استشهد", "استشهاد",
+    "القاب", "صفات", "اخو", "اخوات", "زواج", "كنيه", "نشا", "ولاد", "مولد",
+    "عمر", "متي", "اين", "دفن", "قبر", "ماذا", "ما هو", "ما هي", "يذكر", "عن",
+    "اعمام", "ابناء", "اولاد", "موقف",
+  ]
   if (abbasHints.some(h => norm.includes(h)) && bioHints.some(h => norm.includes(h))) {
     return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
+  }
+  // Even standalone Abbas queries in short form should go through knowledge layer
+  if (abbasHints.some(h => norm.includes(h)) && norm.length < 40) {
+    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
+  }
+
+  // 5. Friday sermons — route to correct source family
+  const wahyHints2 = ["وحي الجمعه", "من وحي", "وحي"]
+  const sermonHints2 = ["خطبه", "خطب", "جمعه", "خطيب", "منبر", "صلاه الجمعه", "صلاه جمعه"]
+  const isWahy2 = wahyHints2.some(h => norm.includes(h))
+  const isSermon2 = sermonHints2.some(h => norm.includes(h))
+  const isLatestIntent = ["احدث", "اخر", "جديد", "اخير"].some(h => norm.includes(h))
+  if (isWahy2) {
+    if (isLatestIntent) {
+      return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "wahy_friday", limit: 5 } }
+    }
+    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "wahy_friday" } }
+  }
+  if (isSermon2) {
+    if (isLatestIntent) {
+      return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "friday_sermons", limit: 5 } }
+    }
+    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "friday_sermons" } }
   }
 
   return null
@@ -101,7 +137,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
 
   // تحديد رابط المصدر حسب نوع المحتوى
   const sourceType = project?.source_type
-  const isVideoSource = sourceType === "videos_latest" || sourceType === "videos_by_category"
+  const isVideoSource = sourceType === "videos_latest" || sourceType === "videos_by_category" || sourceType === "friday_sermons" || sourceType === "wahy_friday"
   const isHistorySource = sourceType === "shrine_history_by_section" || sourceType === "shrine_history_sections"
   const isAbbasSource = sourceType === "abbas_history_by_id"
   const mediaSlug = project?.source_raw?.request || project?.source_raw?.news_id || project?.source_raw?.article_id
@@ -213,6 +249,8 @@ function friendlySourceName(source: string): string {
     videos_by_category: "الفيديوهات",
     videos_categories: "أقسام الفيديو",
     lang_words_ar: "القاموس اللغوي",
+    friday_sermons: "خطب الجمعة",
+    wahy_friday: "من وحي الجمعة",
   }
   return map[source] || source
 }
@@ -532,10 +570,13 @@ function looksLikeSiteContentQuery(text: string): boolean {
     "ماهو", "ماهي", "ما هو", "ما هي", "ماذا",
     "شنو", "شنهو", "شكد",
     "زيار", "حرم", "صحن", "ضريح", "مرقد",
-    "مشروع", "مشاريع", "المشاريع"
+    "مشروع", "مشاريع", "المشاريع",
+    "خطبه", "خطب", "جمعه", "وحي", "خطيب", "منبر"
   ]
 
   return contentSignals.some(signal => norm.includes(signal))
+    // Long Arabic text without question marks → likely a title paste or direct content query
+    || (text.trim().length >= 25 && !text.includes("?") && !text.includes("\u061F"))
 }
 
 // ── Knowledge layer helpers ─────────────────────────────────────────
@@ -562,11 +603,14 @@ function shouldUseKnowledgeLayer(text: string): boolean {
   const deepPatterns = [
     "من هو", "من هي", "ما هو", "ما هي", "ماهو", "ماهي",
     "تاريخ", "سيره", "حياه", "نبذه", "استشهاد",
-    "عتبه", "عباس", "ضريح", "مرقد", "حرم", "صحن",
+    "عتبه", "عباس", "ابو الفضل", "ابي الفضل", "ابا الفضل",
+    "ضريح", "مرقد", "حرم", "صحن",
     "سدنه", "كلدار", "وصف",
     "زياره", "ابحث", "بحث", "معلومات عن", "تحدث عن", "حدثني",
-    "اخبرني عن", "عرفني",
+    "اخبرني عن", "عرفني", "يذكر", "ماذا يذكر",
     "خطبه", "خطب", "جمعه", "وحي الجمعه", "اصدار", "اصدارات",
+    "القاب", "صفات", "اخوه", "اخوات", "زواج", "كنيه", "نشاه",
+    "ام البنين", "قمر بني هاشم", "سقايه",
   ]
   if (deepPatterns.some(p => norm.includes(p))) return true
 
@@ -579,7 +623,7 @@ function shouldUseKnowledgeLayer(text: string): boolean {
  * Returns a short structured block instead of raw 800-char dumps.
  */
 function formatKnowledgeResults(
-  chunks: { chunk: { title: string; section: string; url: string; chunk_text: string }; evidence_snippet: string; score: number }[]
+  chunks: { chunk: { title: string; section: string; url: string; chunk_text: string; source?: string }; evidence_snippet: string; score: number }[]
 ): string {
   if (!chunks || chunks.length === 0) return ""
   const lines: string[] = ["[سياق معرفي إضافي من النصوص الكاملة]"]
@@ -587,8 +631,13 @@ function formatKnowledgeResults(
     const title = r.chunk.title || ""
     const section = r.chunk.section || ""
     const url = r.chunk.url || ""
-    // Use a generous snippet: evidence_snippet, or first 400 chars of chunk text
-    const snippet = r.evidence_snippet || r.chunk.chunk_text.substring(0, 400)
+    // Use generous snippet: for Abbas chunks, include more text to capture biographical facts
+    const isAbbas = r.chunk.source === "abbas_local_dataset"
+    const maxSnippet = isAbbas ? 550 : 400
+    // For Abbas chunks, prefer full chunk text to ensure date/biographical facts are captured
+    const snippet = isAbbas
+      ? r.chunk.chunk_text.substring(0, maxSnippet)
+      : (r.evidence_snippet || r.chunk.chunk_text.substring(0, maxSnippet))
     lines.push(`• ${title}${section ? ` — ${section}` : ""}`)
     lines.push(`  ${snippet}`)
     if (url) lines.push(`  ${url}`)
@@ -625,9 +674,14 @@ async function injectKnowledgeAndGuard(
   userQuery: string
 ): Promise<void> {
   // Only use knowledge layer for qualifying queries
+  let abbasKnowledgeInjected = false
   if (shouldUseKnowledgeLayer(userQuery)) {
     const kCtx = await getKnowledgeContext(userQuery)
     if (kCtx) {
+      // Detect if Abbas knowledge content was returned
+      if (kCtx.includes("العباس بن علي") || kCtx.includes("alkafeel.net/abbas")) {
+        abbasKnowledgeInjected = true
+      }
       // If any tool returned empty results, replace that message content with
       // knowledge results to prevent the model from fixating on "empty"
       const emptyToolIdx = messages.findIndex(m =>
@@ -647,6 +701,13 @@ async function injectKnowledgeAndGuard(
         messages.push({ role: "system", content: kCtx })
       }
     }
+  }
+
+  // Evidence guard: skip when Abbas local knowledge was injected —
+  // the Abbas dataset IS the authoritative source for biographical facts.
+  if (abbasKnowledgeInjected) {
+    console.log(`[Evidence Guard] Skipped — Abbas knowledge context present`)
+    return
   }
 
   // Evidence guard: if the question demands hard facts and results lack them
@@ -677,6 +738,7 @@ function isHardEvidenceSensitive(text: string): boolean {
     "في اي سنه", "في اي عام",
     "هجري", "ميلادي",
     "عدد ابناء", "عدد اولاد", "عدد زوجات",
+    "متي ولد", "متي استشهد", "متي توفي",
   ]
   return dateAgePatterns.some(p => norm.includes(p))
 }
@@ -694,14 +756,24 @@ function hasStrongAnswerEvidence(toolContent: string, query: string): boolean {
     const hasYear = /\d{3,4}/.test(toolContent) || /[\u0660-\u0669]{3,4}/.test(toolContent)
     if (hasYear) return true
     // Named historical events count as date evidence (e.g., "يوم الطف" = 10 Muharram 61 AH)
-    const eventNames = ["الطف", "كربلاء", "عاشوراء", "محرم"]
+    const eventNames = ["الطف", "كربلاء", "عاشوراء", "محرم", "شعبان"]
     if (eventNames.some(e => toolContent.includes(e))) return true
+    // Written-out Arabic numbers count as date evidence (e.g., "ست وعشرين" = 26)
+    const writtenNumbers = ["وعشرين", "وثلاثين", "واربعين", "وخمسين", "وستين", "سنه"]
+    if (writtenNumbers.some(w => toolContent.includes(w))) return true
     return false
   }
-  // If asking about age/count, look for numbers
+  // If asking about age/count, look for numbers (digits or written-out Arabic)
   const asksNumber = ["عمر", "عدد", "كم"].some(k => norm.includes(k))
   if (asksNumber) {
     const hasNumber = /\d+/.test(toolContent) || /[\u0660-\u0669]+/.test(toolContent)
+    if (hasNumber) return true
+    // Written-out Arabic numbers (e.g., "أربعا وثلاثين سنة")
+    const writtenNums = [
+      "وعشرين", "وثلاثين", "واربعين", "وخمسين", "وستين",
+      "عشر", "احد", "اثن", "ثلاث", "اربع", "خمس", "ست", "سبع", "ثمان", "تسع",
+    ]
+    if (writtenNums.some(w => toolContent.includes(w))) return true
     return hasNumber
   }
   // Generic: if content is substantial, it's evidence enough
@@ -742,10 +814,15 @@ export async function resolveToolCalls(
         function: { name: forcedIntent.tool, arguments: JSON.stringify(forcedIntent.args) }
       }]
     })
+    // If forced-intent returned empty results, mark for knowledge override
+    const isEmpty = forcedResult.success && isEmptyAPIResponse(forcedResult.data)
+    const toolContent = isEmpty
+      ? JSON.stringify({ success: false, empty_results: true, message: "لا توجد نتائج من هذا المصدر حالياً" })
+      : JSON.stringify(cleanedForced)
     currentMessages.push({
       role: "tool",
       tool_call_id: syntheticToolCallId,
-      content: JSON.stringify(cleanedForced)
+      content: toolContent
     })
 
     // Augment forced-intent results with deep-text knowledge + evidence guard

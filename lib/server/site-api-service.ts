@@ -306,7 +306,7 @@ function pickText(...values: any[]): string {
 const CATEGORY_INDEX_SOURCES: SiteSourceName[] = ["videos_categories", "shrine_history_sections"]
 
 /** Sources safe for pagination expansion (meaningful paginated content, not structural) */
-const EXPANDABLE_SOURCES: SiteSourceName[] = ["articles_latest", "videos_latest"]
+const EXPANDABLE_SOURCES: SiteSourceName[] = ["articles_latest", "videos_latest", "friday_sermons", "wahy_friday"]
 
 // ── Arabic normalization utilities ──────────────────────────────────
 
@@ -328,6 +328,75 @@ function tokenizeArabicQuery(query: string): string[] {
   return normalizeArabic(query)
     .split(/\s+/)
     .filter(w => w.length >= 2)
+}
+
+/**
+ * Detect whether the query looks like a (partial) article title rather than a question.
+ * Title-like queries are long Arabic phrases without interrogative structure.
+ */
+function looksLikeTitleQuery(query: string): boolean {
+  const trimmed = (query || "").trim()
+  if (trimmed.length < 20) return false
+
+  const norm = normalizeArabic(trimmed)
+
+  // Question / command prefixes → NOT a title
+  const questionPrefixes = [
+    "ما هو", "ما هي", "من هو", "من هي", "كيف", "لماذا", "متي",
+    "اين", "هل", "كم", "ابحث", "اعرض", "اعطني", "تحدث", "اريد",
+    "عرف", "وضح", "اشرح", "ما الذي", "ما هو عدد"
+  ]
+  if (questionPrefixes.some(q => norm.startsWith(normalizeArabic(q)))) return false
+
+  // Any question mark → not a title
+  if (trimmed.includes("?") || trimmed.includes("\u061F")) return false
+
+  // Must be majority Arabic characters
+  const arabicChars = (trimmed.match(/[\u0600-\u06FF]/g) || []).length
+  if (arabicChars / trimmed.replace(/\s/g, "").length < 0.5) return false
+
+  // Long enough and no question markers anywhere → likely a title
+  if (trimmed.length >= 30) return true
+
+  // Medium length (20-29 chars): accept only if no question words appear at all
+  const anyQuestion = questionPrefixes.some(q => norm.includes(normalizeArabic(q)))
+  return !anyQuestion
+}
+
+/**
+ * Title-specific scorer: measures how closely an item's title matches the query.
+ * Returns 0–100.  50+ = confident match.
+ */
+function scoreTitleMatch(item: any, query: string): number {
+  const normQ = normalizeArabic(query)
+  const normTitle = normalizeArabic(item?.name || "")
+  if (!normQ || !normTitle) return 0
+
+  // Exact match
+  if (normTitle === normQ) return 100
+  // Title contains the full query
+  if (normTitle.includes(normQ)) return 85
+  // Query contains the full title
+  if (normQ.includes(normTitle) && normTitle.length > 10) return 75
+
+  // Token overlap ratio
+  const qTokens = tokenizeArabicQuery(query)
+  const tTokens = new Set(tokenizeArabicQuery(item?.name || ""))
+  if (qTokens.length === 0 || tTokens.size === 0) return 0
+
+  let matchCount = 0
+  for (const t of qTokens) {
+    for (const tt of tTokens) {
+      if (tt.includes(t) || t.includes(tt)) { matchCount++; break }
+    }
+  }
+
+  const ratio = matchCount / qTokens.length
+  if (ratio >= 0.85) return 65
+  if (ratio >= 0.7)  return 50
+  if (ratio >= 0.5)  return 30
+  if (ratio >= 0.3)  return 15
+  return 0
 }
 
 /** Returns true only when the query clearly asks for categories / sections / classifications */
@@ -392,9 +461,12 @@ function normalizeSourceDataset(source: SiteSourceName, rawData: any): any[] {
     return normalizeProjectsDataset(rawData)
   }
 
-  if (source === "videos_latest" || source === "videos_by_category") {
+  if (source === "videos_latest" || source === "videos_by_category" || source === "friday_sermons" || source === "wahy_friday") {
+    const defaultSection = source === "friday_sermons" ? "خطب الجمعة"
+      : source === "wahy_friday" ? "من وحي الجمعة"
+      : "فيديو"
     return arr.map((item: any) => {
-      const section = pickText(item?.cat_title, item?.category, "فيديو")
+      const section = pickText(item?.cat_title, item?.category, defaultSection)
       const id = String(item?.id || item?.video_id || "")
       // حقل request يحتوي المعرّف الصحيح (hash/slug) لصفحة الخبر
       const mediaSlug = item?.request || item?.news_id || item?.article_id || item?.newsId || item?.articleId
@@ -1202,6 +1274,22 @@ export async function siteSearchContent(
     }
   }
 
+  // Deep title search: if the query looks like a title and no existing result
+  // is a strong title match, scan deeper into archives in parallel.
+  const isTitleQ = looksLikeTitleQuery(query)
+  const hasStrongTitleHit = scored.some(s => scoreTitleMatch(s.item, query) >= 50)
+  if (isTitleQ && !hasStrongTitleHit && source === "auto") {
+    console.log("[siteSearchContent] Title-query detected, launching deep archive scan...")
+    const deepSources = candidates.filter(s => EXPANDABLE_SOURCES.includes(s))
+    if (deepSources.length > 0) {
+      const deepHits = await deepTitleSearch(query, deepSources, params, deduped, safeLimit)
+      for (const h of deepHits) {
+        scored.push(h)
+      }
+      scored.sort((a, b) => b.score - a.score)
+    }
+  }
+
   // Attach evidence snippets
   const results = scored.slice(0, safeLimit).map(x => ({
     ...x.item,
@@ -1241,29 +1329,116 @@ async function fetchSourcePage(
   return normalizeSourceDataset(source, result.data)
 }
 
-/** Expand search by fetching additional pages (2–6) from expandable sources */
+/** Expand search by fetching additional pages from expandable sources (parallel batches) */
 async function expandSearchFromSources(
   sources: SiteSourceName[],
   params: SourceFetchParams,
   alreadySeen: Map<string, any>
 ): Promise<any[]> {
   const extra: any[] = []
-  const MAX_EXPANSION_PAGE = 6 // pages 2 through 6
+  const MAX_EXPANSION_PAGE = 6
+  const BATCH = 5
 
   for (const s of sources) {
-    for (let page = 2; page <= MAX_EXPANSION_PAGE; page++) {
-      const items = await fetchSourcePage(s, page, params)
-      if (items.length === 0) break // no more pages
-      for (const item of items) {
-        const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
-        if (!alreadySeen.has(key)) {
-          alreadySeen.set(key, item)
-          extra.push(item)
+    const meta = await fetchSourceMetadataRaw(s)
+    const maxPage = Math.min(meta.last_page, MAX_EXPANSION_PAGE)
+
+    for (let batchStart = 2; batchStart <= maxPage; batchStart += BATCH) {
+      const batchEnd = Math.min(batchStart + BATCH - 1, maxPage)
+      const pages = Array.from({ length: batchEnd - batchStart + 1 }, (_, i) => batchStart + i)
+      const batchResults = await Promise.all(pages.map(p => fetchSourcePage(s, p, params)))
+
+      for (const items of batchResults) {
+        for (const item of items) {
+          const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
+          if (!alreadySeen.has(key)) {
+            alreadySeen.set(key, item)
+            extra.push(item)
+          }
         }
       }
     }
   }
   return extra
+}
+
+// ── Deep title search (parallel batch scanning) ─────────────────────
+
+/**
+ * Scan deep into paginated archives in parallel batches looking for
+ * high-confidence title matches.  Used when `looksLikeTitleQuery` is true.
+ *
+ * Strategy:  Scan from BOTH ends simultaneously:
+ *  - newest → pages 2..MAX_DEEP_PAGE   (recent articles)
+ *  - oldest → pages last_page..last_page-MAX_DEEP_PAGE  (very old articles)
+ *  Both directions run in interleaved parallel batches.
+ *  Stop early when a ≥50 confidence title match is found.
+ */
+async function deepTitleSearch(
+  query: string,
+  sources: SiteSourceName[],
+  params: SourceFetchParams,
+  alreadySeen: Map<string, any>,
+  limit: number = 5
+): Promise<{ item: any; score: number }[]> {
+  const MAX_DEEP_PAGE = 150     // max pages per direction
+  const BATCH_SIZE = 10
+  const HIGH_CONFIDENCE = 50
+
+  const hits: { item: any; score: number }[] = []
+
+  for (const source of sources) {
+    if (!EXPANDABLE_SOURCES.includes(source)) continue
+
+    const meta = await fetchSourceMetadataRaw(source)
+    if (meta.last_page <= 1) continue
+
+    // Build page ranges for both directions
+    const newestMax = Math.min(meta.last_page, MAX_DEEP_PAGE)
+    const oldestStart = meta.last_page
+    const oldestMin = Math.max(1, meta.last_page - MAX_DEEP_PAGE + 1)
+
+    let foundHigh = false
+    let newestPage = 2
+    let oldestPage = oldestStart
+
+    while (!foundHigh && (newestPage <= newestMax || oldestPage >= oldestMin)) {
+      const pagesToFetch: number[] = []
+
+      // Add a batch from the newest direction
+      for (let i = 0; i < BATCH_SIZE && newestPage <= newestMax; i++, newestPage++) {
+        pagesToFetch.push(newestPage)
+      }
+      // Add a batch from the oldest direction
+      for (let i = 0; i < BATCH_SIZE && oldestPage >= oldestMin; i++, oldestPage--) {
+        if (!pagesToFetch.includes(oldestPage)) pagesToFetch.push(oldestPage)
+      }
+
+      if (pagesToFetch.length === 0) break
+
+      const batchResults = await Promise.all(
+        pagesToFetch.map(p => fetchSourcePage(source, p, params))
+      )
+
+      for (const items of batchResults) {
+        for (const item of items) {
+          const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
+          if (alreadySeen.has(key)) continue
+          alreadySeen.set(key, item)
+
+          const ts = scoreTitleMatch(item, query)
+          if (ts > 0) {
+            const gs = scoreUnifiedItem(item, query)
+            hits.push({ item, score: Math.max(ts, gs) })
+            if (ts >= HIGH_CONFIDENCE) foundHigh = true
+          }
+        }
+      }
+    }
+  }
+
+  hits.sort((a, b) => b.score - a.score)
+  return hits.slice(0, limit)
 }
 
 // ── Weighted candidate source ranking ───────────────────────────────

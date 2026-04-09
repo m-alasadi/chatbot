@@ -82,13 +82,23 @@ function isAbbasQuery(normQuery: string): boolean {
     "اخوه العباس", "اخوات العباس", "زواج العباس", "كنيه العباس",
     "نشاه العباس", "استشهاد العباس", "شهاده العباس",
     "قمر بني هاشم", "سقايه العباس", "موقفه في الطف",
+    "ام البنين", "اعمام العباس", "ابناء العباس", "اولاد العباس",
+    "ولاده العباس", "مولد العباس", "دفن العباس", "قبر العباس",
   ]
   // Direct match on compound phrases
   if (abbasHints.some(h => normQuery.includes(h))) return true
-  // Single "عباس" + biographical keyword
-  if (normQuery.includes("عباس")) {
-    const bioHints = ["من هو", "نبذه", "حياه", "سيره", "القاب", "صفات", "اخو", "زواج", "كنيه", "نشا", "عمر", "استشهد", "شهاد", "ولاد"]
+  // Single "عباس" or "ابو الفضل" + biographical keyword
+  const hasAbbasName = normQuery.includes("عباس") || normQuery.includes("ابو الفضل") || normQuery.includes("ابي الفضل")
+  if (hasAbbasName) {
+    const bioHints = [
+      "من هو", "نبذه", "حياه", "سيره", "القاب", "صفات", "اخو", "اخوات",
+      "زواج", "كنيه", "نشا", "عمر", "استشهد", "شهاد", "ولاد", "مولد",
+      "متي", "اين", "دفن", "قبر", "ماذا", "ما هي", "ما هو", "عن",
+      "يذكر", "تعريف", "وصف", "اعمام", "ابناء", "اولاد",
+    ]
     if (bioHints.some(h => normQuery.includes(h))) return true
+    // Standalone Abbas name in a question context (short query) is likely biographical
+    if (normQuery.length < 40) return true
   }
   return false
 }
@@ -97,7 +107,7 @@ function isAbbasQuery(normQuery: string): boolean {
 function isFridayQuery(normQuery: string): boolean {
   const hints = [
     "خطبه", "خطب", "جمعه", "صلاه الجمعه", "وحي الجمعه",
-    "خطيب", "منبر", "صلاه جمعه",
+    "خطيب", "منبر", "صلاه جمعه", "من وحي", "وحي",
   ]
   return hints.some(h => normQuery.includes(h))
 }
@@ -108,7 +118,7 @@ function detectTypeConstraint(normQuery: string): import("./content-types").Cont
   const typeMap: [string[], import("./content-types").ContentSourceFamily][] = [
     [["فيديو", "فديو", "مرئي", "مقطع", "يوتيوب"], "video"],
     [["خبر", "مقال", "مقاله", "اخبار"], "news"],
-    [["خطبه", "خطب الجمعه", "صلاه الجمعه"], "sermon"],
+    [["خطبه", "خطب الجمعه", "صلاه الجمعه", "وحي الجمعه", "من وحي", "وحي"], "sermon"],
     [["اصدار", "اصدارات", "كتاب", "كتب", "مطبوع"], "news"],  // publications are articles
   ]
   for (const [hints, family] of typeMap) {
@@ -165,7 +175,7 @@ function fuzzySearchAbbasChunks(
 
   return scored.slice(0, limit).map(({ chunk, fuzzyScore }) => {
     const evidence = buildEvidenceSnippet(chunk.chunk_text, queryTokens)
-    const finalScore = fuzzyScore * 2.0 + 3.0 // family boost baseline
+    const finalScore = fuzzyScore * 2.5 + 5.0 // strong Abbas baseline to compete with reranked results
     return { chunk, score: finalScore, evidence_snippet: evidence }
   })
 }
@@ -230,11 +240,20 @@ function rerank(
   }
   // Strong boost for Abbas local dataset on Abbas-specific queries
   if (isAbbasQuery(normQuery) && chunk.family === "abbas") {
-    signals.familyBoost = 1.5
+    signals.familyBoost = 2.5
+  }
+  // Penalize generic news/video results on clear Abbas biographical queries
+  // to prevent shrine-activity news from outranking real Abbas biography content
+  if (isAbbasQuery(normQuery) && (chunk.family === "news" || chunk.family === "video")) {
+    signals.familyBoost = -0.8
   }
   // Boost sermon-family chunks on Friday sermon queries
   if (isFridayQuery(normQuery) && chunk.family === "sermon") {
-    signals.familyBoost = 1.2
+    signals.familyBoost = 2.0
+  }
+  // Penalize generic news/video results on clear Friday sermon queries
+  if (isFridayQuery(normQuery) && (chunk.family === "news" || chunk.family === "video")) {
+    signals.familyBoost = -0.6
   }
 
   // Type constraint: explicit content-type preference from query
@@ -321,12 +340,14 @@ export function searchKnowledgeChunks(
   })
 
   // Deduplicate: keep best chunk per parent_id
-  const seenParents = new Set<string>()
+  // Allow more chunks from Abbas dataset on Abbas queries (biographical content is long)
+  const normQueryForDedup = normalizeArabic(query)
+  const isAbbasQ = isAbbasQuery(normQueryForDedup)
   const deduped: ChunkSearchResult[] = []
   for (const r of scored) {
-    // Allow up to 2 chunks per parent for long articles
+    const maxPerParent = (isAbbasQ && r.chunk.family === "abbas") ? 4 : 2
     const parentCount = deduped.filter(d => d.chunk.parent_id === r.chunk.parent_id).length
-    if (parentCount >= 2) continue
+    if (parentCount >= maxPerParent) continue
     deduped.push(r)
     if (deduped.length >= limit) break
   }
