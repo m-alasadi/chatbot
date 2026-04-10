@@ -25,6 +25,16 @@ import {
 } from "./smart-suggestions"
 import { ensureKnowledgeReady } from "./knowledge/content-ingestion"
 import { searchKnowledgeChunks, searchKnowledgeWithBackfill } from "./knowledge/knowledge-search"
+import {
+  extractBestEvidence,
+  extractEvidenceFromToolResults,
+  formatEvidenceForModel,
+  buildMandatoryInstruction,
+  generateDirectAnswer,
+  formatGroundedAnswer,
+  collectToolResultItems,
+  type Evidence
+} from "./evidence-extractor"
 
 // ── Light Arabic normalization for intent detection ────────────────
 function normalizeArabicLight(text: string): string {
@@ -626,6 +636,11 @@ function formatKnowledgeResults(
   chunks: { chunk: { title: string; section: string; url: string; chunk_text: string; source?: string }; evidence_snippet: string; score: number }[]
 ): string {
   if (!chunks || chunks.length === 0) return ""
+
+  // Extract structured evidence for grounded quotation
+  const evidence = extractBestEvidence(chunks as any, "", 3)
+  const evidenceBlock = formatEvidenceForModel(evidence)
+
   const lines: string[] = ["[سياق معرفي إضافي من النصوص الكاملة]"]
   for (const r of chunks) {
     const title = r.chunk.title || ""
@@ -642,6 +657,13 @@ function formatKnowledgeResults(
     lines.push(`  ${snippet}`)
     if (url) lines.push(`  ${url}`)
   }
+
+  // Append structured evidence block for grounded quoting
+  if (evidenceBlock) {
+    lines.push("")
+    lines.push(evidenceBlock)
+  }
+
   return lines.join("\n")
 }
 
@@ -666,13 +688,44 @@ async function getKnowledgeContext(query: string): Promise<string | null> {
 }
 
 /**
+ * Extract evidence from tool result messages and inject as structured quotes.
+ * Uses mandatory instruction when confidence is high, soft suggestion otherwise.
+ * Returns the evidence list for use in the pipeline (direct-answer check).
+ */
+function injectToolResultEvidence(
+  messages: ChatCompletionMessageParam[],
+  userQuery: string
+): Evidence[] {
+  const allItems = collectToolResultItems(messages as any[])
+  if (allItems.length === 0) return []
+
+  const evidence = extractEvidenceFromToolResults(allItems, userQuery, 3)
+  if (evidence.length === 0) return []
+
+  const topConfidence = evidence[0]?.confidence ?? 0
+  console.log(`[Evidence] ${evidence.length} items, top confidence: ${topConfidence}%`)
+
+  // High confidence (≥40%) → mandatory quote instruction, forces model to cite
+  // Low confidence → soft suggestion only
+  const block = topConfidence >= 40
+    ? buildMandatoryInstruction(evidence)
+    : formatEvidenceForModel(evidence)
+
+  if (block) {
+    messages.push({ role: "system", content: block })
+  }
+
+  return evidence
+}
+
+/**
  * Inject knowledge context + evidence guard into the message array.
- * Called from ONE place to avoid duplication (P5).
+ * Returns the extracted tool-result evidence list for use by the caller.
  */
 async function injectKnowledgeAndGuard(
   messages: ChatCompletionMessageParam[],
   userQuery: string
-): Promise<void> {
+): Promise<Evidence[]> {
   // Only use knowledge layer for qualifying queries
   let abbasKnowledgeInjected = false
   if (shouldUseKnowledgeLayer(userQuery)) {
@@ -707,8 +760,13 @@ async function injectKnowledgeAndGuard(
   // the Abbas dataset IS the authoritative source for biographical facts.
   if (abbasKnowledgeInjected) {
     console.log(`[Evidence Guard] Skipped — Abbas knowledge context present`)
-    return
+    // Still extract + inject evidence from tool results for grounding
+    const ev = injectToolResultEvidence(messages, userQuery)
+    return ev
   }
+
+  // Extract evidence from tool results for grounded quoting
+  const extractedEvidence = injectToolResultEvidence(messages, userQuery)
 
   // Evidence guard: if the question demands hard facts and results lack them
   if (isHardEvidenceSensitive(userQuery)) {
@@ -723,6 +781,33 @@ async function injectKnowledgeAndGuard(
       })
     }
   }
+
+  return extractedEvidence
+}
+
+/**
+ * Try to generate a direct template-based answer from evidence.
+ *
+ * Returns a string answer only when:
+ *  - There is exactly 1 top-confidence evidence item (≥75%) → specific article lookup
+ *  - OR the top item has ≥85% confidence regardless of count
+ *
+ * This bypasses the final LLM streaming call for focused single-result queries.
+ * For general multi-result searches (confidence < 75%), returns null so the LLM
+ * synthesises the answer with the mandatory-quote instruction already injected.
+ */
+function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | null {
+  if (!evidence || evidence.length === 0) return null
+
+  const top = evidence[0]
+  // Single high-confidence match (title-query hit on a specific article)
+  const isSingleHighConf = evidence.length === 1 && top.confidence >= 40
+  // Or high confidence regardless of count
+  const isExtremeConf = top.confidence >= 55
+
+  if (!isSingleHighConf && !isExtremeConf) return null
+
+  return generateDirectAnswer(query, evidence)
 }
 
 /**
@@ -826,7 +911,19 @@ export async function resolveToolCalls(
     })
 
     // Augment forced-intent results with deep-text knowledge + evidence guard
-    await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+    const forcedEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+
+    // If a single high-confidence evidence item exists, return a direct grounded answer
+    const forcedDirect = tryGenerateDirectAnswer(userQueryForIntent, forcedEvidence)
+    if (forcedDirect) {
+      console.log(`[Grounded Answer] Returning direct answer from forced-intent evidence`)
+      return {
+        resolvedMessages: currentMessages,
+        needsFinalCall: false,
+        iterations: 0,
+        directAnswer: forcedDirect
+      }
+    }
 
     return {
       resolvedMessages: currentMessages,
@@ -860,7 +957,19 @@ export async function resolveToolCalls(
         console.log(`[Tool Resolution] Tools done, popped answer for streaming`)
 
         // Augment with knowledge search + evidence guard
-        await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+        const loopEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+
+        // If a single high-confidence evidence item exists, return a direct grounded answer
+        const loopDirect = tryGenerateDirectAnswer(userQueryForIntent, loopEvidence)
+        if (loopDirect) {
+          console.log(`[Grounded Answer] Returning direct answer from loop-iteration evidence`)
+          return {
+            resolvedMessages: currentMessages,
+            needsFinalCall: false,
+            iterations,
+            directAnswer: loopDirect
+          }
+        }
 
         return {
           resolvedMessages: currentMessages,
@@ -930,7 +1039,19 @@ export async function resolveToolCalls(
 
   // Max iterations reached — tools were processed, need streaming call
   // Final knowledge augmentation + evidence guard
-  await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+  const finalEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+
+  // If a single high-confidence evidence item exists, return a direct grounded answer
+  const finalDirect = tryGenerateDirectAnswer(userQueryForIntent, finalEvidence)
+  if (finalDirect) {
+    console.log(`[Grounded Answer] Returning direct answer from max-iteration evidence`)
+    return {
+      resolvedMessages: currentMessages,
+      needsFinalCall: false,
+      iterations,
+      directAnswer: finalDirect
+    }
+  }
 
   return {
     resolvedMessages: currentMessages,
