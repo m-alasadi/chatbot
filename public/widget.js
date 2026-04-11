@@ -145,6 +145,20 @@
     '.alkw-message p{margin:10px 0;display:block}',
     '.alkw-message br{display:block;content:"";margin:6px 0}',
 
+    /* ── Suggestion divider ── */
+    '.alkw-suggestion-divider{',
+      'display:flex;align-items:center;gap:8px;',
+      'margin:14px 0 10px;border:none;',
+    '}',
+    '.alkw-suggestion-divider::before,.alkw-suggestion-divider::after{',
+      'content:"";flex:1;height:1px;background:linear-gradient(to left,transparent,#374151);',
+    '}',
+    '.alkw-suggestion-divider::after{background:linear-gradient(to right,transparent,#374151)}',
+    '.alkw-suggestion-label{',
+      'white-space:nowrap;font-size:11px;color:#6b7280;letter-spacing:.3px;',
+      'background:#1a2536;padding:2px 8px;border:1px solid #374151;border-radius:10px;',
+    '}',
+
     /* ── Loading dots ── */
     '.alkw-loading-wrapper{',
       'align-self:flex-end;background:#1f2937;border:1px solid #374151;',
@@ -536,6 +550,9 @@
     h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g,                        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     h = h.replace(/^(\d+)\.\s+(.+)$/gm,                              '<li>$2</li>');
     h = h.replace(/^[-\u2022]\s+(.+)$/gm,                            '<li>$1</li>');
+    // —— Suggestion divider: سطر يحتوي على --- فقط ——
+    h = h.replace(/^---$/gm,
+      '<hr class="alkw-suggestion-divider"><span class="alkw-suggestion-label">📎 قد يهمك أيضاً</span>');
     h = h.replace(/\n/g,                                              '<br>');
     h = h.replace(/((<li>.+?<\/li>)(<br>)*)+/g, function(m) {
       return '<ol>' + m.replace(/<br>/g, '') + '</ol>';

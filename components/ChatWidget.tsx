@@ -131,6 +131,9 @@ export default function ChatWidget({
       .replace(/^[-•]\s+(.+)$/gm, "<li>$1</li>")
       .replace(/^### (.+)$/gm, "<h3>$1</h3>")
       .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+      // —— Suggestion divider: سطر يحتوي على --- فقط ——
+      .replace(/^---$/gm,
+        '<hr class="chat-suggestion-divider"><span class="chat-suggestion-label">📎 قد يهمك أيضاً</span>')
       .replace(/\n/g, "<br>")
 
     html = html.replace(/((<li>.+?<\/li>)(<br>)?)+/g, match => {
@@ -322,6 +325,35 @@ export default function ChatWidget({
           border-bottom-right-radius: 4px;
         }
         
+        /* ── Suggestion divider ── */
+        .chat-suggestion-divider {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 14px 0 4px;
+          border: none;
+        }
+        .chat-suggestion-divider::before,
+        .chat-suggestion-divider::after {
+          content: "";
+          flex: 1;
+          height: 1px;
+          background: linear-gradient(to left, transparent, #334155);
+        }
+        .chat-suggestion-divider::after {
+          background: linear-gradient(to right, transparent, #334155);
+        }
+        .chat-suggestion-label {
+          white-space: nowrap;
+          font-size: 11px;
+          color: #64748b;
+          letter-spacing: 0.3px;
+          background: #1e293b;
+          padding: 2px 9px;
+          border: 1px solid #334155;
+          border-radius: 10px;
+        }
+
         .chat-widget-message-content a {
           color: #60a5fa;
           text-decoration: underline;
