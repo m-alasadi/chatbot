@@ -625,6 +625,12 @@ function normalizeProjectsDataset(rawData: any): any[] {
       return explicitUrl
     }
 
+    // حقل request يحتوي المعرّف الصحيح (hash/slug) لصفحة الخبر — يُستخدم كأولوية على الـ id الرقمي
+    const requestSlug = item?.request
+    if (typeof requestSlug === "string" && requestSlug.trim().length > 0) {
+      return `${siteDomain}/news/${encodeURIComponent(requestSlug.trim())}?lang=ar`
+    }
+
     const id = String(item?.id || "").trim()
     if (!id) return siteDomain
 

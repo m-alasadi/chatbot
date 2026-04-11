@@ -229,7 +229,7 @@
       title:       'مساعدك في  موقع العتبة العباسية',
       subtitle:    'اسأل عن  العتبة العباسية',
       position:    'left',
-      buttonText:  '<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 27C18 22.0294 22.0294 18 27 18H29C33.9706 18 38 22.0294 38 27C38 31.9706 33.9706 36 29 36H28.3284L24.0607 40.2678C23.1157 41.2128 21.5 40.5858 21.5 39.2678V36C19.134 36 18 34.866 18 33V27Z" stroke="white" stroke-width="3"/></svg>',
+      buttonText:  '<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="28" cy="9" r="3" fill="white"/><line x1="28" y1="12" x2="28" y2="17" stroke="white" stroke-width="2.5" stroke-linecap="round"/><rect x="13" y="17" width="30" height="22" rx="7" stroke="white" stroke-width="2.5"/><circle cx="22" cy="27" r="3" fill="white"/><circle cx="34" cy="27" r="3" fill="white"/><path d="M21 33.5 Q28 38 35 33.5" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/><line x1="13" y1="27" x2="9" y2="27" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="43" y1="27" x2="47" y2="27" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>',
       buttonSize:  '60px',
       zIndex:      999998,
     };
@@ -435,7 +435,15 @@
     .catch(function(err) {
       console.error('[AlKafeel Widget]', err);
       self._removeById(loadingId);
-      self.addMessage('assistant', '⚠️ عذراً، حدث خطأ في الاتصال. يُرجى المحاولة مرة أخرى.');
+      var msg;
+      if (!navigator.onLine) {
+        msg = '📵 لا يوجد اتصال بالإنترنت. يرجى التحقق من شبكتك والمحاولة مرة أخرى.';
+      } else if (err && (err.name === 'TypeError' || (err.message && err.message.toLowerCase().includes('fetch')))) {
+        msg = '⚠️ تعذّر الوصول إلى الخادم. يرجى التحقق من اتصالك والمحاولة مرة أخرى.';
+      } else {
+        msg = '⚠️ عذراً، حدث خطأ في الاتصال. يُرجى المحاولة مرة أخرى.';
+      }
+      self.addMessage('assistant', msg);
     })
     .finally(function() {
       self.isLoading = false;
@@ -467,7 +475,9 @@
     return pump().catch(function(e) {
       console.error('[AlKafeel Widget] Stream error:', e);
       if (!full) {
-        full = '⚠️ حدث خطأ أثناء استلام الرد.';
+        full = !navigator.onLine
+          ? '📵 انقطع الاتصال أثناء استلام الرد. يرجى التحقق من شبكتك.'
+          : '⚠️ حدث خطأ أثناء استلام الرد. يُرجى المحاولة مرة أخرى.';
         bubble.innerHTML = self._fmt(full);
       }
       self.messages.push({ role: 'assistant', content: full });

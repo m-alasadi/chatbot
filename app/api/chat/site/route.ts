@@ -193,6 +193,23 @@ export async function POST(request: Request) {
 
         console.log(`[Chat API] Tools resolved in ${toolResult.iterations} iteration(s), needsFinalCall: ${toolResult.needsFinalCall}`)
 
+        // إذا كان هناك إجابة مباشرة (من evidence عالي الثقة) → أرجعها فوراً
+        if (toolResult.directAnswer) {
+          console.log(`[Chat API] Returning direct grounded answer (bypassing final LLM call)`)
+          const directStream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(toolResult.directAnswer!))
+              controller.close()
+            }
+          })
+          return new Response(directStream, {
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              ...securityHeaders
+            }
+          })
+        }
+
         // ✅ الخطوة 2: streaming حقيقي من OpenAI (يشتغل على Vercel)
         // سواء كان رد مباشر أو بعد tool calls — دائماً نستخدم stream حقيقي
         const streamMessages = toolResult.needsFinalCall

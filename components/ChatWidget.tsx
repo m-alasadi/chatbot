@@ -87,13 +87,16 @@ export default function ChatWidget({
         ...newMessages,
         { role: "assistant", content: botReply }
       ])
-    } catch (err) {
+    } catch (err: any) {
+      let errorMsg = "⚠️ حدث خطأ في الاتصال. حاول مرة أخرى."
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        errorMsg = "📵 لا يوجد اتصال بالإنترنت. يرجى التحقق من شبكتك والمحاولة مرة أخرى."
+      } else if (err?.name === "TypeError" || err?.message?.toLowerCase().includes("fetch")) {
+        errorMsg = "⚠️ تعذّر الوصول إلى الخادم. يرجى التحقق من اتصالك والمحاولة مرة أخرى."
+      }
       setMessages([
         ...newMessages,
-        {
-          role: "assistant",
-          content: "⚠️ حدث خطأ في الاتصال. حاول مرة أخرى."
-        }
+        { role: "assistant", content: errorMsg }
       ])
     } finally {
       setIsLoading(false)
@@ -474,7 +477,16 @@ export default function ChatWidget({
               className={`chat-widget-message ${msg.role}`}
             >
               <div className="chat-widget-avatar">
-                {msg.role === "user" ? "👤" : "🤖"}
+                {msg.role === "user" ? "👤" : (
+                  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="10" cy="2" r="1.5" fill="white"/>
+                    <line x1="10" y1="3.5" x2="10" y2="6" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                    <rect x="3" y="6" width="14" height="12" rx="4" stroke="white" strokeWidth="1.5"/>
+                    <circle cx="7.5" cy="11" r="1.5" fill="white"/>
+                    <circle cx="12.5" cy="11" r="1.5" fill="white"/>
+                    <path d="M7 15 Q10 17 13 15" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+                  </svg>
+                )}
               </div>
               <div
                 className="chat-widget-message-content"
@@ -487,7 +499,16 @@ export default function ChatWidget({
 
           {isLoading && (
             <div className="chat-widget-message assistant">
-              <div className="chat-widget-avatar">🤖</div>
+              <div className="chat-widget-avatar">
+                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="10" cy="2" r="1.5" fill="white"/>
+                  <line x1="10" y1="3.5" x2="10" y2="6" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                  <rect x="3" y="6" width="14" height="12" rx="4" stroke="white" strokeWidth="1.5"/>
+                  <circle cx="7.5" cy="11" r="1.5" fill="white"/>
+                  <circle cx="12.5" cy="11" r="1.5" fill="white"/>
+                  <path d="M7 15 Q10 17 13 15" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+                </svg>
+              </div>
               <div className="chat-widget-message-content">
                 <div className="chat-widget-loading">
                   <span></span>

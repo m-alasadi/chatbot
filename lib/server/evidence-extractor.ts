@@ -32,7 +32,7 @@ export interface Evidence {
   source_url: string     // URL of the source
   source_section: string // section name
   confidence: number     // 0–100
-API results → extract evidence (quote+URL bound) → strip URLs from raw messages → inject evidence block → LLM sees ONLY bound URLs}
+}
 
 // ── Core extractor ──────────────────────────────────────────────────
 
@@ -126,6 +126,17 @@ export function extractEvidenceFromToolResults(
   }
 
   evidenceList.sort((a, b) => b.confidence - a.confidence)
+
+  // If the top result is clearly dominant (≥20 points above the second),
+  // only return the top result — avoids injecting tangentially-related items
+  // that merely share a common word (e.g. "أحمد" in an unrelated article).
+  if (evidenceList.length >= 2) {
+    const gap = evidenceList[0].confidence - evidenceList[1].confidence
+    if (gap >= 20) {
+      return evidenceList.slice(0, 1)
+    }
+  }
+
   return evidenceList.slice(0, limit)
 }
 
@@ -259,9 +270,20 @@ export function buildMandatoryInstruction(evidenceList: Evidence[]): string {
     `المصدر: ${top.source_title}`,
   ]
   if (top.source_url) lines.push(`الرابط: ${top.source_url}`)
+
+  // تضمين بقية الأدلة مع روابطها الصحيحة حتى لا يخلط النموذج بين الروابط
+  if (evidenceList.length > 1) {
+    lines.push("")
+    lines.push("نتائج إضافية (استخدم الرابط الخاص بكل نتيجة فقط — لا تستخدم رابط نتيجة أخرى):")
+    for (let i = 1; i < evidenceList.length; i++) {
+      const e = evidenceList[i]
+      lines.push(`  ${i + 1}. ${e.source_title}${e.source_url ? ` → ${e.source_url}` : ""}`)
+    }
+  }
+
   lines.push("",
     "قاعدة مطلقة: لا تُلخّص ولا تُعيد الصياغة. اذكر الاقتباس أعلاه كما هو ثم أضف جملة توضيحية قصيرة (1–2 جمل).",
-    "إذا كانت هناك نتائج إضافية، اذكرها كقائمة بعد الاقتباس."
+    "⚠️ مهم جداً: لكل نتيجة رابط خاص بها. استخدم الرابط المرفق مع كل نتيجة فقط. لا تستخدم رابط نتيجة مع محتوى نتيجة أخرى."
   )
 
   return lines.join("\n")

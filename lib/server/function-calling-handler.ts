@@ -52,6 +52,42 @@ function normalizeArabicLight(text: string): string {
  * Detect user intents that require a deterministic tool call
  * instead of letting the model freely choose (possibly wrong) tools.
  */
+
+/**
+ * Returns true only when the query is asking about Abbas's personal biography
+ * (traits, titles, family, life, martyrdom) — NOT about shrine activities,
+ * expansions, renovations, or any building/construction work.
+ */
+function isAbbasBiographyQuery(text: string): boolean {
+  const norm = normalizeArabicLight(text)
+
+  // If the query is about shrine construction/expansion/activities → NOT biographical
+  const shrineActivityPatterns = [
+    "توسعه", "توسعة", "بناء", "ترميم", "انشاء", "إنشاء", "قبه", "قبة",
+    "رواق", "صحن", "بلاطه", "بلاطة", "مشروع", "مشاريع", "طابق",
+    "تشييد", "اعمار", "اعمال", "عمل", "خدمه", "خدمة",
+    "فعاليه", "فعاليات", "نشاط", "انشطه", "برنامج", "مناسبه",
+    "زياره", "زيارة", "زائرين", "خبر", "اخبار",
+  ]
+  if (shrineActivityPatterns.some(p => norm.includes(p))) return false
+
+  // Biographical signals: personal traits, family, life events
+  const biographyPatterns = [
+    "لقب", "القاب", "كنيه", "كنية", "صفه", "صفات", "صفة",
+    "من هو", "من هي", "ما هو", "ما هي", "سيره", "سيرة", "حياه", "حياة",
+    "نشاه", "نشأة", "ولاده", "ولادة", "مولد",
+    "ام ", "امه", "أمه", "ابيه", "ابوه", "اخوه", "اخواته", "اخت",
+    "زوجه", "زوجة", "زوجات", "زواج", "ولد", "ابناء", "اولاد",
+    "اعمام", "عمه", "عمته",
+    "استشهاد", "شهاده", "شهادة", "مقتل", "متي استشهد",
+    "موقفه", "قمر بني هاشم", "سقايه", "سقاية", "عمر سنه",
+    "تعريف", "نبذه", "نبذة",
+  ]
+  if (biographyPatterns.some(p => norm.includes(p))) return true
+
+  return false
+}
+
 function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args: Record<string, any> } | null {
   const norm = normalizeArabicLight(userText)
 
@@ -65,8 +101,9 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
   const isSermon = sermonHints.some(h => norm.includes(h))
 
   // 1. Source-specific count → get_source_metadata
+  // But NOT for biographical queries like "عدد ألقاب العباس" — those go to knowledge layer
   const countKeywords = ["عدد", "كم", "اجمالي", "كلي", "مجموع"]
-  if (countKeywords.some(k => norm.includes(k))) {
+  if (countKeywords.some(k => norm.includes(k)) && !isAbbasBiographyQuery(userText)) {
     if (isWahyFriday) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "wahy_friday" } }
     if (isSermon) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "friday_sermons" } }
     if (isNews && !isVideo) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
@@ -126,6 +163,15 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
     return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "friday_sermons" } }
   }
 
+  // 6. Fallback: any non-trivial query that hasn't matched above
+  // → force search_content so the LLM always has real data before answering.
+  // This catches bare names ("السيد أحمد الصافي"), topics, etc.
+  // Skip only very short single-word greetings.
+  const isGreeting = ["مرحبا", "اهلا", "هلا", "السلام", "شكرا", "شكر"].some(g => norm === g || norm === g + "ً")
+  if (!isGreeting && norm.length >= 4) {
+    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
+  }
+
   return null
 }
 
@@ -169,8 +215,11 @@ function cleanProject(project: any, detailed: boolean = false): any {
     }
   }
 
-  if (isVideoSource && mediaSlug) {
-    const articleUrl = `${siteDomain}/media/${encodeURIComponent(String(mediaSlug))}?lang=ar`
+  if (isVideoSource) {
+    // استخدام request slug للفيديو إذا متوفر، وإلا استخدام URL الموجود من normalizeSourceDataset
+    const videoUrl = mediaSlug
+      ? `${siteDomain}/media/${encodeURIComponent(String(mediaSlug))}?lang=ar`
+      : (project.url || siteDomain)
     const sectionNames = Array.isArray(project.sections)
       ? project.sections.map((s: any) => s.name).filter(Boolean)
       : []
@@ -190,7 +239,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
       description: truncate(project.description || "", detailed ? 500 : 150),
       sections: sectionNames,
       properties: Object.keys(properties).length > 0 ? properties : undefined,
-      url: articleUrl,
+      url: videoUrl,
     }
   }
 
@@ -599,6 +648,10 @@ function looksLikeSiteContentQuery(text: string): boolean {
 function shouldUseKnowledgeLayer(text: string): boolean {
   const norm = normalizeArabicLight(text)
 
+  // Abbas biographical queries always use the knowledge layer —
+  // even when "عدد/كم" is present (e.g. "عدد ألقاب أبو الفضل" is biographical, not a count of API items)
+  if (isAbbasBiographyQuery(text)) return true
+
   // Skip: counts, metadata, category listing, latest/oldest
   const skipPatterns = [
     "عدد", "كم", "اجمالي", "كلي", "مجموع",        // counts
@@ -671,7 +724,7 @@ function formatKnowledgeResults(
  * Search knowledge index and return compact formatted context, or null.
  * Single entry point for all knowledge injection — avoids duplication.
  */
-async function getKnowledgeContext(query: string): Promise<string | null> {
+async function getKnowledgeContext(query: string): Promise<{ context: string; topScore: number } | null> {
   try {
     await ensureKnowledgeReady()
     const response = await searchKnowledgeWithBackfill(query, { limit: 4, minScore: 1.5 })
@@ -679,8 +732,9 @@ async function getKnowledgeContext(query: string): Promise<string | null> {
       console.log(`[Knowledge] No chunks for: "${query}"${response.backfilled ? " (after backfill)" : ""}`)
       return null
     }
-    console.log(`[Knowledge] Found ${response.chunks.length} chunks (scores: ${response.chunks.map(c => c.score.toFixed(1)).join(",")})${response.backfilled ? " [backfilled]" : ""}`)
-    return formatKnowledgeResults(response.chunks)
+    const topScore = response.chunks[0].score
+    console.log(`[Knowledge] Found ${response.chunks.length} chunks (scores: ${response.chunks.map(c => c.score.toFixed(1)).join(",")})${response.backfilled ? " [backfilled]" : ""}` )
+    return { context: formatKnowledgeResults(response.chunks), topScore }
   } catch (e) {
     console.warn("[Knowledge] Search failed:", (e as Error).message)
     return null
@@ -729,10 +783,17 @@ async function injectKnowledgeAndGuard(
   // Only use knowledge layer for qualifying queries
   let abbasKnowledgeInjected = false
   if (shouldUseKnowledgeLayer(userQuery)) {
-    const kCtx = await getKnowledgeContext(userQuery)
-    if (kCtx) {
-      // Detect if Abbas knowledge content was returned
-      if (kCtx.includes("العباس بن علي") || kCtx.includes("alkafeel.net/abbas")) {
+    const kResult = await getKnowledgeContext(userQuery)
+    if (kResult) {
+      const { context: kCtx, topScore } = kResult
+      // Detect if Abbas knowledge content was returned WITH a strong relevance score.
+      // A low top-score (< 7.0) means the knowledge base only has tangentially related
+      // content — don't suppress tool results in that case.
+      const ABBASS_BIO_MIN_SCORE = 7.0
+      if (
+        (kCtx.includes("العباس بن علي") || kCtx.includes("alkafeel.net/abbas")) &&
+        topScore >= ABBASS_BIO_MIN_SCORE
+      ) {
         abbasKnowledgeInjected = true
       }
       // If any tool returned empty results, replace that message content with
@@ -758,9 +819,44 @@ async function injectKnowledgeAndGuard(
 
   // Evidence guard: skip when Abbas local knowledge was injected —
   // the Abbas dataset IS the authoritative source for biographical facts.
+  // Do NOT extract tool-result evidence here — news articles mentioning
+  // "مرقد أبي الفضل" would be ranked high incorrectly and override the
+  // real Abbas biographical content already present in the knowledge context.
   if (abbasKnowledgeInjected) {
-    console.log(`[Evidence Guard] Skipped — Abbas knowledge context present`)
-    // Still extract + inject evidence from tool results for grounding
+    // Only suppress tool results for biographical questions (traits, family, life).
+    // For shrine activity/construction queries, let tool results come through normally.
+    if (isAbbasBiographyQuery(userQuery)) {
+      // Check if the knowledge context actually covers the specific sub-topic asked about.
+      // If the context doesn't mention the key concept (e.g. wives, children), allow
+      // the LLM to answer from general knowledge rather than saying "not found".
+      const norm = normalizeArabicLight(userQuery)
+      const kCtxNorm = normalizeArabicLight(
+        messages.filter(m => m.role === "system").map(m => typeof m.content === "string" ? m.content : "").join(" ")
+      )
+      // Topics the local knowledge base is known to NOT cover for Abbas himself
+      const wivesQuery = ["زوج", "زوجة", "زوجات", "نكاح", "تزوج"].some(t => norm.includes(t))
+      const contextMentionsAbbasWives = kCtxNorm.includes("تزوج العباس") || kCtxNorm.includes("زوجة العباس") || kCtxNorm.includes("زوجات العباس")
+      const knowledgeGap = wivesQuery && !contextMentionsAbbasWives
+
+      if (knowledgeGap) {
+        // Knowledge base doesn't cover this topic — let LLM use general historical knowledge
+        console.log(`[Evidence Guard] Abbas biography — knowledge gap detected, permitting general knowledge`)
+        messages.push({
+          role: "system",
+          content: "ℹ️ السياق المعرفي المحلي لا يتضمن معلومات عن هذا الجانب تحديداً. أجب من معرفتك التاريخية الموثوقة عن الإمام أبي الفضل العباس (عليه السلام). تجاهل نتائج الأدوات المرتبطة بأخبار الضريح — هي غير ذات صلة."
+        })
+        return []
+      }
+
+      console.log(`[Evidence Guard] Abbas biography query — suppressing tool-result evidence`)
+      messages.push({
+        role: "system",
+        content: "📚 تعليمات: أجب عن هذا السؤال البيوغرافي من المعلومات الواردة في [سياق معرفي إضافي من النصوص الكاملة] أعلاه. تجاهل نتائج الأدوات المرتبطة بأخبار الضريح أو الأنشطة — هي غير ذات صلة بهذا السؤال."
+      })
+      return []
+    }
+    // Non-biographical query (shrine activities, expansion, etc.) — inject tool evidence normally
+    console.log(`[Evidence Guard] Abbas shrine/activity query — tool-result evidence allowed`)
     const ev = injectToolResultEvidence(messages, userQuery)
     return ev
   }
