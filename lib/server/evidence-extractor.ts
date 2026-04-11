@@ -32,7 +32,7 @@ export interface Evidence {
   source_url: string     // URL of the source
   source_section: string // section name
   confidence: number     // 0–100
-}
+API results → extract evidence (quote+URL bound) → strip URLs from raw messages → inject evidence block → LLM sees ONLY bound URLs}
 
 // ── Core extractor ──────────────────────────────────────────────────
 
