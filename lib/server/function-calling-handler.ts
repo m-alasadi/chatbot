@@ -733,10 +733,18 @@ function getPrimaryRetrievalToolForQuery(text: string): AllowedToolName {
 function getPostBootstrapTools(
   tools: OpenAI.Chat.Completions.ChatCompletionTool[]
 ): OpenAI.Chat.Completions.ChatCompletionTool[] {
+  const allowedUtilityTools = new Set([
+    "get_source_metadata",
+    "browse_source_page",
+    "get_latest_by_source",
+    "list_source_categories",
+    "get_statistics"
+  ])
+
   return tools.filter(tool => {
     if (tool.type !== "function") return true
     const name = tool.function?.name
-    return name !== "search_content" && name !== "search_projects"
+    return typeof name === "string" && allowedUtilityTools.has(name)
   })
 }
 
@@ -1239,14 +1247,21 @@ export async function resolveToolCalls(
       ? getPostBootstrapTools(tools)
       : tools
 
-    const response = await openai.chat.completions.create({
-      model,
-      messages: currentMessages,
-      tools: toolsForIteration,
-      tool_choice: "auto",
-      temperature: 0.2,
-      max_tokens: 1200
-    })
+    const response = toolsForIteration.length > 0
+      ? await openai.chat.completions.create({
+          model,
+          messages: currentMessages,
+          tools: toolsForIteration,
+          tool_choice: "auto",
+          temperature: 0.2,
+          max_tokens: 1200
+        })
+      : await openai.chat.completions.create({
+          model,
+          messages: currentMessages,
+          temperature: 0.2,
+          max_tokens: 1200
+        })
 
     const assistantMessage = response.choices[0].message
     currentMessages.push(assistantMessage)
