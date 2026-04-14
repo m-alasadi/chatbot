@@ -130,6 +130,20 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
     }
   }
 
+  // 4. Explicit latest listing requests (utility listing, not semantic retrieval)
+  const latestKeywords = ["احدث", "اخر", "آخر", "الجديد", "احدث ", "اخر "]
+  const explicitListingWords = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
+  const isExplicitLatestListing =
+    latestKeywords.some(k => norm.includes(normalizeArabicLight(k))) &&
+    (explicitListingWords.some(k => norm.includes(normalizeArabicLight(k))) || norm.length <= 28)
+
+  if (isExplicitLatestListing) {
+    if (isWahyFriday) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "wahy_friday", limit: 5 } }
+    if (isSermon) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "friday_sermons", limit: 5 } }
+    if (isVideo && !isNews) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "videos_latest", limit: 5 } }
+    if (isNews && !isVideo) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "articles_latest", limit: 5 } }
+  }
+
   // Compatibility-only forced routing:
   // keep deterministic non-search flows here; retrieval routing is owned by orchestrator.
   return null
@@ -524,11 +538,14 @@ async function processToolCall(
   if (context.traceId) {
     const resultCount = getResultCountFromData(result.data)
     const topScore = getTopScoreFromData(result.data)
+    const routedSource =
+      (result.data && (result.data.source_used || result.data.source || result.data.routed_source)) ||
+      args.source
     logChatTrace({
       trace_id: context.traceId,
       stage: "tool_result",
       normalized_query: normalizeQueryForTrace(traceQuery),
-      routed_source: args.source,
+      routed_source: routedSource,
       result_counts: resultCount,
       top_score: topScore,
       details: {
@@ -536,8 +553,11 @@ async function processToolCall(
         success: result.success
       }
     })
-    if (context.traceSummary && typeof args.source === "string") {
-      context.traceSummary.routed_source = args.source
+    if (context.traceSummary) {
+      // Keep orchestrator-selected source when available; fallback to args.source.
+      if (typeof routedSource === "string" && routedSource.trim().length > 0) {
+        context.traceSummary.routed_source = routedSource
+      }
       context.traceSummary.result_counts = resultCount
       context.traceSummary.top_score = topScore
     }
@@ -1052,6 +1072,17 @@ export async function resolveToolCalls(
 
   if (forcedIntent) {
     console.log(`[Tool Resolution] Forced intent: ${forcedIntent.tool}`, forcedIntent.args)
+    if (options.traceId) {
+      logChatTrace({
+        trace_id: options.traceId,
+        stage: "forced_intent_utility",
+        normalized_query: normalizeQueryForTrace(userQueryForIntent),
+        routed_source: forcedIntent.args?.source,
+        details: {
+          forced_tool: forcedIntent.tool
+        }
+      })
+    }
     const forcedResult = await executeToolByName(forcedIntent.tool, forcedIntent.args)
     const cleanedForced = cleanResultForGPT(forcedResult)
     const syntheticToolCallId = `forced_${forcedIntent.tool}_${Date.now()}`
