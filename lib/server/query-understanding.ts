@@ -66,6 +66,9 @@ export function isFactQuery(text: string): boolean {
 export function isListQuery(text: string): boolean {
   const norm = normalizeArabicQuery(text)
 
+  // English "oldest"/"first" are kept intentionally for mixed-language queries
+  // (users occasionally type English keywords). This mirrors the original
+  // oldestKeywords list in function-calling-handler.ts section 3.
   const listPatterns = [
     "اعرض", "اظهر", "قدم", "عرض", "اذكر", "اريد قائمه", "اريد قائمة",
     "احدث", "اخر", "جديد", "اخير",

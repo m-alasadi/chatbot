@@ -182,8 +182,8 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
   // "من وحي الجمعة" (wahy) is not confused with "خطبة الجمعة" (sermon).
   const wahyHints2 = ["وحي الجمعه", "من وحي", "وحي"]
   const sermonHints2 = ["خطبه", "خطب", "خطيب", "منبر", "صلاه الجمعه", "صلاه جمعه"]
-  // "جمعه" alone (without "صلاه") maps to wahy only when combined with "وحي",
-  // otherwise it stays in the sermon bucket.
+  // "جمعه" alone maps to sermon by default (Friday prayer/sermon context).
+  // It only maps to wahy when "وحي" is also present (wahy takes priority).
   const isWahy2 = wahyHints2.some(h => norm.includes(h))
   const isSermon2 = sermonHints2.some(h => norm.includes(h)) ||
     (norm.includes("جمعه") && !isWahy2)
