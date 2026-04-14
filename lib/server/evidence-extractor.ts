@@ -327,6 +327,13 @@ export function formatGroundedAnswer(
   evidenceList: Evidence[]
 ): string {
   const normQuery = normalizeAr(query)
+  const isProjectStyleQuery =
+    normQuery.includes("مشروع") ||
+    normQuery.includes("مشاريع") ||
+    normQuery.includes("توسعه") ||
+    normQuery.includes("توسعة") ||
+    normQuery.includes("اعمار") ||
+    normQuery.includes("بناء")
   const isFactStyleQuery =
     normQuery.includes("من هو") ||
     normQuery.includes("من هي") ||
@@ -335,9 +342,7 @@ export function formatGroundedAnswer(
     normQuery.includes("نبذه") ||
     normQuery.includes("سيره")
 
-
-    // cccccccccc
-  if (isFactStyleQuery && evidenceList.length > 0) {
+  if (!isProjectStyleQuery && isFactStyleQuery && evidenceList.length > 0) {
     const top = evidenceList[0]
     const quote = String(top.quote || "").replace(/\s+/g, " ").trim()
     const source = top.source_title ? ` المصدر: ${top.source_title}.` : ""
@@ -345,7 +350,11 @@ export function formatGroundedAnswer(
     return `بحسب ما ورد في المصادر، ${quote}${source}${url} هل تريد تفاصيل أكثر؟`
   }
 
-  const lines: string[] = ["بحسب ما ورد في المصادر:"]
+  const lines: string[] = [
+    isProjectStyleQuery
+      ? "بحسب ما ورد في المصادر، هذه أبرز مشاريع التوسعة ذات الصلة:"
+      : "بحسب ما ورد في المصادر:"
+  ]
   const seen = new Set<string>()
 
   const ordered = evidenceList

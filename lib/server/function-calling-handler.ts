@@ -1104,24 +1104,25 @@ function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | 
   const understanding = understandQuery(query)
   const isFactIntent = understanding.operation_intent === "fact_question"
 
-  const top = evidence[0]
-  // Single high-confidence match (title-query hit on a specific article)
-  const isSingleHighConf = evidence.length === 1 && top.confidence >= (isFactIntent ? 25 : 40)
-  // Or high confidence regardless of count
-  const isExtremeConf = top.confidence >= (isFactIntent ? 35 : 55)
-
-  if (!isSingleHighConf && !isExtremeConf) return null
-
-  const generated = generateDirectAnswer(query, evidence)
-  if (!generated) return null
-
   if (isFactIntent) {
-    return generated
+    const generatedFact = generateDirectAnswer(query, evidence)
+    if (!generatedFact) return null
+    return generatedFact
       .replace(/\s*\n+\s*/g, " ")
       .replace(/\s{2,}/g, " ")
       .trim()
   }
 
+  const top = evidence[0]
+  // Single high-confidence match (title-query hit on a specific article)
+  const isSingleHighConf = evidence.length === 1 && top.confidence >= 40
+  // Or high confidence regardless of count
+  const isExtremeConf = top.confidence >= 55
+
+  if (!isSingleHighConf && !isExtremeConf) return null
+
+  const generated = generateDirectAnswer(query, evidence)
+  if (!generated) return null
   return generated
 }
 

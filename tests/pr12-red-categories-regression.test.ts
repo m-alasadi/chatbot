@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { understandQuery } from "../lib/server/query-understanding"
 import { buildDeterministicLatestListAnswer } from "../lib/server/function-calling-handler"
+import { formatGroundedAnswer, type Evidence } from "../lib/server/evidence-extractor"
 import { orchestrateRetrieval } from "../lib/server/retrieval-orchestrator"
 import type { APICallResult } from "../lib/server/site-api-service"
 import type { AllowedToolName } from "../lib/server/site-tools-definitions"
@@ -31,6 +32,37 @@ function testListShapeFormatter() {
   assert.ok(answer)
   assert.ok(String(answer).includes("1. فيديو 1"))
   assert.ok(String(answer).includes("2. فيديو 2"))
+}
+
+function testFactGroundedShapeIsCompact() {
+  const evidence: Evidence[] = [
+    {
+      quote: "أبو الفضل العباس هو ابن الإمام علي بن أبي طالب.",
+      source_title: "سيرة أبي الفضل العباس",
+      source_url: "https://alkafeel.net/abbas?lang=ar",
+      source_section: "التعريف",
+      confidence: 80
+    }
+  ]
+
+  const answer = formatGroundedAnswer("من هو أبو الفضل العباس", evidence)
+  assert.ok(answer.includes("المصدر:"))
+  assert.ok(!answer.includes("\n\n"))
+}
+
+function testProjectGroundedShapeHasProjectSignal() {
+  const evidence: Evidence[] = [
+    {
+      quote: "شهدت العتبة مشروع توسعة جديد في الصحن الشريف.",
+      source_title: "أخبار العتبة",
+      source_url: "https://alkafeel.net/news/example",
+      source_section: "مشاريع",
+      confidence: 70
+    }
+  ]
+
+  const answer = formatGroundedAnswer("ما هي مشاريع توسعة العتبة", evidence)
+  assert.ok(answer.includes("مشاريع"))
 }
 
 async function testBiographyRoutingAvoidsInvalidFirstSource() {
@@ -106,6 +138,8 @@ async function testWahyVsFridayRoutingSeparation() {
 async function runTests() {
   testFactVsListIntentUnderstanding()
   testListShapeFormatter()
+  testFactGroundedShapeIsCompact()
+  testProjectGroundedShapeHasProjectSignal()
   await testBiographyRoutingAvoidsInvalidFirstSource()
   await testWahyVsFridayRoutingSeparation()
   console.log("PR12 red-category regression tests passed")
