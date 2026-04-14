@@ -1487,8 +1487,19 @@ function rankCandidateSources(query: string, params: SourceFetchParams = {}): Si
   const sermonHints = ["خطبه", "خطب", "جمعه", "صلاه الجمعه", "وحي الجمعه", "خطيب"]
   const sermonBoost = sermonHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 6 : 0), 0)
   if (sermonBoost > 0) {
-    scores.push({ source: "friday_sermons", score: 6 + sermonBoost })
-    scores.push({ source: "wahy_friday", score: 5 + sermonBoost })
+    const isExplicitWahy =
+      norm.includes(normalizeArabic("من وحي")) ||
+      norm.includes(normalizeArabic("وحي الجمعه"))
+    const isExplicitSermon =
+      norm.includes(normalizeArabic("خطب")) ||
+      norm.includes(normalizeArabic("خطبه")) ||
+      norm.includes(normalizeArabic("خطيب"))
+
+    const wahyBias = isExplicitWahy ? 4 : 0
+    const sermonBias = isExplicitSermon ? 4 : 0
+
+    scores.push({ source: "friday_sermons", score: 6 + sermonBoost + sermonBias })
+    scores.push({ source: "wahy_friday", score: 5 + sermonBoost + wahyBias })
   }
 
   // Language signals

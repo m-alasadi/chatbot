@@ -301,6 +301,48 @@ function friendlySourceName(source: string): string {
   return map[source] || source
 }
 
+function extractListingItems(result: APICallResult): any[] {
+  const data = result?.data
+  if (Array.isArray(data?.projects)) return data.projects
+  if (Array.isArray(data?.items)) return data.items
+  if (Array.isArray(data?.results)) return data.results
+  return []
+}
+
+export function buildDeterministicLatestListAnswer(
+  result: APICallResult,
+  fallbackSource?: string
+): string | null {
+  if (!result?.success) return null
+
+  const items = extractListingItems(result)
+  if (items.length === 0) return null
+
+  const sourceKey =
+    String(result.data?.source_used || result.data?.source || fallbackSource || "").trim()
+  const sourceLabel = sourceKey ? friendlySourceName(sourceKey) : "المصدر المطلوب"
+
+  const lines: string[] = [
+    `وجدت لك ${Math.min(items.length, 5)} نتائج من ${sourceLabel}:`
+  ]
+
+  for (let i = 0; i < Math.min(items.length, 5); i++) {
+    const item = items[i]
+    const title =
+      String(item?.name || item?.title || "نتيجة بدون عنوان")
+        .replace(/\s+/g, " ")
+        .trim()
+    const url = String(item?.url || "").trim()
+
+    lines.push(`${i + 1}. ${title}`)
+    if (url) {
+      lines.push(`   ${url}`)
+    }
+  }
+
+  return lines.join("\n")
+}
+
 /**
  * تنظيف نتائج الـ API قبل إرسالها لـ GPT
  */
@@ -780,8 +822,18 @@ function getPostBootstrapTools(
  * (full-text deep search). Skip for trivial / deterministic queries
  * like counts, metadata, categories, latest/oldest listings.
  */
-function shouldUseKnowledgeLayer(text: string): boolean {
+function shouldUseKnowledgeLayer(
+  text: string,
+  understanding?: QueryUnderstandingResult
+): boolean {
   const norm = normalizeArabicLight(text)
+
+  if (understanding) {
+    const op = understanding.operation_intent
+    if (op === "count" || op === "latest" || op === "list_items" || op === "browse") {
+      return false
+    }
+  }
 
   // Abbas biographical queries always use the knowledge layer —
   // even when "عدد/كم" is present (e.g. "عدد ألقاب أبو الفضل" is biographical, not a count of API items)
@@ -794,6 +846,8 @@ function shouldUseKnowledgeLayer(text: string): boolean {
     "اقسام الفيديو", "تصنيفات", "فئات",             // category listing
     "احدث خبر", "اخر خبر", "اخر فيديو",             // latest
     "اول خبر", "اقدم خبر", "اول فيديو",             // oldest
+    "اعرض احدث", "اعرض أحدث", "احدث الفيديوهات", "احدث اخبار",
+    "احدث من وحي الجمعه", "احدث خطب الجمعه", "احدث خطبه الجمعه",
   ]
   if (skipPatterns.some(p => norm.includes(p))) return false
 
@@ -913,11 +967,12 @@ function injectToolResultEvidence(
  */
 async function injectKnowledgeAndGuard(
   messages: ChatCompletionMessageParam[],
-  userQuery: string
+  userQuery: string,
+  understanding?: QueryUnderstandingResult
 ): Promise<Evidence[]> {
   // Only use knowledge layer for qualifying queries
   let abbasKnowledgeInjected = false
-  if (shouldUseKnowledgeLayer(userQuery)) {
+  if (shouldUseKnowledgeLayer(userQuery, understanding)) {
     const kResult = await getKnowledgeContext(userQuery)
     if (kResult) {
       const { context: kCtx, topScore } = kResult
@@ -1181,8 +1236,34 @@ export async function resolveToolCalls(
       content: toolContent
     })
 
+    if (forcedIntent.tool === "get_latest_by_source" || forcedIntent.tool === "browse_source_page") {
+      const deterministicList = buildDeterministicLatestListAnswer(
+        forcedResult,
+        String(forcedIntent.args?.source || "")
+      )
+      if (deterministicList) {
+        return {
+          resolvedMessages: currentMessages,
+          needsFinalCall: false,
+          iterations: 0,
+          directAnswer: deterministicList,
+          trace: {
+            ...traceSummary,
+            retry_attempts: retryCounter.count,
+            routed_source: forcedIntent.args?.source,
+            result_counts: getResultCountFromData(forcedResult.data),
+            top_score: getTopScoreFromData(forcedResult.data)
+          }
+        }
+      }
+    }
+
     // Augment forced-intent results with deep-text knowledge + evidence guard
-    const forcedEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+    const forcedEvidence = await injectKnowledgeAndGuard(
+      currentMessages,
+      userQueryForIntent,
+      queryUnderstanding
+    )
 
     // If a single high-confidence evidence item exists, return a direct grounded answer
     const forcedDirect = tryGenerateDirectAnswer(userQueryForIntent, forcedEvidence)
@@ -1274,7 +1355,7 @@ export async function resolveToolCalls(
         content: JSON.stringify(cleaned)
       })
 
-      await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+      await injectKnowledgeAndGuard(currentMessages, userQueryForIntent, queryUnderstanding)
       toolsWereCalled = true
       orchestratorBootstrapped = true
     }
@@ -1316,7 +1397,11 @@ export async function resolveToolCalls(
         console.log(`[Tool Resolution] Tools done, popped answer for streaming`)
 
         // Augment with knowledge search + evidence guard
-        const loopEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+        const loopEvidence = await injectKnowledgeAndGuard(
+          currentMessages,
+          userQueryForIntent,
+          queryUnderstanding
+        )
 
         // If a single high-confidence evidence item exists, return a direct grounded answer
         const loopDirect = tryGenerateDirectAnswer(userQueryForIntent, loopEvidence)
@@ -1373,7 +1458,11 @@ export async function resolveToolCalls(
 
   // Max iterations reached — tools were processed, need streaming call
   // Final knowledge augmentation + evidence guard
-  const finalEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+  const finalEvidence = await injectKnowledgeAndGuard(
+    currentMessages,
+    userQueryForIntent,
+    queryUnderstanding
+  )
 
   // If a single high-confidence evidence item exists, return a direct grounded answer
   const finalDirect = tryGenerateDirectAnswer(userQueryForIntent, finalEvidence)

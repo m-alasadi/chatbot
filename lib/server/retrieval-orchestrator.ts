@@ -146,8 +146,8 @@ function buildSourceConstraint(
       return {
         intent,
         hardConstraint: true,
-        preferredSources: ["abbas_history_by_id", "shrine_history_sections", "auto"],
-        allowedSources: ["abbas_history_by_id", "shrine_history_sections", "shrine_history_by_section", "auto"]
+        preferredSources: ["shrine_history_sections", "auto"],
+        allowedSources: ["shrine_history_sections", "shrine_history_by_section", "abbas_history_by_id", "auto"]
       }
     case "wahy":
       return {
