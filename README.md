@@ -1460,7 +1460,7 @@ SITE_API_BASE_URL=http://localhost:8000/api/v1
 
 ```
 Content-Type: application/json
-Access-Control-Allow-Origin: https://alkafeel.net
+Access-Control-Allow-Origin: *
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 X-XSS-Protection: 1; mode=block
@@ -1487,7 +1487,7 @@ X-XSS-Protection: 1; mode=block
 
 ```
 Status: 204 No Content
-Access-Control-Allow-Origin: https://alkafeel.net
+Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: POST, OPTIONS
 Access-Control-Allow-Headers: Content-Type, Authorization
 Access-Control-Max-Age: 86400
