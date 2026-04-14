@@ -37,6 +37,7 @@ import {
 } from "./evidence-extractor"
 import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace"
 import { orchestrateRetrieval } from "./retrieval-orchestrator"
+import { understandQuery, type QueryUnderstandingResult } from "./query-understanding"
 
 // ── Light Arabic normalization for intent detection ────────────────
 function normalizeArabicLight(text: string): string {
@@ -90,7 +91,10 @@ function isAbbasBiographyQuery(text: string): boolean {
   return false
 }
 
-function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args: Record<string, any> } | null {
+function detectForcedToolIntent(
+  userText: string,
+  understanding?: QueryUnderstandingResult
+): { tool: AllowedToolName; args: Record<string, any> } | null {
   const norm = normalizeArabicLight(userText)
 
   const newsHints = ["اخبار", "خبر", "مقال", "مقالات"]
@@ -102,14 +106,23 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
   const isWahyFriday = wahyFridayHints.some(h => norm.includes(h))
   const isSermon = sermonHints.some(h => norm.includes(h))
 
+  const understoodNews = understanding?.content_intent === "news"
+  const understoodVideo = understanding?.content_intent === "video"
+  const understoodWahy = understanding?.content_intent === "wahy"
+  const understoodSermon = understanding?.content_intent === "sermon"
+  const isCountIntent = understanding?.operation_intent === "count"
+  const isLatestIntent = understanding?.operation_intent === "latest"
+  const isListIntent = understanding?.operation_intent === "list_items"
+  const isBrowseIntent = understanding?.operation_intent === "browse"
+
   // 1. Source-specific count → get_source_metadata
   // But NOT for biographical queries like "عدد ألقاب العباس" — those go to knowledge layer
   const countKeywords = ["عدد", "كم", "اجمالي", "كلي", "مجموع"]
-  if (countKeywords.some(k => norm.includes(k)) && !isAbbasBiographyQuery(userText)) {
-    if (isWahyFriday) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "wahy_friday" } }
-    if (isSermon) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "friday_sermons" } }
-    if (isNews && !isVideo) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
-    if (isVideo && !isNews) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "videos_latest" } }
+  if ((isCountIntent || countKeywords.some(k => norm.includes(k))) && !isAbbasBiographyQuery(userText)) {
+    if (isWahyFriday || understoodWahy) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "wahy_friday" } }
+    if (isSermon || understoodSermon) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "friday_sermons" } }
+    if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
+    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "videos_latest" } }
   }
 
   // 2. Metadata / descriptive info → get_source_metadata
@@ -121,11 +134,11 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
 
   // 3. Oldest / first → browse_source_page with order=oldest
   const oldestKeywords = ["اول", "اقدم", "oldest", "first"]
-  if (oldestKeywords.some(k => norm.includes(k))) {
-    if (isWahyFriday) return { tool: "browse_source_page" as AllowedToolName, args: { source: "wahy_friday", page: 1, order: "oldest" } }
-    if (isSermon) return { tool: "browse_source_page" as AllowedToolName, args: { source: "friday_sermons", page: 1, order: "oldest" } }
-    if (isVideo && !isNews) return { tool: "browse_source_page" as AllowedToolName, args: { source: "videos_latest", page: 1, order: "oldest" } }
-    if (isNews || norm.includes("نشر") || norm.includes("موقع")) {
+  if (isBrowseIntent || oldestKeywords.some(k => norm.includes(k))) {
+    if (isWahyFriday || understoodWahy) return { tool: "browse_source_page" as AllowedToolName, args: { source: "wahy_friday", page: 1, order: "oldest" } }
+    if (isSermon || understoodSermon) return { tool: "browse_source_page" as AllowedToolName, args: { source: "friday_sermons", page: 1, order: "oldest" } }
+    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "browse_source_page" as AllowedToolName, args: { source: "videos_latest", page: 1, order: "oldest" } }
+    if (isNews || understoodNews || norm.includes("نشر") || norm.includes("موقع")) {
       return { tool: "browse_source_page" as AllowedToolName, args: { source: "articles_latest", page: 1, order: "oldest" } }
     }
   }
@@ -134,14 +147,14 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
   const latestKeywords = ["احدث", "اخر", "آخر", "الجديد", "احدث ", "اخر "]
   const explicitListingWords = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
   const isExplicitLatestListing =
-    latestKeywords.some(k => norm.includes(normalizeArabicLight(k))) &&
-    explicitListingWords.some(k => norm.includes(normalizeArabicLight(k)))
+    (isLatestIntent || latestKeywords.some(k => norm.includes(normalizeArabicLight(k)))) &&
+    (isListIntent || explicitListingWords.some(k => norm.includes(normalizeArabicLight(k))))
 
   if (isExplicitLatestListing) {
-    if (isWahyFriday) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "wahy_friday", limit: 5 } }
-    if (isSermon) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "friday_sermons", limit: 5 } }
-    if (isVideo && !isNews) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "videos_latest", limit: 5 } }
-    if (isNews && !isVideo) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "articles_latest", limit: 5 } }
+    if (isWahyFriday || understoodWahy) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "wahy_friday", limit: 5 } }
+    if (isSermon || understoodSermon) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "friday_sermons", limit: 5 } }
+    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "videos_latest", limit: 5 } }
+    if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "articles_latest", limit: 5 } }
   }
 
   // Compatibility-only forced routing:
@@ -417,6 +430,7 @@ interface ToolCallContext {
   retryCounter?: { count: number }
   traceSummary?: ResolveTraceSummary
   userQuery?: string
+  queryUnderstanding?: QueryUnderstandingResult
 }
 
 function getResultCountFromData(data: any): number {
@@ -502,10 +516,14 @@ async function processToolCall(
   let result: APICallResult
   const isRetrievalTool = toolName === "search_content" || toolName === "search_projects"
   if (isRetrievalTool) {
+    const retrievalUnderstanding = context.queryUnderstanding || understandQuery(String(args.query || context.userQuery || ""))
     const orchestrated = await orchestrateRetrieval(
       toolName as AllowedToolName,
       args,
-      { traceId: context.traceId }
+      {
+        traceId: context.traceId,
+        queryUnderstanding: retrievalUnderstanding
+      }
     )
     if (orchestrated) {
       result = orchestrated.finalResult
@@ -715,7 +733,14 @@ function looksLikeSiteContentQuery(text: string): boolean {
  * Choose the primary retrieval tool for orchestrator bootstrap.
  * Project-style requests should use search_projects, otherwise search_content.
  */
-function getPrimaryRetrievalToolForQuery(text: string): AllowedToolName {
+function getPrimaryRetrievalToolForQuery(
+  text: string,
+  understanding?: QueryUnderstandingResult
+): AllowedToolName {
+  if (understanding?.extracted_entities.source_specific.includes("projects_query")) {
+    return "search_projects"
+  }
+
   const norm = normalizeArabicLight(text)
   const projectSignals = [
     "مشروع", "مشاريع", "المشاريع", "انجاز", "انجازات", "اعمار", "توسعه", "توسعة", "خدمي"
@@ -1094,7 +1119,8 @@ export async function resolveToolCalls(
 
   // Forced tool intent: deterministic routing for count/metadata/oldest only.
   const userQueryForIntent = getLastUserMessage(messages)
-  const forcedIntent = detectForcedToolIntent(userQueryForIntent)
+  const queryUnderstanding = understandQuery(userQueryForIntent)
+  const forcedIntent = detectForcedToolIntent(userQueryForIntent, queryUnderstanding)
   if (options.traceId) {
     logChatTrace({
       trace_id: options.traceId,
@@ -1103,6 +1129,18 @@ export async function resolveToolCalls(
       routed_source: forcedIntent?.args?.source,
       details: {
         forced_tool: forcedIntent?.tool || null
+      }
+    })
+    logChatTrace({
+      trace_id: options.traceId,
+      stage: "query_understanding",
+      normalized_query: queryUnderstanding.normalized_query,
+      routed_source: queryUnderstanding.hinted_sources[0],
+      details: {
+        content_intent: queryUnderstanding.content_intent,
+        operation_intent: queryUnderstanding.operation_intent,
+        route_confidence: queryUnderstanding.route_confidence,
+        extracted_entities: queryUnderstanding.extracted_entities
       }
     })
   }
@@ -1182,11 +1220,14 @@ export async function resolveToolCalls(
   // Runtime takeover: for general retrieval-style questions,
   // orchestrator is the primary retrieval policy owner before LLM tool selection.
   if (looksLikeSiteContentQuery(userQueryForIntent)) {
-    const primaryRetrievalTool = getPrimaryRetrievalToolForQuery(userQueryForIntent)
+    const primaryRetrievalTool = getPrimaryRetrievalToolForQuery(userQueryForIntent, queryUnderstanding)
     const orchestrated = await orchestrateRetrieval(
       primaryRetrievalTool,
       { query: userQueryForIntent, source: "auto" },
-      { traceId: options.traceId }
+      {
+        traceId: options.traceId,
+        queryUnderstanding
+      }
     )
 
     if (orchestrated) {
@@ -1324,7 +1365,8 @@ export async function resolveToolCalls(
       traceId: options.traceId,
       retryCounter,
       traceSummary,
-      userQuery: userQueryForIntent
+      userQuery: userQueryForIntent,
+      queryUnderstanding
     })
     currentMessages.push(...toolResponses)
   }

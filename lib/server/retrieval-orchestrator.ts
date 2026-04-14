@@ -2,12 +2,15 @@ import { type AllowedToolName } from "./site-tools-definitions"
 import { executeToolByName, type APICallResult } from "./site-api-service"
 import { isEmptyAPIResponse } from "./smart-suggestions"
 import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace"
+import { understandQuery, type QueryUnderstandingResult } from "./query-understanding"
 
 export type ContentIntentConstraint =
   | "video"
   | "news"
+  | "biography"
   | "history"
   | "sermon"
+  | "wahy"
   | "language"
   | "generic"
 
@@ -63,6 +66,7 @@ interface OrchestratorOptions {
   traceId?: string
   maxAttempts?: number
   execute?: (toolName: AllowedToolName, args: Record<string, any>) => Promise<APICallResult>
+  queryUnderstanding?: QueryUnderstandingResult
 }
 
 function getResultCount(data: any): number {
@@ -85,25 +89,34 @@ function getTopScore(data: any): number | null {
   return null
 }
 
-function detectIntent(query: string): ContentIntentConstraint {
-  const norm = normalizeQueryForTrace(query)
-  const videoHints = ["فيديو", "فديو", "محاضره", "محاضرات", "مرئي", "مقطع"]
-  const newsHints = ["خبر", "اخبار", "مقال", "مقالات"]
-  const historyHints = ["تاريخ", "سيره", "سيرة", "العباس", "العتبه", "العتبة"]
-  const sermonHints = ["خطبه", "خطبة", "خطب", "جمعه", "جمعة", "وحي", "خطيب", "منبر"]
-  const languageHints = ["قاموس", "مصطلح", "معنى", "معني", "ترجمه", "ترجمة", "كلمه", "كلمة"]
-
-  if (videoHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "video"
-  if (sermonHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "sermon"
-  if (historyHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "history"
-  if (languageHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "language"
-  if (newsHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "news"
-  return "generic"
+function mapUnderstandingIntent(
+  understanding: QueryUnderstandingResult
+): ContentIntentConstraint {
+  switch (understanding.content_intent) {
+    case "video":
+      return "video"
+    case "news":
+      return "news"
+    case "biography":
+      return "biography"
+    case "history":
+      return "history"
+    case "sermon":
+      return "sermon"
+    case "wahy":
+      return "wahy"
+    default:
+      return "generic"
+  }
 }
 
-function buildSourceConstraint(query: string, args: Record<string, any>): SourceConstraint {
+function buildSourceConstraint(
+  query: string,
+  args: Record<string, any>,
+  understanding: QueryUnderstandingResult
+): SourceConstraint {
   const explicitSource = typeof args.source === "string" ? args.source : "auto"
-  const intent = detectIntent(query)
+  const intent = mapUnderstandingIntent(understanding)
 
   if (explicitSource !== "auto") {
     return {
@@ -129,6 +142,20 @@ function buildSourceConstraint(query: string, args: Record<string, any>): Source
         preferredSources: ["articles_latest", "auto"],
         allowedSources: ["articles_latest", "auto"]
       }
+    case "biography":
+      return {
+        intent,
+        hardConstraint: true,
+        preferredSources: ["abbas_history_by_id", "shrine_history_sections", "auto"],
+        allowedSources: ["abbas_history_by_id", "shrine_history_sections", "shrine_history_by_section", "auto"]
+      }
+    case "wahy":
+      return {
+        intent,
+        hardConstraint: true,
+        preferredSources: ["wahy_friday", "auto"],
+        allowedSources: ["wahy_friday", "auto"]
+      }
     case "sermon":
       return {
         intent,
@@ -151,6 +178,15 @@ function buildSourceConstraint(query: string, args: Record<string, any>): Source
         allowedSources: ["lang_words_ar", "auto"]
       }
     default:
+      if (understanding.hinted_sources.length > 0) {
+        const preferred = [...new Set(understanding.hinted_sources)].slice(0, 3)
+        return {
+          intent,
+          hardConstraint: false,
+          preferredSources: preferred,
+          allowedSources: preferred
+        }
+      }
       return {
         intent,
         hardConstraint: false,
@@ -164,9 +200,10 @@ function buildPlan(
   toolName: AllowedToolName,
   query: string,
   args: Record<string, any>,
+  understanding: QueryUnderstandingResult,
   maxAttempts: number
 ): RetrievalPlan {
-  const sourceConstraint = buildSourceConstraint(query, args)
+  const sourceConstraint = buildSourceConstraint(query, args, understanding)
   const uniqueSources = [...new Set(sourceConstraint.preferredSources)].slice(0, maxAttempts)
   const attempts = uniqueSources.map((source, idx) => ({
     source,
@@ -198,6 +235,10 @@ function sourceTypeMatchesIntent(sourceType: string, intent: ContentIntentConstr
       return value.includes("videos") || value.includes("friday_sermons") || value.includes("wahy_friday")
     case "news":
       return value.includes("articles")
+    case "biography":
+      return value.includes("abbas") || value.includes("history")
+    case "wahy":
+      return value.includes("wahy_friday")
     case "sermon":
       return value.includes("friday_sermons") || value.includes("wahy_friday")
     case "history":
@@ -251,7 +292,8 @@ export async function orchestrateRetrieval(
 
   const query = String(args.query || args.searchTerm || args.keyword || "").trim()
   const maxAttempts = Math.max(1, Math.min(options.maxAttempts || 3, 3))
-  const plan = buildPlan(toolName, query, args, maxAttempts)
+  const understanding = options.queryUnderstanding || understandQuery(query)
+  const plan = buildPlan(toolName, query, args, understanding, maxAttempts)
 
   if (options.traceId) {
     logChatTrace({
@@ -263,6 +305,8 @@ export async function orchestrateRetrieval(
         tool_name: toolName,
         max_attempts: plan.maxAttempts,
         intent: plan.sourceConstraint.intent,
+        operation_intent: understanding.operation_intent,
+        route_confidence: understanding.route_confidence,
         hard_constraint: plan.sourceConstraint.hardConstraint,
         attempt_sources: plan.attempts.map(a => a.source)
       }
