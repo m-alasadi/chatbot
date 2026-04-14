@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
-import { orchestrateRetrieval } from "../lib/server/retrieval-orchestrator.ts"
-import type { APICallResult } from "../lib/server/site-api-service.ts"
-import type { AllowedToolName } from "../lib/server/site-tools-definitions.ts"
+import { orchestrateRetrieval } from "../lib/server/retrieval-orchestrator"
+import type { APICallResult } from "../lib/server/site-api-service"
+import type { AllowedToolName } from "../lib/server/site-tools-definitions"
 
 type ExecCall = { toolName: AllowedToolName; args: Record<string, any> }
 

@@ -130,50 +130,8 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
     }
   }
 
-  // 4. Abbas biography → force search_content with source=auto to trigger knowledge layer
-  const abbasHints = ["العباس", "ابو الفضل", "ابا الفضل", "ابوالفضل", "ابي الفضل", "قمر بني هاشم"]
-  const bioHints = [
-    "نبذه", "حياه", "سيره", "من هو", "من هي", "تعريف", "استشهد", "استشهاد",
-    "القاب", "صفات", "اخو", "اخوات", "زواج", "كنيه", "نشا", "ولاد", "مولد",
-    "عمر", "متي", "اين", "دفن", "قبر", "ماذا", "ما هو", "ما هي", "يذكر", "عن",
-    "اعمام", "ابناء", "اولاد", "موقف",
-  ]
-  if (abbasHints.some(h => norm.includes(h)) && bioHints.some(h => norm.includes(h))) {
-    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
-  }
-  // Even standalone Abbas queries in short form should go through knowledge layer
-  if (abbasHints.some(h => norm.includes(h)) && norm.length < 40) {
-    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
-  }
-
-  // 5. Friday sermons — route to correct source family
-  const wahyHints2 = ["وحي الجمعه", "من وحي", "وحي"]
-  const sermonHints2 = ["خطبه", "خطب", "جمعه", "خطيب", "منبر", "صلاه الجمعه", "صلاه جمعه"]
-  const isWahy2 = wahyHints2.some(h => norm.includes(h))
-  const isSermon2 = sermonHints2.some(h => norm.includes(h))
-  const isLatestIntent = ["احدث", "اخر", "جديد", "اخير"].some(h => norm.includes(h))
-  if (isWahy2) {
-    if (isLatestIntent) {
-      return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "wahy_friday", limit: 5 } }
-    }
-    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "wahy_friday" } }
-  }
-  if (isSermon2) {
-    if (isLatestIntent) {
-      return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "friday_sermons", limit: 5 } }
-    }
-    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "friday_sermons" } }
-  }
-
-  // 6. Fallback: any non-trivial query that hasn't matched above
-  // → force search_content so the LLM always has real data before answering.
-  // This catches bare names ("السيد أحمد الصافي"), topics, etc.
-  // Skip only very short single-word greetings.
-  const isGreeting = ["مرحبا", "اهلا", "هلا", "السلام", "شكرا", "شكر"].some(g => norm === g || norm === g + "ً")
-  if (!isGreeting && norm.length >= 4) {
-    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
-  }
-
+  // Compatibility-only forced routing:
+  // keep deterministic non-search flows here; retrieval routing is owned by orchestrator.
   return null
 }
 
@@ -1077,7 +1035,7 @@ export async function resolveToolCalls(
   const retryCounter = { count: 0 }
   const traceSummary: ResolveTraceSummary = { retry_attempts: 0 }
 
-  // Forced tool intent: deterministic routing for count/metadata/oldest/biography queries
+  // Forced tool intent: deterministic routing for count/metadata/oldest only.
   const userQueryForIntent = getLastUserMessage(messages)
   const forcedIntent = detectForcedToolIntent(userQueryForIntent)
   if (options.traceId) {
@@ -1208,20 +1166,38 @@ export async function resolveToolCalls(
       }
 
       // ✅ Retrieval-first safety: if no tools were called yet and the user
-      // is asking about site content, force one search_content call
+      // is asking about site content, orchestrator becomes the primary retrieval entrypoint.
       const userQuery = getLastUserMessage(messages)
       if (!retrievalForced && looksLikeSiteContentQuery(userQuery)) {
         retrievalForced = true
-        console.log(`[Tool Resolution] Forcing retrieval for site-content query`)
+        console.log(`[Tool Resolution] Orchestrator-first retrieval for site-content query`)
 
         // Remove the direct answer so we can retry with tool results
         currentMessages.pop()
 
-        // Build a synthetic search_content tool call result
-        const forcedResult = await executeToolByName("search_content" as AllowedToolName, {
-          query: userQuery,
-          source: "auto"
-        })
+        // Build a synthetic search_content tool call result via orchestrator-first policy
+        const orchestrated = await orchestrateRetrieval(
+          "search_content" as AllowedToolName,
+          { query: userQuery, source: "auto" },
+          { traceId: options.traceId }
+        )
+
+        const forcedResult = orchestrated
+          ? orchestrated.finalResult
+          : await executeToolByName("search_content" as AllowedToolName, {
+              query: userQuery,
+              source: "auto"
+            })
+
+        if (orchestrated) {
+          retryCounter.count += Math.max(0, orchestrated.attempts.length - 1)
+          traceSummary.routed_source = orchestrated.routedSource || traceSummary.routed_source
+          traceSummary.result_counts = orchestrated.resultCount
+          traceSummary.top_score = orchestrated.topScore
+          if (orchestrated.exhausted) {
+            traceSummary.unavailable_reason = orchestrated.unavailableReason
+          }
+        }
 
         const cleanedForced = cleanResultForGPT(forcedResult)
 
