@@ -326,6 +326,23 @@ export function formatGroundedAnswer(
   query: string,
   evidenceList: Evidence[]
 ): string {
+  const normQuery = normalizeAr(query)
+  const isFactStyleQuery =
+    normQuery.includes("من هو") ||
+    normQuery.includes("من هي") ||
+    normQuery.includes("ما هو") ||
+    normQuery.includes("ما هي") ||
+    normQuery.includes("نبذه") ||
+    normQuery.includes("سيره")
+
+  if (isFactStyleQuery && evidenceList.length > 0) {
+    const top = evidenceList[0]
+    const quote = String(top.quote || "").replace(/\s+/g, " ").trim()
+    const source = top.source_title ? ` المصدر: ${top.source_title}.` : ""
+    const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
+    return `بحسب ما ورد في المصادر، ${quote}${source}${url} هل تريد تفاصيل أكثر؟`
+  }
+
   const lines: string[] = ["بحسب ما ورد في المصادر:"]
   const seen = new Set<string>()
 

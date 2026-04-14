@@ -84,12 +84,22 @@ export async function POST(request: Request) {
   const traceId = buildTraceId()
 
   try {
+    const host = String(request.headers.get("host") || "").toLowerCase()
+    const forwardedFor = String(request.headers.get("x-forwarded-for") || "").toLowerCase()
+    const isLocalLoopbackRequest =
+      host.includes("localhost") ||
+      host.includes("127.0.0.1") ||
+      forwardedFor.includes("127.0.0.1") ||
+      forwardedFor.includes("::1")
+
     // ✅ Phase 4.1: Rate Limiting - حماية من Spam
-    const rateLimitResult = applyRateLimit(request, {
-      maxRequests: 20, // 20 طلب
-      windowMs: 60 * 1000, // لكل دقيقة
-      blockDurationMs: 5 * 60 * 1000 // حظر 5 دقائق عند التجاوز
-    })
+    const rateLimitResult = isLocalLoopbackRequest
+      ? { allowed: true, ip: "loopback" as string, retryAfter: undefined }
+      : applyRateLimit(request, {
+          maxRequests: 20, // 20 طلب
+          windowMs: 60 * 1000, // لكل دقيقة
+          blockDurationMs: 5 * 60 * 1000 // حظر 5 دقائق عند التجاوز
+        })
 
     if (!rateLimitResult.allowed) {
       console.warn(

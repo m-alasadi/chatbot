@@ -114,6 +114,13 @@ function detectForcedToolIntent(
   const isLatestIntent = understanding?.operation_intent === "latest"
   const isListIntent = understanding?.operation_intent === "list_items"
   const isBrowseIntent = understanding?.operation_intent === "browse"
+  const isExplicitTopNewsRequest =
+    (isNews || understoodNews) &&
+    !(isVideo || understoodVideo) &&
+    (
+      norm.includes(normalizeArabicLight("ابرز")) ||
+      norm.includes(normalizeArabicLight("اليوم"))
+    )
 
   // 1. Source-specific count → get_source_metadata
   // But NOT for biographical queries like "عدد ألقاب العباس" — those go to knowledge layer
@@ -155,6 +162,15 @@ function detectForcedToolIntent(
     if (isSermon || understoodSermon) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "friday_sermons", limit: 5 } }
     if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "videos_latest", limit: 5 } }
     if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "articles_latest", limit: 5 } }
+  }
+
+  // 5. Explicit top-news requests (e.g. "ما أبرز أخبار العتبة اليوم")
+  // must stay on news source and return list-shaped news output.
+  if (isExplicitTopNewsRequest) {
+    return {
+      tool: "get_latest_by_source" as AllowedToolName,
+      args: { source: "articles_latest", limit: 5 }
+    }
   }
 
   // Compatibility-only forced routing:
@@ -1085,15 +1101,28 @@ async function injectKnowledgeAndGuard(
 function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | null {
   if (!evidence || evidence.length === 0) return null
 
+  const understanding = understandQuery(query)
+  const isFactIntent = understanding.operation_intent === "fact_question"
+
   const top = evidence[0]
   // Single high-confidence match (title-query hit on a specific article)
-  const isSingleHighConf = evidence.length === 1 && top.confidence >= 40
+  const isSingleHighConf = evidence.length === 1 && top.confidence >= (isFactIntent ? 25 : 40)
   // Or high confidence regardless of count
-  const isExtremeConf = top.confidence >= 55
+  const isExtremeConf = top.confidence >= (isFactIntent ? 35 : 55)
 
   if (!isSingleHighConf && !isExtremeConf) return null
 
-  return generateDirectAnswer(query, evidence)
+  const generated = generateDirectAnswer(query, evidence)
+  if (!generated) return null
+
+  if (isFactIntent) {
+    return generated
+      .replace(/\s*\n+\s*/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+  }
+
+  return generated
 }
 
 /**
