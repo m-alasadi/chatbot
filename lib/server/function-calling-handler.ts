@@ -35,6 +35,16 @@ import {
   collectToolResultItems,
   type Evidence
 } from "./evidence-extractor"
+import {
+  isFactQuery,
+  isListQuery,
+  detectCountSource,
+} from "./query-understanding"
+import {
+  safeExecuteTool,
+  isTransientError,
+  getSourceFallbackMessage,
+} from "./retrieval-orchestrator"
 
 // ── Light Arabic normalization for intent detection ────────────────
 function normalizeArabicLight(text: string): string {
@@ -56,18 +66,24 @@ function normalizeArabicLight(text: string): string {
 /**
  * Returns true only when the query is asking about Abbas's personal biography
  * (traits, titles, family, life, martyrdom) — NOT about shrine activities,
- * expansions, renovations, or any building/construction work.
+ * expansions, renovations, building/construction work, or shrine history.
+ *
+ * biography_vs_shrine_history fix: extended shrineActivityPatterns to include
+ * shrine/mausoleum/history terms so they are not misclassified as biography.
  */
 function isAbbasBiographyQuery(text: string): boolean {
   const norm = normalizeArabicLight(text)
 
-  // If the query is about shrine construction/expansion/activities → NOT biographical
+  // If the query is about shrine construction/expansion/activities/history → NOT biographical
   const shrineActivityPatterns = [
     "توسعه", "توسعة", "بناء", "ترميم", "انشاء", "إنشاء", "قبه", "قبة",
     "رواق", "صحن", "بلاطه", "بلاطة", "مشروع", "مشاريع", "طابق",
     "تشييد", "اعمار", "اعمال", "عمل", "خدمه", "خدمة",
     "فعاليه", "فعاليات", "نشاط", "انشطه", "برنامج", "مناسبه",
     "زياره", "زيارة", "زائرين", "خبر", "اخبار",
+    // Shrine history / location terms — not personal biography
+    "ضريح", "مرقد", "حرم", "تاريخ العتبه", "تاريخ الضريح",
+    "تاريخ المرقد", "مشاريع العتبه", "توسعه العتبه", "توسعة العتبه",
   ]
   if (shrineActivityPatterns.some(p => norm.includes(p))) return false
 
@@ -102,12 +118,29 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
 
   // 1. Source-specific count → get_source_metadata
   // But NOT for biographical queries like "عدد ألقاب العباس" — those go to knowledge layer
+  // fact_vs_list_intent fix: use query-understanding to detect count/fact queries broadly,
+  // then route to the correct metadata source including history and language.
   const countKeywords = ["عدد", "كم", "اجمالي", "كلي", "مجموع"]
   if (countKeywords.some(k => norm.includes(k)) && !isAbbasBiographyQuery(userText)) {
     if (isWahyFriday) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "wahy_friday" } }
     if (isSermon) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "friday_sermons" } }
     if (isNews && !isVideo) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
     if (isVideo && !isNews) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "videos_latest" } }
+    // fact_vs_list_intent: handle count queries for history and language sources
+    const countSource = detectCountSource(userText)
+    if (countSource === "shrine_history_sections") {
+      return { tool: "get_source_metadata" as AllowedToolName, args: { source: "shrine_history_sections" } }
+    }
+    if (countSource === "lang_words_ar") {
+      return { tool: "get_source_metadata" as AllowedToolName, args: { source: "lang_words_ar" } }
+    }
+  }
+
+  // 1b. Existence / fact check ("هل يوجد …") → use search_content to verify existence
+  // fact_vs_list_intent fix: route existence queries to search rather than list endpoints.
+  if (isFactQuery(userText) && !isListQuery(userText) && !countKeywords.some(k => norm.includes(k))) {
+    // For existence queries we still want real data, but from search not listing
+    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
   }
 
   // 2. Metadata / descriptive info → get_source_metadata
@@ -145,10 +178,15 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
   }
 
   // 5. Friday sermons — route to correct source family
+  // wahy_vs_friday_sermon fix: explicitly check wahy before sermon so that
+  // "من وحي الجمعة" (wahy) is not confused with "خطبة الجمعة" (sermon).
   const wahyHints2 = ["وحي الجمعه", "من وحي", "وحي"]
-  const sermonHints2 = ["خطبه", "خطب", "جمعه", "خطيب", "منبر", "صلاه الجمعه", "صلاه جمعه"]
+  const sermonHints2 = ["خطبه", "خطب", "خطيب", "منبر", "صلاه الجمعه", "صلاه جمعه"]
+  // "جمعه" alone (without "صلاه") maps to wahy only when combined with "وحي",
+  // otherwise it stays in the sermon bucket.
   const isWahy2 = wahyHints2.some(h => norm.includes(h))
-  const isSermon2 = sermonHints2.some(h => norm.includes(h))
+  const isSermon2 = sermonHints2.some(h => norm.includes(h)) ||
+    (norm.includes("جمعه") && !isWahy2)
   const isLatestIntent = ["احدث", "اخر", "جديد", "اخير"].some(h => norm.includes(h))
   if (isWahy2) {
     if (isLatestIntent) {
@@ -983,48 +1021,84 @@ export async function resolveToolCalls(
   const forcedIntent = detectForcedToolIntent(userQueryForIntent)
   if (forcedIntent) {
     console.log(`[Tool Resolution] Forced intent: ${forcedIntent.tool}`, forcedIntent.args)
-    const forcedResult = await executeToolByName(forcedIntent.tool, forcedIntent.args)
-    const cleanedForced = cleanResultForGPT(forcedResult)
-    const syntheticToolCallId = `forced_${forcedIntent.tool}_${Date.now()}`
-    currentMessages.push({
-      role: "assistant",
-      content: null,
-      tool_calls: [{
-        id: syntheticToolCallId,
-        type: "function",
-        function: { name: forcedIntent.tool, arguments: JSON.stringify(forcedIntent.args) }
-      }]
-    })
-    // If forced-intent returned empty results, mark for knowledge override
-    const isEmpty = forcedResult.success && isEmptyAPIResponse(forcedResult.data)
-    const toolContent = isEmpty
-      ? JSON.stringify({ success: false, empty_results: true, message: "لا توجد نتائج من هذا المصدر حالياً" })
-      : JSON.stringify(cleanedForced)
-    currentMessages.push({
-      role: "tool",
-      tool_call_id: syntheticToolCallId,
-      content: toolContent
-    })
 
-    // Augment forced-intent results with deep-text knowledge + evidence guard
-    const forcedEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+    // biography_vs_shrine_history fix: wrap entire forced-intent execution in try/catch
+    // so that any unexpected error (knowledge layer, evidence extractor, etc.) is caught
+    // and converted to a graceful directAnswer instead of propagating as HTTP 500.
+    try {
+      // wahy_vs_friday_sermon fix: use safeExecuteTool (never throws) and detect
+      // transient errors early to avoid the 30 s × 2 retry cascade.
+      const forcedResult = await safeExecuteTool(forcedIntent.tool, forcedIntent.args)
 
-    // If a single high-confidence evidence item exists, return a direct grounded answer
-    const forcedDirect = tryGenerateDirectAnswer(userQueryForIntent, forcedEvidence)
-    if (forcedDirect) {
-      console.log(`[Grounded Answer] Returning direct answer from forced-intent evidence`)
+      // If the API timed-out or had a connectivity failure, return a user-friendly
+      // message immediately — do NOT fall through to the full LLM pipeline which
+      // would add another 30–60 s to the round-trip.
+      if (isTransientError(forcedResult)) {
+        const source = forcedIntent.args?.source as string | undefined
+        const fallback = getSourceFallbackMessage(source)
+        console.warn(`[Tool Resolution] Transient error for "${forcedIntent.tool}" (${source}) — returning fallback message`)
+        return {
+          resolvedMessages: currentMessages,
+          needsFinalCall: false,
+          iterations: 0,
+          directAnswer: fallback,
+        }
+      }
+
+      const cleanedForced = cleanResultForGPT(forcedResult)
+      const syntheticToolCallId = `forced_${forcedIntent.tool}_${Date.now()}`
+      currentMessages.push({
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: syntheticToolCallId,
+          type: "function",
+          function: { name: forcedIntent.tool, arguments: JSON.stringify(forcedIntent.args) }
+        }]
+      })
+      // If forced-intent returned empty results, mark for knowledge override
+      const isEmpty = forcedResult.success && isEmptyAPIResponse(forcedResult.data)
+      const toolContent = isEmpty
+        ? JSON.stringify({ success: false, empty_results: true, message: "لا توجد نتائج من هذا المصدر حالياً" })
+        : JSON.stringify(cleanedForced)
+      currentMessages.push({
+        role: "tool",
+        tool_call_id: syntheticToolCallId,
+        content: toolContent
+      })
+
+      // Augment forced-intent results with deep-text knowledge + evidence guard
+      const forcedEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+
+      // If a single high-confidence evidence item exists, return a direct grounded answer
+      const forcedDirect = tryGenerateDirectAnswer(userQueryForIntent, forcedEvidence)
+      if (forcedDirect) {
+        console.log(`[Grounded Answer] Returning direct answer from forced-intent evidence`)
+        return {
+          resolvedMessages: currentMessages,
+          needsFinalCall: false,
+          iterations: 0,
+          directAnswer: forcedDirect
+        }
+      }
+
+      return {
+        resolvedMessages: currentMessages,
+        needsFinalCall: true,
+        iterations: 0
+      }
+    } catch (forcedErr: any) {
+      // biography_vs_shrine_history fix: catch any unexpected exception in the forced path
+      // (e.g. from knowledge layer or evidence extractor) and return a graceful fallback.
+      console.error(`[Tool Resolution] Unexpected error in forced-intent path for "${forcedIntent.tool}":`, forcedErr?.message || forcedErr)
+      const source = forcedIntent.args?.source as string | undefined
+      const fallback = getSourceFallbackMessage(source)
       return {
         resolvedMessages: currentMessages,
         needsFinalCall: false,
         iterations: 0,
-        directAnswer: forcedDirect
+        directAnswer: fallback,
       }
-    }
-
-    return {
-      resolvedMessages: currentMessages,
-      needsFinalCall: true,
-      iterations: 0
     }
   }
 
