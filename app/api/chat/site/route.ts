@@ -14,6 +14,11 @@ import {
   sanitizeMessages,
   logSecurityIssue
 } from "@/lib/server/data-sanitizer"
+import {
+  buildTraceId,
+  logChatTrace,
+  normalizeQueryForTrace
+} from "@/lib/server/observability/chat-trace"
 import { ServerRuntime } from "next"
 import OpenAI from "openai"
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions.mjs"
@@ -76,6 +81,7 @@ interface ChatRequest {
 export async function POST(request: Request) {
   const origin = request.headers.get("origin")
   const securityHeaders = getSecurityHeaders(origin)
+  const traceId = buildTraceId()
 
   try {
     // ✅ Phase 4.1: Rate Limiting - حماية من Spam
@@ -126,6 +132,18 @@ export async function POST(request: Request) {
 
     // التحقق من صحة آخر رسالة (من المستخدم)
     const lastMessage = sanitizedMessages[sanitizedMessages.length - 1]
+    const normalizedQuery = normalizeQueryForTrace(lastMessage?.content || "")
+    logChatTrace({
+      trace_id: traceId,
+      stage: "request_received",
+      normalized_query: normalizedQuery,
+      details: {
+        use_tools,
+        message_count: sanitizedMessages.length,
+        model: getOpenAIModel()
+      }
+    })
+
     if (lastMessage.role === "user") {
       const validation = validateAndSanitize(lastMessage.content)
 
@@ -188,7 +206,8 @@ export async function POST(request: Request) {
           model,
           messagesWithSystem,
           ALL_SITE_TOOLS,
-          3
+          3,
+          { traceId }
         )
 
         console.log(`[Chat API] Tools resolved in ${toolResult.iterations} iteration(s), needsFinalCall: ${toolResult.needsFinalCall}`)
@@ -196,6 +215,16 @@ export async function POST(request: Request) {
         // إذا كان هناك إجابة مباشرة (من evidence عالي الثقة) → أرجعها فوراً
         if (toolResult.directAnswer) {
           console.log(`[Chat API] Returning direct grounded answer (bypassing final LLM call)`)
+          logChatTrace({
+            trace_id: traceId,
+            stage: "response_ready",
+            normalized_query: normalizedQuery,
+            answer_mode: "direct_grounded",
+            routed_source: toolResult.trace?.routed_source,
+            retry_attempts: toolResult.trace?.retry_attempts || 0,
+            result_counts: toolResult.trace?.result_counts,
+            top_score: toolResult.trace?.top_score
+          })
           const directStream = new ReadableStream({
             start(controller) {
               controller.enqueue(new TextEncoder().encode(toolResult.directAnswer!))
@@ -219,9 +248,21 @@ export async function POST(request: Request) {
         const finalStream = await openai.chat.completions.create({
           model,
           messages: streamMessages,
-          temperature: 0.5,
+          temperature: 0.2,
           max_tokens: 1200,
           stream: true
+        })
+
+        logChatTrace({
+          trace_id: traceId,
+          stage: "response_ready",
+          normalized_query: normalizedQuery,
+          answer_mode: "llm_stream",
+          routed_source: toolResult.trace?.routed_source,
+          retry_attempts: toolResult.trace?.retry_attempts || 0,
+          result_counts: toolResult.trace?.result_counts,
+          top_score: toolResult.trace?.top_score,
+          unavailable_reason: toolResult.trace?.unavailable_reason
         })
 
         const stream = new ReadableStream({
@@ -263,6 +304,12 @@ export async function POST(request: Request) {
       stream: true
     })
 
+    logChatTrace({
+      trace_id: traceId,
+      stage: "response_ready",
+      answer_mode: "fallback_stream"
+    })
+
     const fallbackStream = new ReadableStream({
       async start(controller) {
         try {
@@ -287,6 +334,12 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error("Chat API Error:", error)
+    logChatTrace({
+      trace_id: traceId,
+      stage: "request_error",
+      answer_mode: "error",
+      unavailable_reason: error?.message || "unknown_error"
+    })
 
     // الحصول على origin للـ security headers
     const origin = request.headers.get("origin")

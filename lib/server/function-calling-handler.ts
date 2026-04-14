@@ -35,6 +35,7 @@ import {
   collectToolResultItems,
   type Evidence
 } from "./evidence-extractor"
+import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace"
 
 // ── Light Arabic normalization for intent detection ────────────────
 function normalizeArabicLight(text: string): string {
@@ -334,9 +335,12 @@ function cleanResultForGPT(result: APICallResult): any {
           return cleaned
         }),
         total: data.total,
+        result_count: data.result_count,
+        top_score: data.top_score,
         query: data.query,
         source_used: data.source_used ? friendlySourceName(data.source_used) : undefined,
         candidate_sources: data.candidate_sources,
+        source_attempts: data.source_attempts,
       }
     }
   }
@@ -427,6 +431,67 @@ function cleanResultForGPT(result: APICallResult): any {
   return result
 }
 
+interface ResolveTraceSummary {
+  routed_source?: string
+  retry_attempts: number
+  result_counts?: number
+  top_score?: number | null
+  unavailable_reason?: string
+}
+
+interface ToolCallContext {
+  traceId?: string
+  retryCounter?: { count: number }
+  traceSummary?: ResolveTraceSummary
+  userQuery?: string
+}
+
+function getResultCountFromData(data: any): number {
+  if (!data) return 0
+  if (typeof data.total === "number") return data.total
+  if (Array.isArray(data.results)) return data.results.length
+  if (Array.isArray(data.projects)) return data.projects.length
+  if (Array.isArray(data.items)) return data.items.length
+  return 0
+}
+
+function getTopScoreFromData(data: any): number | null {
+  if (!data) return null
+  if (typeof data.top_score === "number") return data.top_score
+  if (Array.isArray(data.results) && data.results.length > 0) {
+    const first = data.results[0]
+    const score = first?._score || first?.score
+    if (typeof score === "number") return score
+  }
+  return null
+}
+
+function buildRetrySources(
+  query: string,
+  toolName: string,
+  args: Record<string, any>
+): string[] {
+  if (toolName !== "search_content" && toolName !== "search_projects") return []
+
+  const currentSource = typeof args.source === "string" ? args.source : "auto"
+  const norm = normalizeQueryForTrace(query)
+  const candidates: string[] = []
+
+  if (currentSource !== "auto") candidates.push("auto")
+
+  const videoHints = ["فيديو", "فديو", "محاضره", "محاضرات", "مرئي", "مقطع"]
+  const newsHints = ["خبر", "اخبار", "مقال", "مقالات"]
+
+  if (videoHints.some(h => norm.includes(normalizeQueryForTrace(h))) && currentSource !== "videos_latest") {
+    candidates.push("videos_latest")
+  }
+  if (newsHints.some(h => norm.includes(normalizeQueryForTrace(h))) && currentSource !== "articles_latest") {
+    candidates.push("articles_latest")
+  }
+
+  return [...new Set(candidates)].slice(0, 2)
+}
+
 /**
  * نتيجة معالجة Function Calling
  */
@@ -443,7 +508,8 @@ export interface FunctionCallResult {
  * @param toolCall - معلومات الأداة المراد استدعاءها
  */
 async function processToolCall(
-  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall
+  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
+  context: ToolCallContext = {}
 ): Promise<{
   tool_call_id: string
   role: "tool"
@@ -486,14 +552,85 @@ async function processToolCall(
   }
 
   // تنفيذ الأداة
-  const result: APICallResult = await executeToolByName(
+  let result: APICallResult = await executeToolByName(
     toolName as AllowedToolName,
     args
   )
 
+  const traceQuery = args.query || context.userQuery || ""
+
+  if (context.traceId) {
+    const resultCount = getResultCountFromData(result.data)
+    const topScore = getTopScoreFromData(result.data)
+    logChatTrace({
+      trace_id: context.traceId,
+      stage: "tool_result",
+      normalized_query: normalizeQueryForTrace(traceQuery),
+      routed_source: args.source,
+      result_counts: resultCount,
+      top_score: topScore,
+      details: {
+        tool_name: toolName,
+        success: result.success
+      }
+    })
+    if (context.traceSummary && typeof args.source === "string") {
+      context.traceSummary.routed_source = args.source
+      context.traceSummary.result_counts = resultCount
+      context.traceSummary.top_score = topScore
+    }
+  }
+
   // ✅ Phase 3: معالجة النتائج الفارغة مع اقتراحات ذكية
   if (result.success && isEmptyAPIResponse(result.data)) {
-    console.log(`[Function Call] Empty results detected, generating suggestions`)
+    console.log(`[Function Call] Empty results detected, applying bounded retry`)
+
+    const query = args.query || args.searchTerm || args.keyword || ""
+    const retrySources = buildRetrySources(query, toolName, args)
+    for (const retrySource of retrySources) {
+      const retryArgs = { ...args, source: retrySource }
+      const retryResult = await executeToolByName(
+        toolName as AllowedToolName,
+        retryArgs
+      )
+
+      if (context.retryCounter) {
+        context.retryCounter.count += 1
+      }
+
+      if (context.traceId) {
+        const retryCount = getResultCountFromData(retryResult.data)
+        const retryTopScore = getTopScoreFromData(retryResult.data)
+        logChatTrace({
+          trace_id: context.traceId,
+          stage: "retry_attempt",
+          normalized_query: normalizeQueryForTrace(query),
+          routed_source: retrySource,
+          retry_attempts: context.retryCounter?.count || 0,
+          result_counts: retryCount,
+          top_score: retryTopScore,
+          details: {
+            tool_name: toolName,
+            previous_source: args.source || "auto"
+          }
+        })
+
+        if (context.traceSummary) {
+          context.traceSummary.routed_source = retrySource
+          context.traceSummary.result_counts = retryCount
+          context.traceSummary.top_score = retryTopScore
+        }
+      }
+
+      if (retryResult.success && !isEmptyAPIResponse(retryResult.data)) {
+        result = retryResult
+        break
+      }
+    }
+  }
+
+  if (result.success && isEmptyAPIResponse(result.data)) {
+    console.log(`[Function Call] Empty results detected after retries, generating suggestions`)
     
     // استخرج query من المعاملات
     const query = args.query || args.searchTerm || args.keyword || ""
@@ -512,6 +649,7 @@ async function processToolCall(
       content: JSON.stringify({
         success: false,
         empty_results: true,
+        retry_attempts: context.retryCounter?.count || 0,
         message: suggestionsResponse.message,
         suggestions: suggestionsResponse.suggestions,
         context: suggestionsResponse.context,
@@ -563,13 +701,14 @@ async function processToolCall(
  * @param toolCalls - قائمة الأدوات المطلوب استدعاءها
  */
 export async function handleToolCalls(
-  toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]
+  toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[],
+  context: ToolCallContext = {}
 ): Promise<ChatCompletionMessageParam[]> {
   const toolResponses: ChatCompletionMessageParam[] = []
 
   // معالجة كل أداة
   for (const toolCall of toolCalls) {
-    const response = await processToolCall(toolCall)
+    const response = await processToolCall(toolCall, context)
     toolResponses.push(response)
   }
 
@@ -966,21 +1105,37 @@ export async function resolveToolCalls(
   model: string,
   messages: ChatCompletionMessageParam[],
   tools: OpenAI.Chat.Completions.ChatCompletionTool[],
-  maxIterations: number = 3
+  maxIterations: number = 3,
+  options: { traceId?: string } = {}
 ): Promise<{
   resolvedMessages: ChatCompletionMessageParam[]
   needsFinalCall: boolean
   iterations: number
   directAnswer?: string
+  trace?: ResolveTraceSummary
 }> {
   let currentMessages = [...messages]
   let iterations = 0
   let toolsWereCalled = false
   let retrievalForced = false
+  const retryCounter = { count: 0 }
+  const traceSummary: ResolveTraceSummary = { retry_attempts: 0 }
 
   // Forced tool intent: deterministic routing for count/metadata/oldest/biography queries
   const userQueryForIntent = getLastUserMessage(messages)
   const forcedIntent = detectForcedToolIntent(userQueryForIntent)
+  if (options.traceId) {
+    logChatTrace({
+      trace_id: options.traceId,
+      stage: "intent_detected",
+      normalized_query: normalizeQueryForTrace(userQueryForIntent),
+      routed_source: forcedIntent?.args?.source,
+      details: {
+        forced_tool: forcedIntent?.tool || null
+      }
+    })
+  }
+
   if (forcedIntent) {
     console.log(`[Tool Resolution] Forced intent: ${forcedIntent.tool}`, forcedIntent.args)
     const forcedResult = await executeToolByName(forcedIntent.tool, forcedIntent.args)
@@ -1017,14 +1172,28 @@ export async function resolveToolCalls(
         resolvedMessages: currentMessages,
         needsFinalCall: false,
         iterations: 0,
-        directAnswer: forcedDirect
+        directAnswer: forcedDirect,
+        trace: {
+          ...traceSummary,
+          retry_attempts: retryCounter.count,
+          routed_source: forcedIntent.args?.source,
+          result_counts: getResultCountFromData(forcedResult.data),
+          top_score: getTopScoreFromData(forcedResult.data)
+        }
       }
     }
 
     return {
       resolvedMessages: currentMessages,
       needsFinalCall: true,
-      iterations: 0
+      iterations: 0,
+      trace: {
+        ...traceSummary,
+        retry_attempts: retryCounter.count,
+        routed_source: forcedIntent.args?.source,
+        result_counts: getResultCountFromData(forcedResult.data),
+        top_score: getTopScoreFromData(forcedResult.data)
+      }
     }
   }
 
@@ -1037,7 +1206,7 @@ export async function resolveToolCalls(
       messages: currentMessages,
       tools,
       tool_choice: "auto",
-      temperature: 0.5,
+      temperature: 0.2,
       max_tokens: 1200
     })
 
@@ -1063,14 +1232,22 @@ export async function resolveToolCalls(
             resolvedMessages: currentMessages,
             needsFinalCall: false,
             iterations,
-            directAnswer: loopDirect
+            directAnswer: loopDirect,
+            trace: {
+              ...traceSummary,
+              retry_attempts: retryCounter.count
+            }
           }
         }
 
         return {
           resolvedMessages: currentMessages,
           needsFinalCall: true,
-          iterations
+          iterations,
+          trace: {
+            ...traceSummary,
+            retry_attempts: retryCounter.count
+          }
         }
       }
 
@@ -1122,14 +1299,23 @@ export async function resolveToolCalls(
         resolvedMessages: currentMessages,
         needsFinalCall: false,
         iterations,
-        directAnswer: assistantMessage.content || ""
+        directAnswer: assistantMessage.content || "",
+        trace: {
+          ...traceSummary,
+          retry_attempts: retryCounter.count
+        }
       }
     }
 
     // معالجة tool calls
     toolsWereCalled = true
     console.log(`[Tool Resolution] Processing ${assistantMessage.tool_calls.length} tool call(s)`)
-    const toolResponses = await handleToolCalls(assistantMessage.tool_calls)
+    const toolResponses = await handleToolCalls(assistantMessage.tool_calls, {
+      traceId: options.traceId,
+      retryCounter,
+      traceSummary,
+      userQuery: userQueryForIntent
+    })
     currentMessages.push(...toolResponses)
   }
 
@@ -1145,14 +1331,23 @@ export async function resolveToolCalls(
       resolvedMessages: currentMessages,
       needsFinalCall: false,
       iterations,
-      directAnswer: finalDirect
+      directAnswer: finalDirect,
+      trace: {
+        ...traceSummary,
+        retry_attempts: retryCounter.count
+      }
     }
   }
 
   return {
     resolvedMessages: currentMessages,
     needsFinalCall: true,
-    iterations
+    iterations,
+    trace: {
+      ...traceSummary,
+      retry_attempts: retryCounter.count,
+      unavailable_reason: "no_high_confidence_evidence"
+    }
   }
 }
 

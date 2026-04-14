@@ -304,7 +304,15 @@ export function generateDirectAnswer(
 
   // Include any evidence with reasonable confidence; fall back to all evidence
   const strong = evidenceList.filter(e => e.confidence >= 35)
-  const usable = strong.length > 0 ? strong : evidenceList
+  const usable = (strong.length > 0 ? strong : evidenceList)
+    .slice()
+    .sort((a, b) => {
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence
+      const titleCmp = (a.source_title || "").localeCompare(b.source_title || "", "ar")
+      if (titleCmp !== 0) return titleCmp
+      return (a.source_url || "").localeCompare(b.source_url || "")
+    })
+
   if (usable.length === 0) return null
 
   return formatGroundedAnswer(query, usable)
@@ -319,8 +327,24 @@ export function formatGroundedAnswer(
   evidenceList: Evidence[]
 ): string {
   const lines: string[] = ["بحسب ما ورد في المصادر:"]
+  const seen = new Set<string>()
 
-  for (const e of evidenceList.slice(0, 3)) {
+  const ordered = evidenceList
+    .slice()
+    .sort((a, b) => {
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence
+      const titleCmp = (a.source_title || "").localeCompare(b.source_title || "", "ar")
+      if (titleCmp !== 0) return titleCmp
+      return (a.source_url || "").localeCompare(b.source_url || "")
+    })
+    .filter(e => {
+      const key = `${e.source_title}::${e.source_url}::${e.quote}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+  for (const e of ordered.slice(0, 3)) {
     lines.push("")
     if (e.source_title) lines.push(`**${e.source_title}**`)
     if (e.source_section) lines.push(`*${e.source_section}*`)
