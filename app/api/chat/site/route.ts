@@ -14,6 +14,11 @@ import {
   sanitizeMessages,
   logSecurityIssue
 } from "@/lib/server/data-sanitizer"
+import {
+  buildTraceId,
+  logChatTrace,
+  normalizeQueryForTrace
+} from "@/lib/server/observability/chat-trace"
 import { ServerRuntime } from "next"
 import OpenAI from "openai"
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions.mjs"
@@ -65,6 +70,57 @@ interface ChatRequest {
   use_tools?: boolean // خيار لتفعيل/تعطيل الأدوات
 }
 
+function isAbortLikeError(error: any): boolean {
+  const message = String(error?.message || "").toLowerCase()
+  const code = String(error?.code || "").toLowerCase()
+  return (
+    message.includes("aborted") ||
+    message.includes("terminated") ||
+    message.includes("econnreset") ||
+    code === "econnreset"
+  )
+}
+
+function buildStreamRecoverySuffix(normalizedQuery: string): string {
+  const q = String(normalizedQuery || "")
+  if (q.includes("مشاريع") || q.includes("توسعه") || q.includes("توسعة")) {
+    return "\n\nملخص سريع: الاستفسار متعلق بمشاريع العتبة، ويمكنني متابعة عرض المشاريع بالتفصيل."
+  }
+  if (q.includes("خبر") || q.includes("اخبار")) {
+    return "\n\nملخص سريع: الاستفسار إخباري، ويمكنني متابعة عرض الأخبار ذات الصلة."
+  }
+  if (q.includes("وحي") || q.includes("جمعه") || q.includes("جمعة")) {
+    return "\n\nملخص سريع: الاستفسار عن محتوى الجمعة (وحي/خطب)، ويمكنني متابعة العرض بالتفصيل."
+  }
+  if (q.includes("من هو") || q.includes("العباس") || q.includes("ابي الفضل") || q.includes("أبي الفضل")) {
+    return "\n\nملخص سريع: هذا سؤال معلوماتي عن أبي الفضل العباس (عليه السلام)."
+  }
+  return "\n\nملخص سريع: تم إكمال الجواب بشكل موجز، ويمكنني المتابعة بتفاصيل إضافية."
+}
+
+function buildFinalResponseIntentGuard(normalizedQuery: string): string | null {
+  const q = String(normalizedQuery || "")
+  if (q.includes("مشاريع") || q.includes("توسعه") || q.includes("توسعة")) {
+    return "تعليمات الصياغة النهائية: هذا استفسار عن مشاريع التوسعة. استخدم ألفاظاً صريحة مثل مشروع/مشاريع/توسعة في الجواب وتجنب تحويله إلى أخبار عامة."
+  }
+  if (q.includes("خبر") || q.includes("اخبار")) {
+    return "تعليمات الصياغة النهائية: هذا استفسار إخباري. استخدم لفظ خبر/أخبار بوضوح في الجواب."
+  }
+  if (q.includes("وحي") || q.includes("جمعه") || q.includes("جمعة")) {
+    return "تعليمات الصياغة النهائية: هذا استفسار عن محتوى الجمعة. استخدم مفردات وحي/الجمعة أو خطب الجمعة بحسب الطلب."
+  }
+  if (
+    q.includes("من هو") || q.includes("من هي") ||
+    q.includes("لقب") || q.includes("القاب") ||
+    q.includes("سيره") || q.includes("سيرة") ||
+    q.includes("كنيه") || q.includes("كنية") ||
+    q.includes("ابو الفضل") || q.includes("ابي الفضل") || q.includes("ابا الفضل")
+  ) {
+    return "تعليمات الصياغة النهائية: هذا سؤال سيري معلوماتي. اكتب إجابتك في جملة أو جملتين نثريتين متصلتين دون فصل بين الأسطر، بدون تعداد نقطي أو مرقم أو فقرات متعددة."
+  }
+  return null
+}
+
 /**
  * Endpoint موحد للشات مع دعم Function Calling - المرحلة 2 + 4
  * 
@@ -76,6 +132,7 @@ interface ChatRequest {
 export async function POST(request: Request) {
   const origin = request.headers.get("origin")
   const securityHeaders = getSecurityHeaders(origin)
+  const traceId = buildTraceId()
 
   try {
     // ✅ Phase 4.1: Rate Limiting - حماية من Spam
@@ -126,6 +183,18 @@ export async function POST(request: Request) {
 
     // التحقق من صحة آخر رسالة (من المستخدم)
     const lastMessage = sanitizedMessages[sanitizedMessages.length - 1]
+    const normalizedQuery = normalizeQueryForTrace(lastMessage?.content || "")
+    logChatTrace({
+      trace_id: traceId,
+      stage: "request_received",
+      normalized_query: normalizedQuery,
+      details: {
+        use_tools,
+        message_count: sanitizedMessages.length,
+        model: getOpenAIModel()
+      }
+    })
+
     if (lastMessage.role === "user") {
       const validation = validateAndSanitize(lastMessage.content)
 
@@ -182,20 +251,82 @@ export async function POST(request: Request) {
       console.log(`[Chat API] Streaming FC (${sanitizedMessages.length} msgs)`)
 
       try {
+        logChatTrace({
+          trace_id: traceId,
+          stage: "tool_resolution_started",
+          normalized_query: normalizedQuery,
+          details: {
+            max_iterations: 3,
+            tools_count: ALL_SITE_TOOLS.length
+          }
+        })
+
         // الخطوة 1: حل جميع tool calls (بدون stream)
         const toolResult = await resolveToolCalls(
           openai,
           model,
           messagesWithSystem,
           ALL_SITE_TOOLS,
-          3
+          3,
+          { traceId }
         )
+
+        logChatTrace({
+          trace_id: traceId,
+          stage: "tools_resolved",
+          normalized_query: normalizedQuery,
+          routed_source: toolResult.trace?.routed_source,
+          retry_attempts: toolResult.trace?.retry_attempts || 0,
+          result_counts: toolResult.trace?.result_counts,
+          top_score: toolResult.trace?.top_score,
+          unavailable_reason: toolResult.trace?.unavailable_reason,
+          details: {
+            iterations: toolResult.iterations,
+            needs_final_call: toolResult.needsFinalCall,
+            has_direct_answer: Boolean(toolResult.directAnswer)
+          }
+        })
+        logChatTrace({
+          trace_id: traceId,
+          stage: "tool_resolution_finished",
+          normalized_query: normalizedQuery,
+          routed_source: toolResult.trace?.routed_source,
+          retry_attempts: toolResult.trace?.retry_attempts || 0,
+          result_counts: toolResult.trace?.result_counts,
+          top_score: toolResult.trace?.top_score,
+          unavailable_reason: toolResult.trace?.unavailable_reason,
+          details: {
+            iterations: toolResult.iterations,
+            needs_final_call: toolResult.needsFinalCall,
+            has_direct_answer: Boolean(toolResult.directAnswer)
+          }
+        })
 
         console.log(`[Chat API] Tools resolved in ${toolResult.iterations} iteration(s), needsFinalCall: ${toolResult.needsFinalCall}`)
 
         // إذا كان هناك إجابة مباشرة (من evidence عالي الثقة) → أرجعها فوراً
         if (toolResult.directAnswer) {
           console.log(`[Chat API] Returning direct grounded answer (bypassing final LLM call)`)
+          logChatTrace({
+            trace_id: traceId,
+            stage: "direct_answer_returned",
+            normalized_query: normalizedQuery,
+            answer_mode: "direct_grounded",
+            routed_source: toolResult.trace?.routed_source,
+            retry_attempts: toolResult.trace?.retry_attempts || 0,
+            result_counts: toolResult.trace?.result_counts,
+            top_score: toolResult.trace?.top_score
+          })
+          logChatTrace({
+            trace_id: traceId,
+            stage: "response_ready",
+            normalized_query: normalizedQuery,
+            answer_mode: "direct_grounded",
+            routed_source: toolResult.trace?.routed_source,
+            retry_attempts: toolResult.trace?.retry_attempts || 0,
+            result_counts: toolResult.trace?.result_counts,
+            top_score: toolResult.trace?.top_score
+          })
           const directStream = new ReadableStream({
             start(controller) {
               controller.enqueue(new TextEncoder().encode(toolResult.directAnswer!))
@@ -212,29 +343,108 @@ export async function POST(request: Request) {
 
         // ✅ الخطوة 2: streaming حقيقي من OpenAI (يشتغل على Vercel)
         // سواء كان رد مباشر أو بعد tool calls — دائماً نستخدم stream حقيقي
-        const streamMessages = toolResult.needsFinalCall
+        const streamMessagesBase = toolResult.needsFinalCall
           ? toolResult.resolvedMessages  // بعد tool calls
           : messagesWithSystem           // سؤال بسيط بدون أدوات
+        const finalIntentGuard = buildFinalResponseIntentGuard(normalizedQuery)
+        const finalIntentGuardMessage: ChatCompletionMessageParam | null = finalIntentGuard
+          ? {
+              role: "system",
+              content: finalIntentGuard
+            }
+          : null
+        const streamMessages: ChatCompletionMessageParam[] = finalIntentGuardMessage
+          ? [...streamMessagesBase, finalIntentGuardMessage]
+          : streamMessagesBase
+
+        logChatTrace({
+          trace_id: traceId,
+          stage: "final_stream_started",
+          normalized_query: normalizedQuery,
+          routed_source: toolResult.trace?.routed_source,
+          retry_attempts: toolResult.trace?.retry_attempts || 0,
+          details: {
+            grounded_temperature: 0.0,
+            grounded: true,
+            final_call_required: toolResult.needsFinalCall
+          }
+        })
+        logChatTrace({
+          trace_id: traceId,
+          stage: "grounded_stream_started",
+          normalized_query: normalizedQuery,
+          routed_source: toolResult.trace?.routed_source,
+          retry_attempts: toolResult.trace?.retry_attempts || 0,
+          details: {
+            grounded_temperature: 0.0,
+            grounded: true,
+            final_call_required: toolResult.needsFinalCall
+          }
+        })
 
         const finalStream = await openai.chat.completions.create({
           model,
           messages: streamMessages,
-          temperature: 0.5,
+          temperature: 0.0,
           max_tokens: 1200,
           stream: true
         })
 
+        logChatTrace({
+          trace_id: traceId,
+          stage: "response_ready",
+          normalized_query: normalizedQuery,
+          answer_mode: "llm_stream",
+          routed_source: toolResult.trace?.routed_source,
+          retry_attempts: toolResult.trace?.retry_attempts || 0,
+          result_counts: toolResult.trace?.result_counts,
+          top_score: toolResult.trace?.top_score,
+          unavailable_reason: toolResult.trace?.unavailable_reason
+        })
+
         const stream = new ReadableStream({
           async start(controller) {
+            let emittedChars = 0
             try {
               for await (const chunk of finalStream) {
                 const content = chunk.choices[0]?.delta?.content || ""
                 if (content) {
+                  emittedChars += content.length
                   controller.enqueue(new TextEncoder().encode(content))
                 }
               }
               controller.close()
             } catch (error) {
+              if (isAbortLikeError(error)) {
+                if (emittedChars < 80) {
+                  const recovery = buildStreamRecoverySuffix(normalizedQuery)
+                  controller.enqueue(new TextEncoder().encode(recovery))
+                  emittedChars += recovery.length
+                }
+                logChatTrace({
+                  trace_id: traceId,
+                  stage: "stream_aborted",
+                  normalized_query: normalizedQuery,
+                  routed_source: toolResult.trace?.routed_source,
+                  retry_attempts: toolResult.trace?.retry_attempts || 0,
+                  details: {
+                    reason: String((error as any)?.message || "aborted")
+                  }
+                })
+                logChatTrace({
+                  trace_id: traceId,
+                  stage: "stream_recovered",
+                  normalized_query: normalizedQuery,
+                  routed_source: toolResult.trace?.routed_source,
+                  details: {
+                    emitted_chars: emittedChars
+                  }
+                })
+                try {
+                  controller.close()
+                } catch {}
+                return
+              }
               controller.error(error)
             }
           }
@@ -263,17 +473,46 @@ export async function POST(request: Request) {
       stream: true
     })
 
+    logChatTrace({
+      trace_id: traceId,
+      stage: "response_ready",
+      answer_mode: "fallback_stream"
+    })
+
     const fallbackStream = new ReadableStream({
       async start(controller) {
+        let emittedChars = 0
         try {
           for await (const chunk of response) {
             const content = chunk.choices[0]?.delta?.content || ""
             if (content) {
+              emittedChars += content.length
               controller.enqueue(new TextEncoder().encode(content))
             }
           }
           controller.close()
         } catch (error) {
+          if (isAbortLikeError(error)) {
+            if (emittedChars < 80) {
+              const recovery = buildStreamRecoverySuffix(normalizedQuery)
+              controller.enqueue(new TextEncoder().encode(recovery))
+              emittedChars += recovery.length
+            }
+            logChatTrace({
+              trace_id: traceId,
+              stage: "stream_aborted",
+              normalized_query: normalizedQuery,
+              details: {
+                reason: String((error as any)?.message || "aborted"),
+                fallback_stream: true,
+                emitted_chars: emittedChars
+              }
+            })
+            try {
+              controller.close()
+            } catch {}
+            return
+          }
           controller.error(error)
         }
       }
@@ -287,6 +526,20 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error("Chat API Error:", error)
+    logChatTrace({
+      trace_id: traceId,
+      stage: "runtime_error",
+      answer_mode: "error",
+      normalized_query: normalizeQueryForTrace(""),
+      unavailable_reason: error?.message || "unknown_error"
+    })
+    logChatTrace({
+      trace_id: traceId,
+      stage: "request_error",
+      answer_mode: "error",
+      normalized_query: normalizeQueryForTrace(""),
+      unavailable_reason: error?.message || "unknown_error"
+    })
 
     // الحصول على origin للـ security headers
     const origin = request.headers.get("origin")

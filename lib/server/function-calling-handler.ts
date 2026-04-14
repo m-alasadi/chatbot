@@ -35,6 +35,9 @@ import {
   collectToolResultItems,
   type Evidence
 } from "./evidence-extractor"
+import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace"
+import { orchestrateRetrieval } from "./retrieval-orchestrator"
+import { understandQuery, type QueryUnderstandingResult } from "./query-understanding"
 
 // ── Light Arabic normalization for intent detection ────────────────
 function normalizeArabicLight(text: string): string {
@@ -88,7 +91,10 @@ function isAbbasBiographyQuery(text: string): boolean {
   return false
 }
 
-function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args: Record<string, any> } | null {
+function detectForcedToolIntent(
+  userText: string,
+  understanding?: QueryUnderstandingResult
+): { tool: AllowedToolName; args: Record<string, any> } | null {
   const norm = normalizeArabicLight(userText)
 
   const newsHints = ["اخبار", "خبر", "مقال", "مقالات"]
@@ -100,14 +106,23 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
   const isWahyFriday = wahyFridayHints.some(h => norm.includes(h))
   const isSermon = sermonHints.some(h => norm.includes(h))
 
+  const understoodNews = understanding?.content_intent === "news"
+  const understoodVideo = understanding?.content_intent === "video"
+  const understoodWahy = understanding?.content_intent === "wahy"
+  const understoodSermon = understanding?.content_intent === "sermon"
+  const isCountIntent = understanding?.operation_intent === "count"
+  const isLatestIntent = understanding?.operation_intent === "latest"
+  const isListIntent = understanding?.operation_intent === "list_items"
+  const isBrowseIntent = understanding?.operation_intent === "browse"
+
   // 1. Source-specific count → get_source_metadata
   // But NOT for biographical queries like "عدد ألقاب العباس" — those go to knowledge layer
   const countKeywords = ["عدد", "كم", "اجمالي", "كلي", "مجموع"]
-  if (countKeywords.some(k => norm.includes(k)) && !isAbbasBiographyQuery(userText)) {
-    if (isWahyFriday) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "wahy_friday" } }
-    if (isSermon) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "friday_sermons" } }
-    if (isNews && !isVideo) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
-    if (isVideo && !isNews) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "videos_latest" } }
+  if ((isCountIntent || countKeywords.some(k => norm.includes(k))) && !isAbbasBiographyQuery(userText)) {
+    if (isWahyFriday || understoodWahy) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "wahy_friday" } }
+    if (isSermon || understoodSermon) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "friday_sermons" } }
+    if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
+    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "videos_latest" } }
   }
 
   // 2. Metadata / descriptive info → get_source_metadata
@@ -119,59 +134,31 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
 
   // 3. Oldest / first → browse_source_page with order=oldest
   const oldestKeywords = ["اول", "اقدم", "oldest", "first"]
-  if (oldestKeywords.some(k => norm.includes(k))) {
-    if (isWahyFriday) return { tool: "browse_source_page" as AllowedToolName, args: { source: "wahy_friday", page: 1, order: "oldest" } }
-    if (isSermon) return { tool: "browse_source_page" as AllowedToolName, args: { source: "friday_sermons", page: 1, order: "oldest" } }
-    if (isVideo && !isNews) return { tool: "browse_source_page" as AllowedToolName, args: { source: "videos_latest", page: 1, order: "oldest" } }
-    if (isNews || norm.includes("نشر") || norm.includes("موقع")) {
+  if (isBrowseIntent || oldestKeywords.some(k => norm.includes(k))) {
+    if (isWahyFriday || understoodWahy) return { tool: "browse_source_page" as AllowedToolName, args: { source: "wahy_friday", page: 1, order: "oldest" } }
+    if (isSermon || understoodSermon) return { tool: "browse_source_page" as AllowedToolName, args: { source: "friday_sermons", page: 1, order: "oldest" } }
+    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "browse_source_page" as AllowedToolName, args: { source: "videos_latest", page: 1, order: "oldest" } }
+    if (isNews || understoodNews || norm.includes("نشر") || norm.includes("موقع")) {
       return { tool: "browse_source_page" as AllowedToolName, args: { source: "articles_latest", page: 1, order: "oldest" } }
     }
   }
 
-  // 4. Abbas biography → force search_content with source=auto to trigger knowledge layer
-  const abbasHints = ["العباس", "ابو الفضل", "ابا الفضل", "ابوالفضل", "ابي الفضل", "قمر بني هاشم"]
-  const bioHints = [
-    "نبذه", "حياه", "سيره", "من هو", "من هي", "تعريف", "استشهد", "استشهاد",
-    "القاب", "صفات", "اخو", "اخوات", "زواج", "كنيه", "نشا", "ولاد", "مولد",
-    "عمر", "متي", "اين", "دفن", "قبر", "ماذا", "ما هو", "ما هي", "يذكر", "عن",
-    "اعمام", "ابناء", "اولاد", "موقف",
-  ]
-  if (abbasHints.some(h => norm.includes(h)) && bioHints.some(h => norm.includes(h))) {
-    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
-  }
-  // Even standalone Abbas queries in short form should go through knowledge layer
-  if (abbasHints.some(h => norm.includes(h)) && norm.length < 40) {
-    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
+  // 4. Explicit latest listing requests (utility listing, not semantic retrieval)
+  const latestKeywords = ["احدث", "اخر", "آخر", "الجديد", "احدث ", "اخر "]
+  const explicitListingWords = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
+  const isExplicitLatestListing =
+    (isLatestIntent || latestKeywords.some(k => norm.includes(normalizeArabicLight(k)))) &&
+    (isListIntent || explicitListingWords.some(k => norm.includes(normalizeArabicLight(k))))
+
+  if (isExplicitLatestListing) {
+    if (isWahyFriday || understoodWahy) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "wahy_friday", limit: 5 } }
+    if (isSermon || understoodSermon) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "friday_sermons", limit: 5 } }
+    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "videos_latest", limit: 5 } }
+    if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "articles_latest", limit: 5 } }
   }
 
-  // 5. Friday sermons — route to correct source family
-  const wahyHints2 = ["وحي الجمعه", "من وحي", "وحي"]
-  const sermonHints2 = ["خطبه", "خطب", "جمعه", "خطيب", "منبر", "صلاه الجمعه", "صلاه جمعه"]
-  const isWahy2 = wahyHints2.some(h => norm.includes(h))
-  const isSermon2 = sermonHints2.some(h => norm.includes(h))
-  const isLatestIntent = ["احدث", "اخر", "جديد", "اخير"].some(h => norm.includes(h))
-  if (isWahy2) {
-    if (isLatestIntent) {
-      return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "wahy_friday", limit: 5 } }
-    }
-    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "wahy_friday" } }
-  }
-  if (isSermon2) {
-    if (isLatestIntent) {
-      return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "friday_sermons", limit: 5 } }
-    }
-    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "friday_sermons" } }
-  }
-
-  // 6. Fallback: any non-trivial query that hasn't matched above
-  // → force search_content so the LLM always has real data before answering.
-  // This catches bare names ("السيد أحمد الصافي"), topics, etc.
-  // Skip only very short single-word greetings.
-  const isGreeting = ["مرحبا", "اهلا", "هلا", "السلام", "شكرا", "شكر"].some(g => norm === g || norm === g + "ً")
-  if (!isGreeting && norm.length >= 4) {
-    return { tool: "search_content" as AllowedToolName, args: { query: userText, source: "auto" } }
-  }
-
+  // Compatibility-only forced routing:
+  // keep deterministic non-search flows here; retrieval routing is owned by orchestrator.
   return null
 }
 
@@ -334,9 +321,12 @@ function cleanResultForGPT(result: APICallResult): any {
           return cleaned
         }),
         total: data.total,
+        result_count: data.result_count,
+        top_score: data.top_score,
         query: data.query,
         source_used: data.source_used ? friendlySourceName(data.source_used) : undefined,
         candidate_sources: data.candidate_sources,
+        source_attempts: data.source_attempts,
       }
     }
   }
@@ -427,6 +417,135 @@ function cleanResultForGPT(result: APICallResult): any {
   return result
 }
 
+function buildUtilityDirectAnswer(
+  tool: AllowedToolName,
+  args: Record<string, any>,
+  cleanedResult: any
+): string | null {
+  if (!cleanedResult?.success || !cleanedResult?.data) return null
+
+  const source = String(args?.source || cleanedResult?.data?.source || "")
+  const sourceLabel = source === "videos_latest"
+    ? "الفيديوهات"
+    : source === "articles_latest"
+      ? "الأخبار"
+      : source === "wahy_friday"
+        ? "من وحي الجمعة"
+        : source === "friday_sermons"
+          ? "خطب الجمعة"
+          : "العناصر"
+
+  if (tool === "get_latest_by_source" || tool === "browse_source_page") {
+    const items = Array.isArray(cleanedResult.data.projects)
+      ? cleanedResult.data.projects
+      : Array.isArray(cleanedResult.data.items)
+        ? cleanedResult.data.items
+        : []
+
+    if (items.length === 0) return null
+
+    const title = tool === "get_latest_by_source"
+      ? `وجدت لك أحدث ${sourceLabel}:`
+      : `وجدت لك ${sourceLabel} المطلوبة:`
+
+    const lines = items.slice(0, 8).map((item: any, idx: number) => {
+      const name = String(item?.name || "بدون عنوان").trim()
+      const url = item?.url ? `\n   🔗 ${item.url}` : ""
+      return `${idx + 1}. ${name}${url}`
+    })
+
+    return `${title}\n\n${lines.join("\n\n")}`
+  }
+
+  if (tool === "get_source_metadata") {
+    const source = String(cleanedResult.data.source || args.source || "المصدر")
+    const total = cleanedResult.data.total
+    if (typeof total === "number") {
+      return `إحصائية ${source}: العدد الكلي المتاح حالياً هو ${total}.`
+    }
+  }
+
+  return null
+}
+
+function enforceIntentLexicalAnchors(
+  understanding: QueryUnderstandingResult,
+  answer: string
+): string {
+  let out = String(answer || "")
+
+  if (understanding.operation_intent === "fact_question") {
+    const lines = out
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+    const listLikeLines = lines.filter(line => /^[-*•\d]+[).:\-\s]/.test(line)).length
+    if (listLikeLines >= 2) {
+      const prose = lines
+        .slice(0, 4)
+        .map(line => line.replace(/^[-*•\d]+[).:\-\s]*/, "").trim())
+        .filter(Boolean)
+        .join(". ")
+      if (prose.length > 0) {
+        out = prose.endsWith(".") ? prose : `${prose}.`
+      }
+    } else if (lines.length >= 4) {
+      // Too many plain paragraphs for a fact question → compress to first 3 lines of dense prose
+      const compact = lines.slice(0, 3).join(" ")
+      if (compact.length > 0) {
+        out = compact
+      }
+    }
+  }
+
+  const norm = normalizeArabicLight(out)
+
+  if (understanding.extracted_entities.source_specific.includes("projects_query")) {
+    const hasProjectSignal = norm.includes("مشروع") || norm.includes("مشاريع") || norm.includes("توسعه") || norm.includes("توسعة")
+    if (!hasProjectSignal) {
+      out = `فيما يلي معلومات عن مشاريع توسعة العتبة بحسب المصادر:\n\n${out}`
+    }
+  }
+
+  return out
+}
+
+interface ResolveTraceSummary {
+  routed_source?: string
+  retry_attempts: number
+  result_counts?: number
+  top_score?: number | null
+  unavailable_reason?: string
+}
+
+interface ToolCallContext {
+  traceId?: string
+  retryCounter?: { count: number }
+  traceSummary?: ResolveTraceSummary
+  userQuery?: string
+  queryUnderstanding?: QueryUnderstandingResult
+}
+
+function getResultCountFromData(data: any): number {
+  if (!data) return 0
+  if (typeof data.total === "number") return data.total
+  if (Array.isArray(data.results)) return data.results.length
+  if (Array.isArray(data.projects)) return data.projects.length
+  if (Array.isArray(data.items)) return data.items.length
+  return 0
+}
+
+function getTopScoreFromData(data: any): number | null {
+  if (!data) return null
+  if (typeof data.top_score === "number") return data.top_score
+  if (Array.isArray(data.results) && data.results.length > 0) {
+    const first = data.results[0]
+    const score = first?._score || first?.score
+    if (typeof score === "number") return score
+  }
+  return null
+}
+
 /**
  * نتيجة معالجة Function Calling
  */
@@ -443,7 +562,8 @@ export interface FunctionCallResult {
  * @param toolCall - معلومات الأداة المراد استدعاءها
  */
 async function processToolCall(
-  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall
+  toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
+  context: ToolCallContext = {}
 ): Promise<{
   tool_call_id: string
   role: "tool"
@@ -485,15 +605,77 @@ async function processToolCall(
     }
   }
 
-  // تنفيذ الأداة
-  const result: APICallResult = await executeToolByName(
-    toolName as AllowedToolName,
-    args
-  )
+  // تنفيذ الأداة (orchestrator-aware for retrieval tools)
+  let result: APICallResult
+  const isRetrievalTool = toolName === "search_content" || toolName === "search_projects"
+  if (isRetrievalTool) {
+    const retrievalUnderstanding = context.queryUnderstanding || understandQuery(String(args.query || context.userQuery || ""))
+    const orchestrated = await orchestrateRetrieval(
+      toolName as AllowedToolName,
+      args,
+      {
+        traceId: context.traceId,
+        queryUnderstanding: retrievalUnderstanding
+      }
+    )
+    if (orchestrated) {
+      result = orchestrated.finalResult
+      if (context.retryCounter) {
+        context.retryCounter.count += Math.max(0, orchestrated.attempts.length - 1)
+      }
+      if (context.traceSummary) {
+        context.traceSummary.routed_source = orchestrated.routedSource || context.traceSummary.routed_source
+        context.traceSummary.result_counts = orchestrated.resultCount
+        context.traceSummary.top_score = orchestrated.topScore
+        if (orchestrated.exhausted) {
+          context.traceSummary.unavailable_reason = orchestrated.unavailableReason
+        }
+      }
+    } else {
+      result = await executeToolByName(
+        toolName as AllowedToolName,
+        args
+      )
+    }
+  } else {
+    result = await executeToolByName(
+      toolName as AllowedToolName,
+      args
+    )
+  }
 
-  // ✅ Phase 3: معالجة النتائج الفارغة مع اقتراحات ذكية
+  const traceQuery = args.query || context.userQuery || ""
+
+  if (context.traceId) {
+    const resultCount = getResultCountFromData(result.data)
+    const topScore = getTopScoreFromData(result.data)
+    const routedSource =
+      (result.data && (result.data.source_used || result.data.source || result.data.routed_source)) ||
+      args.source
+    logChatTrace({
+      trace_id: context.traceId,
+      stage: "tool_result",
+      normalized_query: normalizeQueryForTrace(traceQuery),
+      routed_source: routedSource,
+      result_counts: resultCount,
+      top_score: topScore,
+      details: {
+        tool_name: toolName,
+        success: result.success
+      }
+    })
+    if (context.traceSummary) {
+      // Keep orchestrator-selected source when available; fallback to args.source.
+      if (typeof routedSource === "string" && routedSource.trim().length > 0) {
+        context.traceSummary.routed_source = routedSource
+      }
+      context.traceSummary.result_counts = resultCount
+      context.traceSummary.top_score = topScore
+    }
+  }
+
   if (result.success && isEmptyAPIResponse(result.data)) {
-    console.log(`[Function Call] Empty results detected, generating suggestions`)
+    console.log(`[Function Call] Empty results detected after retries, generating suggestions`)
     
     // استخرج query من المعاملات
     const query = args.query || args.searchTerm || args.keyword || ""
@@ -512,6 +694,7 @@ async function processToolCall(
       content: JSON.stringify({
         success: false,
         empty_results: true,
+        retry_attempts: context.retryCounter?.count || 0,
         message: suggestionsResponse.message,
         suggestions: suggestionsResponse.suggestions,
         context: suggestionsResponse.context,
@@ -563,13 +746,14 @@ async function processToolCall(
  * @param toolCalls - قائمة الأدوات المطلوب استدعاءها
  */
 export async function handleToolCalls(
-  toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]
+  toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[],
+  context: ToolCallContext = {}
 ): Promise<ChatCompletionMessageParam[]> {
   const toolResponses: ChatCompletionMessageParam[] = []
 
   // معالجة كل أداة
   for (const toolCall of toolCalls) {
-    const response = await processToolCall(toolCall)
+    const response = await processToolCall(toolCall, context)
     toolResponses.push(response)
   }
 
@@ -636,6 +820,50 @@ function looksLikeSiteContentQuery(text: string): boolean {
   return contentSignals.some(signal => norm.includes(signal))
     // Long Arabic text without question marks → likely a title paste or direct content query
     || (text.trim().length >= 25 && !text.includes("?") && !text.includes("\u061F"))
+}
+
+/**
+ * Choose the primary retrieval tool for orchestrator bootstrap.
+ * Project-style requests should use search_projects, otherwise search_content.
+ */
+function getPrimaryRetrievalToolForQuery(
+  text: string,
+  understanding?: QueryUnderstandingResult
+): AllowedToolName {
+  if (understanding?.extracted_entities.source_specific.includes("projects_query")) {
+    return "search_projects"
+  }
+
+  const norm = normalizeArabicLight(text)
+  const projectSignals = [
+    "مشروع", "مشاريع", "المشاريع", "انجاز", "انجازات", "اعمار", "توسعه", "توسعة", "خدمي"
+  ]
+  if (projectSignals.some(signal => norm.includes(signal))) {
+    return "search_projects"
+  }
+  return "search_content"
+}
+
+/**
+ * After orchestrator bootstrap, keep model tool access limited to
+ * deterministic utility/non-retrieval tools to prevent policy re-expansion.
+ */
+function getPostBootstrapTools(
+  tools: OpenAI.Chat.Completions.ChatCompletionTool[]
+): OpenAI.Chat.Completions.ChatCompletionTool[] {
+  const allowedUtilityTools = new Set([
+    "get_source_metadata",
+    "browse_source_page",
+    "get_latest_by_source",
+    "list_source_categories",
+    "get_statistics"
+  ])
+
+  return tools.filter(tool => {
+    if (tool.type !== "function") return true
+    const name = tool.function?.name
+    return typeof name === "string" && allowedUtilityTools.has(name)
+  })
 }
 
 // ── Knowledge layer helpers ─────────────────────────────────────────
@@ -966,25 +1194,100 @@ export async function resolveToolCalls(
   model: string,
   messages: ChatCompletionMessageParam[],
   tools: OpenAI.Chat.Completions.ChatCompletionTool[],
-  maxIterations: number = 3
+  maxIterations: number = 3,
+  options: { traceId?: string } = {}
 ): Promise<{
   resolvedMessages: ChatCompletionMessageParam[]
   needsFinalCall: boolean
   iterations: number
   directAnswer?: string
+  trace?: ResolveTraceSummary
 }> {
   let currentMessages = [...messages]
   let iterations = 0
   let toolsWereCalled = false
-  let retrievalForced = false
+  let orchestratorBootstrapped = false
+  const retryCounter = { count: 0 }
+  const traceSummary: ResolveTraceSummary = { retry_attempts: 0 }
 
-  // Forced tool intent: deterministic routing for count/metadata/oldest/biography queries
+  // Forced tool intent: deterministic routing for count/metadata/oldest only.
   const userQueryForIntent = getLastUserMessage(messages)
-  const forcedIntent = detectForcedToolIntent(userQueryForIntent)
+  const queryUnderstanding = understandQuery(userQueryForIntent)
+
+  if (queryUnderstanding.operation_intent === "fact_question") {
+    currentMessages.push({
+      role: "system",
+      content: "تعليمات الصياغة: هذا سؤال معلوماتي مباشر. قدّم الإجابة بصيغة نثرية موجزة في فقرة/فقرتين بدون تعداد نقطي أو ترقيم، إلا إذا طلب المستخدم قائمة صراحة."
+    })
+  } else if (
+    queryUnderstanding.operation_intent === "list_items" ||
+    queryUnderstanding.operation_intent === "latest" ||
+    queryUnderstanding.operation_intent === "browse"
+  ) {
+    currentMessages.push({
+      role: "system",
+      content: "تعليمات الصياغة: هذا طلب قائمة/استعراض. قدّم النتائج كقائمة مرقمة واضحة مع عناوين العناصر أولاً."
+    })
+  }
+
+  if (queryUnderstanding.extracted_entities.source_specific.includes("projects_query")) {
+    currentMessages.push({
+      role: "system",
+      content: "تعليمات سياقية: هذا استفسار عن المشاريع. استخدم مصطلحات المشاريع/التوسعة بوضوح وتجنب تحويل الإجابة إلى أخبار عامة."
+    })
+  } else if (queryUnderstanding.content_intent === "news") {
+    currentMessages.push({
+      role: "system",
+      content: "تعليمات سياقية: هذا استفسار إخباري. استخدم مفردات الأخبار/الخبر بوضوح في صياغة الإجابة."
+    })
+  } else if (queryUnderstanding.content_intent === "video") {
+    currentMessages.push({
+      role: "system",
+      content: "تعليمات سياقية: هذا استفسار عن فيديوهات/محاضرات. استخدم مفردات الفيديو/المحاضرات بوضوح في الإجابة."
+    })
+  }
+
+  const forcedIntent = detectForcedToolIntent(userQueryForIntent, queryUnderstanding)
+  if (options.traceId) {
+    logChatTrace({
+      trace_id: options.traceId,
+      stage: "intent_detected",
+      normalized_query: normalizeQueryForTrace(userQueryForIntent),
+      routed_source: forcedIntent?.args?.source,
+      details: {
+        forced_tool: forcedIntent?.tool || null
+      }
+    })
+    logChatTrace({
+      trace_id: options.traceId,
+      stage: "query_understanding",
+      normalized_query: queryUnderstanding.normalized_query,
+      routed_source: queryUnderstanding.hinted_sources[0],
+      details: {
+        content_intent: queryUnderstanding.content_intent,
+        operation_intent: queryUnderstanding.operation_intent,
+        route_confidence: queryUnderstanding.route_confidence,
+        extracted_entities: queryUnderstanding.extracted_entities
+      }
+    })
+  }
+
   if (forcedIntent) {
     console.log(`[Tool Resolution] Forced intent: ${forcedIntent.tool}`, forcedIntent.args)
+    if (options.traceId) {
+      logChatTrace({
+        trace_id: options.traceId,
+        stage: "forced_intent_utility",
+        normalized_query: normalizeQueryForTrace(userQueryForIntent),
+        routed_source: forcedIntent.args?.source,
+        details: {
+          forced_tool: forcedIntent.tool
+        }
+      })
+    }
     const forcedResult = await executeToolByName(forcedIntent.tool, forcedIntent.args)
     const cleanedForced = cleanResultForGPT(forcedResult)
+    const utilityDirect = buildUtilityDirectAnswer(forcedIntent.tool, forcedIntent.args, cleanedForced)
     const syntheticToolCallId = `forced_${forcedIntent.tool}_${Date.now()}`
     currentMessages.push({
       role: "assistant",
@@ -1006,8 +1309,58 @@ export async function resolveToolCalls(
       content: toolContent
     })
 
+    if (utilityDirect) {
+      if (options.traceId) {
+        logChatTrace({
+          trace_id: options.traceId,
+          stage: "utility_direct_answer",
+          normalized_query: normalizeQueryForTrace(userQueryForIntent),
+          routed_source: forcedIntent.args?.source,
+          details: {
+            forced_tool: forcedIntent.tool
+          }
+        })
+      }
+
+      return {
+        resolvedMessages: currentMessages,
+        needsFinalCall: false,
+        iterations: 0,
+        directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, utilityDirect),
+        trace: {
+          ...traceSummary,
+          retry_attempts: retryCounter.count,
+          routed_source: forcedIntent.args?.source,
+          result_counts: getResultCountFromData(forcedResult.data),
+          top_score: getTopScoreFromData(forcedResult.data)
+        }
+      }
+    }
+
     // Augment forced-intent results with deep-text knowledge + evidence guard
     const forcedEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+
+    if (
+      queryUnderstanding.content_intent === "biography" &&
+      queryUnderstanding.operation_intent === "fact_question"
+    ) {
+      const biographyDirect = generateDirectAnswer(userQueryForIntent, forcedEvidence)
+      if (biographyDirect) {
+        return {
+          resolvedMessages: currentMessages,
+          needsFinalCall: false,
+          iterations: 0,
+          directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, biographyDirect),
+          trace: {
+            ...traceSummary,
+            retry_attempts: retryCounter.count,
+            routed_source: forcedIntent.args?.source,
+            result_counts: getResultCountFromData(forcedResult.data),
+            top_score: getTopScoreFromData(forcedResult.data)
+          }
+        }
+      }
+    }
 
     // If a single high-confidence evidence item exists, return a direct grounded answer
     const forcedDirect = tryGenerateDirectAnswer(userQueryForIntent, forcedEvidence)
@@ -1017,14 +1370,91 @@ export async function resolveToolCalls(
         resolvedMessages: currentMessages,
         needsFinalCall: false,
         iterations: 0,
-        directAnswer: forcedDirect
+        directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, forcedDirect),
+        trace: {
+          ...traceSummary,
+          retry_attempts: retryCounter.count,
+          routed_source: forcedIntent.args?.source,
+          result_counts: getResultCountFromData(forcedResult.data),
+          top_score: getTopScoreFromData(forcedResult.data)
+        }
       }
     }
 
     return {
       resolvedMessages: currentMessages,
       needsFinalCall: true,
-      iterations: 0
+      iterations: 0,
+      trace: {
+        ...traceSummary,
+        retry_attempts: retryCounter.count,
+        routed_source: forcedIntent.args?.source,
+        result_counts: getResultCountFromData(forcedResult.data),
+        top_score: getTopScoreFromData(forcedResult.data)
+      }
+    }
+  }
+
+  // Runtime takeover: for general retrieval-style questions,
+  // orchestrator is the primary retrieval policy owner before LLM tool selection.
+  if (looksLikeSiteContentQuery(userQueryForIntent)) {
+    const primaryRetrievalTool = getPrimaryRetrievalToolForQuery(userQueryForIntent, queryUnderstanding)
+    const orchestrated = await orchestrateRetrieval(
+      primaryRetrievalTool,
+      { query: userQueryForIntent, source: "auto" },
+      {
+        traceId: options.traceId,
+        queryUnderstanding
+      }
+    )
+
+    if (orchestrated) {
+      if (options.traceId) {
+        logChatTrace({
+          trace_id: options.traceId,
+          stage: "orchestrator_runtime_takeover",
+          normalized_query: normalizeQueryForTrace(userQueryForIntent),
+          routed_source: orchestrated.routedSource,
+          retry_attempts: Math.max(0, orchestrated.attempts.length - 1),
+          result_counts: orchestrated.resultCount,
+          top_score: orchestrated.topScore,
+          unavailable_reason: orchestrated.exhausted ? orchestrated.unavailableReason : undefined
+        })
+      }
+
+      retryCounter.count += Math.max(0, orchestrated.attempts.length - 1)
+      traceSummary.routed_source = orchestrated.routedSource || traceSummary.routed_source
+      traceSummary.result_counts = orchestrated.resultCount
+      traceSummary.top_score = orchestrated.topScore
+      if (orchestrated.exhausted) {
+        traceSummary.unavailable_reason = orchestrated.unavailableReason
+      }
+
+      const cleaned = cleanResultForGPT(orchestrated.finalResult)
+      const syntheticToolCallId = `bootstrap_${primaryRetrievalTool}_${Date.now()}`
+      const routedSourceForSynthetic = orchestrated.routedSource || "auto"
+
+      currentMessages.push({
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: syntheticToolCallId,
+          type: "function",
+          function: {
+            name: primaryRetrievalTool,
+            arguments: JSON.stringify({ query: userQueryForIntent, source: routedSourceForSynthetic })
+          }
+        }]
+      })
+      currentMessages.push({
+        role: "tool",
+        tool_call_id: syntheticToolCallId,
+        content: JSON.stringify(cleaned)
+      })
+
+      await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+      toolsWereCalled = true
+      orchestratorBootstrapped = true
     }
   }
 
@@ -1032,14 +1462,25 @@ export async function resolveToolCalls(
     iterations++
     console.log(`[Tool Resolution] Iteration ${iterations}`)
 
-    const response = await openai.chat.completions.create({
-      model,
-      messages: currentMessages,
-      tools,
-      tool_choice: "auto",
-      temperature: 0.5,
-      max_tokens: 1200
-    })
+    const toolsForIteration = orchestratorBootstrapped
+      ? getPostBootstrapTools(tools)
+      : tools
+
+    const response = toolsForIteration.length > 0
+      ? await openai.chat.completions.create({
+          model,
+          messages: currentMessages,
+          tools: toolsForIteration,
+          tool_choice: "auto",
+          temperature: 0.2,
+          max_tokens: 1200
+        })
+      : await openai.chat.completions.create({
+          model,
+          messages: currentMessages,
+          temperature: 0.2,
+          max_tokens: 1200
+        })
 
     const assistantMessage = response.choices[0].message
     currentMessages.push(assistantMessage)
@@ -1055,6 +1496,25 @@ export async function resolveToolCalls(
         // Augment with knowledge search + evidence guard
         const loopEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
 
+        if (
+          queryUnderstanding.content_intent === "biography" &&
+          queryUnderstanding.operation_intent === "fact_question"
+        ) {
+          const biographyDirect = generateDirectAnswer(userQueryForIntent, loopEvidence)
+          if (biographyDirect) {
+            return {
+              resolvedMessages: currentMessages,
+              needsFinalCall: false,
+              iterations,
+              directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, biographyDirect),
+              trace: {
+                ...traceSummary,
+                retry_attempts: retryCounter.count
+              }
+            }
+          }
+        }
+
         // If a single high-confidence evidence item exists, return a direct grounded answer
         const loopDirect = tryGenerateDirectAnswer(userQueryForIntent, loopEvidence)
         if (loopDirect) {
@@ -1063,58 +1523,23 @@ export async function resolveToolCalls(
             resolvedMessages: currentMessages,
             needsFinalCall: false,
             iterations,
-            directAnswer: loopDirect
+            directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, loopDirect),
+            trace: {
+              ...traceSummary,
+              retry_attempts: retryCounter.count
+            }
           }
         }
 
         return {
           resolvedMessages: currentMessages,
           needsFinalCall: true,
-          iterations
+          iterations,
+          trace: {
+            ...traceSummary,
+            retry_attempts: retryCounter.count
+          }
         }
-      }
-
-      // ✅ Retrieval-first safety: if no tools were called yet and the user
-      // is asking about site content, force one search_content call
-      const userQuery = getLastUserMessage(messages)
-      if (!retrievalForced && looksLikeSiteContentQuery(userQuery)) {
-        retrievalForced = true
-        console.log(`[Tool Resolution] Forcing retrieval for site-content query`)
-
-        // Remove the direct answer so we can retry with tool results
-        currentMessages.pop()
-
-        // Build a synthetic search_content tool call result
-        const forcedResult = await executeToolByName("search_content" as AllowedToolName, {
-          query: userQuery,
-          source: "auto"
-        })
-
-        const cleanedForced = cleanResultForGPT(forcedResult)
-
-        // Inject as if assistant called search_content and got a result
-        const syntheticToolCallId = `forced_search_${Date.now()}`
-        currentMessages.push({
-          role: "assistant",
-          content: null,
-          tool_calls: [{
-            id: syntheticToolCallId,
-            type: "function",
-            function: { name: "search_content", arguments: JSON.stringify({ query: userQuery, source: "auto" }) }
-          }]
-        })
-        currentMessages.push({
-          role: "tool",
-          tool_call_id: syntheticToolCallId,
-          content: JSON.stringify(cleanedForced)
-        })
-
-        // Also inject deep-text knowledge + evidence guard
-        await injectKnowledgeAndGuard(currentMessages, userQuery)
-
-        toolsWereCalled = true
-        // Continue the loop — OpenAI will now see the search results
-        continue
       }
 
       // سؤال بسيط بدون أدوات → نرجعه كـ directAnswer
@@ -1122,20 +1547,49 @@ export async function resolveToolCalls(
         resolvedMessages: currentMessages,
         needsFinalCall: false,
         iterations,
-        directAnswer: assistantMessage.content || ""
+        directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, assistantMessage.content || ""),
+        trace: {
+          ...traceSummary,
+          retry_attempts: retryCounter.count
+        }
       }
     }
 
     // معالجة tool calls
     toolsWereCalled = true
     console.log(`[Tool Resolution] Processing ${assistantMessage.tool_calls.length} tool call(s)`)
-    const toolResponses = await handleToolCalls(assistantMessage.tool_calls)
+    const toolResponses = await handleToolCalls(assistantMessage.tool_calls, {
+      traceId: options.traceId,
+      retryCounter,
+      traceSummary,
+      userQuery: userQueryForIntent,
+      queryUnderstanding
+    })
     currentMessages.push(...toolResponses)
   }
 
   // Max iterations reached — tools were processed, need streaming call
   // Final knowledge augmentation + evidence guard
   const finalEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+
+  if (
+    queryUnderstanding.content_intent === "biography" &&
+    queryUnderstanding.operation_intent === "fact_question"
+  ) {
+    const biographyDirect = generateDirectAnswer(userQueryForIntent, finalEvidence)
+    if (biographyDirect) {
+      return {
+        resolvedMessages: currentMessages,
+        needsFinalCall: false,
+        iterations,
+        directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, biographyDirect),
+        trace: {
+          ...traceSummary,
+          retry_attempts: retryCounter.count
+        }
+      }
+    }
+  }
 
   // If a single high-confidence evidence item exists, return a direct grounded answer
   const finalDirect = tryGenerateDirectAnswer(userQueryForIntent, finalEvidence)
@@ -1145,14 +1599,23 @@ export async function resolveToolCalls(
       resolvedMessages: currentMessages,
       needsFinalCall: false,
       iterations,
-      directAnswer: finalDirect
+      directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, finalDirect),
+      trace: {
+        ...traceSummary,
+        retry_attempts: retryCounter.count
+      }
     }
   }
 
   return {
     resolvedMessages: currentMessages,
     needsFinalCall: true,
-    iterations
+    iterations,
+    trace: {
+      ...traceSummary,
+      retry_attempts: retryCounter.count,
+      unavailable_reason: "no_high_confidence_evidence"
+    }
   }
 }
 

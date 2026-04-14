@@ -1307,9 +1307,12 @@ export async function siteSearchContent(
     data: {
       results,
       total: results.length,
+      result_count: results.length,
+      top_score: scored.length > 0 ? scored[0].score : null,
       query,
       source_used: source,
-      candidate_sources: candidates
+      candidate_sources: candidates,
+      source_attempts: candidates
     }
   }
 }

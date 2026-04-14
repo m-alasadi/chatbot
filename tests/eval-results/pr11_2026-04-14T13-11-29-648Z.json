@@ -1,0 +1,291 @@
+{
+  "run_id": "pr11_2026-04-14T13-11-29-648Z",
+  "timestamp": "2026-04-14T13:11:29.648Z",
+  "base_url": "http://localhost:3001",
+  "overall_passed": false,
+  "passed_categories": 6,
+  "total_categories": 8,
+  "categories": [
+    {
+      "id": "repeated_question_stability",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 1,
+      "passed_checks": 4,
+      "total_checks": 4,
+      "passed": true,
+      "meta": {
+        "query": "اعرض أحدث فيديوهات العتبة",
+        "similarities": {
+          "sim12": 1,
+          "sim23": 1,
+          "sim13": 1
+        }
+      },
+      "checks": [
+        {
+          "id": "stability_no_unavailable_1",
+          "passed": true,
+          "value": null
+        },
+        {
+          "id": "stability_no_unavailable_2",
+          "passed": true,
+          "value": null
+        },
+        {
+          "id": "stability_no_unavailable_3",
+          "passed": true,
+          "value": null
+        },
+        {
+          "id": "stability_similarity",
+          "passed": true,
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "news_vs_video_disambiguation",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 0.333,
+      "passed_checks": 1,
+      "total_checks": 3,
+      "passed": false,
+      "meta": {
+        "queries": [
+          "اعرض أحدث أخبار العتبة",
+          "اعرض أحدث فيديوهات العتبة"
+        ]
+      },
+      "checks": [
+        {
+          "id": "news_response_news_signal",
+          "passed": false,
+          "value": null
+        },
+        {
+          "id": "video_response_video_signal",
+          "passed": false,
+          "value": null
+        },
+        {
+          "id": "video_not_unavailable",
+          "passed": true,
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "false_unavailable_regression",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 0.85
+      },
+      "pass_rate": 1,
+      "passed_checks": 6,
+      "total_checks": 6,
+      "passed": true,
+      "meta": {
+        "sample_size": 6
+      },
+      "checks": [
+        {
+          "id": "no_unavailable_1",
+          "passed": true,
+          "value": "اعرض أحدث فيديوهات العتبة"
+        },
+        {
+          "id": "no_unavailable_2",
+          "passed": true,
+          "value": "ما هي مشاريع توسعة العتبة"
+        },
+        {
+          "id": "no_unavailable_3",
+          "passed": true,
+          "value": "اعرض أحدث من وحي الجمعة"
+        },
+        {
+          "id": "no_unavailable_4",
+          "passed": true,
+          "value": "اعرض أحدث خطب الجمعة"
+        },
+        {
+          "id": "no_unavailable_5",
+          "passed": true,
+          "value": "ما هي أبرز أخبار العتبة اليوم"
+        },
+        {
+          "id": "no_unavailable_6",
+          "passed": true,
+          "value": "من هو أبو الفضل العباس"
+        }
+      ]
+    },
+    {
+      "id": "fact_vs_list_intent",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 1,
+      "passed_checks": 2,
+      "total_checks": 2,
+      "passed": true,
+      "meta": {
+        "queries": [
+          "من هو أبو الفضل العباس",
+          "اعرض أحدث الفيديوهات"
+        ]
+      },
+      "checks": [
+        {
+          "id": "fact_not_list_like",
+          "passed": true,
+          "value": null
+        },
+        {
+          "id": "list_has_listing_shape_or_signal",
+          "passed": true,
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "biography_vs_shrine_history",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 1,
+      "passed_checks": 2,
+      "total_checks": 2,
+      "passed": true,
+      "meta": {
+        "queries": [
+          "ما هي ألقاب أبي الفضل العباس",
+          "ما هي مشاريع توسعة العتبة"
+        ]
+      },
+      "checks": [
+        {
+          "id": "biography_has_person_signal",
+          "passed": true,
+          "value": null
+        },
+        {
+          "id": "shrine_history_has_project_signal",
+          "passed": true,
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "wahy_vs_friday_sermon",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 1,
+      "passed_checks": 2,
+      "total_checks": 2,
+      "passed": true,
+      "meta": {
+        "queries": [
+          "اعرض أحدث من وحي الجمعة",
+          "اعرض أحدث خطب الجمعة"
+        ]
+      },
+      "checks": [
+        {
+          "id": "wahy_response_signal",
+          "passed": true,
+          "value": null
+        },
+        {
+          "id": "sermon_response_signal",
+          "passed": true,
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "project_vs_generic_content",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 0,
+      "passed_checks": 0,
+      "total_checks": 2,
+      "passed": false,
+      "meta": {
+        "queries": [
+          "ما هي مشاريع توسعة العتبة",
+          "ما أبرز أخبار العتبة اليوم"
+        ]
+      },
+      "checks": [
+        {
+          "id": "project_response_has_project_signal",
+          "passed": false,
+          "value": null
+        },
+        {
+          "id": "generic_response_has_generic_content_signal",
+          "passed": false,
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "arabic_entity_variation_normalization",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 0.67
+      },
+      "pass_rate": 1,
+      "passed_checks": 5,
+      "total_checks": 5,
+      "passed": true,
+      "meta": {
+        "similarities": {
+          "sim12": 1,
+          "sim13": 1
+        }
+      },
+      "checks": [
+        {
+          "id": "variation_no_unavailable_1",
+          "passed": true,
+          "value": "اعرض أحدث فيديوهات العتبة"
+        },
+        {
+          "id": "variation_no_unavailable_2",
+          "passed": true,
+          "value": "اعرض احدث فديوهات العتبة"
+        },
+        {
+          "id": "variation_no_unavailable_3",
+          "passed": true,
+          "value": "هات آخر فيديوهات العتبة"
+        },
+        {
+          "id": "variation_similarity_1_2",
+          "passed": true,
+          "value": 1
+        },
+        {
+          "id": "variation_similarity_1_3",
+          "passed": true,
+          "value": 1
+        }
+      ]
+    }
+  ]
+}
