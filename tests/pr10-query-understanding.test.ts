@@ -7,6 +7,7 @@ async function runTests() {
   testFactVsListIntent()
   testArabicEntityHandling()
   testRouteConfidenceBehavior()
+  testPR12FactVsListRegressions()
   console.log("PR10 query understanding tests passed")
 }
 
@@ -47,6 +48,32 @@ function testRouteConfidenceBehavior() {
 
   assert.ok(generic.route_confidence < specific.route_confidence)
   assert.ok(specific.route_confidence >= 0.6)
+}
+
+function testPR12FactVsListRegressions() {
+  // Biography queries must be classified as biography + fact_question
+  const biographyFact = understandQuery("من هو أبو الفضل العباس")
+  assert.equal(biographyFact.content_intent, "biography")
+  assert.equal(biographyFact.operation_intent, "fact_question")
+
+  const titlesQuery = understandQuery("ما هي ألقاب أبي الفضل العباس")
+  assert.equal(titlesQuery.content_intent, "biography")
+  assert.equal(titlesQuery.operation_intent, "fact_question")
+
+  // Count queries must map to count operation
+  const countQuery = understandQuery("كم عدد خطب الجمعة")
+  assert.equal(countQuery.operation_intent, "count")
+
+  // Explicit list queries with "أسماء" keyword  
+  const namesListQuery = understandQuery("أسماء الفيديوهات المتاحة")
+  assert.equal(namesListQuery.operation_intent, "list_items")
+
+  // Wahy vs sermon disambiguation
+  const wahyQuery = understandQuery("اعرض أحدث من وحي الجمعة")
+  assert.equal(wahyQuery.content_intent, "wahy")
+
+  const sermonQuery = understandQuery("اعرض أحدث خطب الجمعة")
+  assert.equal(sermonQuery.content_intent, "sermon")
 }
 
 runTests().catch(err => {

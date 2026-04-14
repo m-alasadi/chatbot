@@ -109,6 +109,15 @@ function buildFinalResponseIntentGuard(normalizedQuery: string): string | null {
   if (q.includes("وحي") || q.includes("جمعه") || q.includes("جمعة")) {
     return "تعليمات الصياغة النهائية: هذا استفسار عن محتوى الجمعة. استخدم مفردات وحي/الجمعة أو خطب الجمعة بحسب الطلب."
   }
+  if (
+    q.includes("من هو") || q.includes("من هي") ||
+    q.includes("لقب") || q.includes("القاب") ||
+    q.includes("سيره") || q.includes("سيرة") ||
+    q.includes("كنيه") || q.includes("كنية") ||
+    q.includes("ابو الفضل") || q.includes("ابي الفضل") || q.includes("ابا الفضل")
+  ) {
+    return "تعليمات الصياغة النهائية: هذا سؤال بيوغرافي معلوماتي. اكتب إجابتك في جملة أو جملتين نثريتين متصلتين دون فصل بين الأسطر، بدون تعداد نقطي أو مرقم أو فقرات متعددة."
+  }
   return null
 }
 

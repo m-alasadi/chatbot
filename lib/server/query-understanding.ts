@@ -62,7 +62,7 @@ function detectContentIntent(norm: string): QueryContentIntent {
 function detectOperationIntent(norm: string): QueryOperationIntent {
   const countHints = ["كم", "عدد", "اجمالي", "إجمالي", "مجموع", "احصاء", "إحصاء"]
   const latestHints = ["احدث", "أحدث", "اخر", "آخر", "الجديد"]
-  const listHints = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
+  const listHints = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list", "أسماء", "اسماء"]
   const summarizeHints = ["لخص", "تلخيص", "خلاصه", "خلاصة", "ملخص", "اختصر"]
   const explainHints = ["اشرح", "شرح", "فسر", "تفسير", "وضح", "توضيح"]
   const browseHints = ["تصفح", "صفحه", "صفحة", "الصفحه", "الصفحة", "اقدم", "اول", "oldest", "first"]
