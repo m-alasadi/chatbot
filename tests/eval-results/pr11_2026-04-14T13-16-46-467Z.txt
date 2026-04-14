@@ -1,7 +1,7 @@
 PR11 Arabic Eval Suite Report
-Run ID: pr11_2026-04-14T13-52-45-716Z
-Base URL: http://localhost:3004
-Timestamp: 2026-04-14T13:52:45.716Z
+Run ID: pr11_2026-04-14T13-16-46-467Z
+Base URL: http://localhost:3002
+Timestamp: 2026-04-14T13:16:46.467Z
 
 Overall: FAIL (6/8 categories passed)
 
@@ -12,8 +12,8 @@ Category Summary:
 - fact_vs_list_intent [runtime] => FAIL | pass_rate=0.5 | threshold>=1
 - biography_vs_shrine_history [runtime] => PASS | pass_rate=1 | threshold>=1
 - wahy_vs_friday_sermon [runtime] => PASS | pass_rate=1 | threshold>=1
-- project_vs_generic_content [runtime] => PASS | pass_rate=1 | threshold>=1
-- arabic_entity_variation_normalization [runtime] => FAIL | pass_rate=0 | threshold>=0.67
+- project_vs_generic_content [runtime] => FAIL | pass_rate=0.5 | threshold>=1
+- arabic_entity_variation_normalization [runtime] => PASS | pass_rate=1 | threshold>=0.67
 
 Detailed Checks:
 * repeated_question_stability
@@ -42,7 +42,11 @@ Detailed Checks:
   - wahy_response_signal: PASS
   - sermon_response_signal: PASS
 * project_vs_generic_content
-  - project_response_has_project_signal: PASS
+  - project_response_has_project_signal: FAIL
   - generic_response_has_generic_content_signal: PASS
 * arabic_entity_variation_normalization
-  - category_runtime_error: FAIL | HTTP 429
+  - variation_no_unavailable_1: PASS | اعرض أحدث فيديوهات العتبة
+  - variation_no_unavailable_2: PASS | اعرض احدث فديوهات العتبة
+  - variation_no_unavailable_3: PASS | هات آخر فيديوهات العتبة
+  - variation_similarity_1_2: PASS | 1
+  - variation_similarity_1_3: PASS | 1

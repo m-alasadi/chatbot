@@ -1,9 +1,9 @@
 {
-  "run_id": "pr11_2026-04-14T13-52-45-716Z",
-  "timestamp": "2026-04-14T13:52:45.716Z",
-  "base_url": "http://localhost:3004",
+  "run_id": "pr11_2026-04-14T12-58-16-870Z",
+  "timestamp": "2026-04-14T12:58:16.870Z",
+  "base_url": "http://localhost:3001",
   "overall_passed": false,
-  "passed_categories": 6,
+  "passed_categories": 7,
   "total_categories": 8,
   "categories": [
     {
@@ -133,10 +133,10 @@
       "threshold": {
         "minPassRate": 1
       },
-      "pass_rate": 0.5,
-      "passed_checks": 1,
+      "pass_rate": 1,
+      "passed_checks": 2,
       "total_checks": 2,
-      "passed": false,
+      "passed": true,
       "meta": {
         "queries": [
           "من هو أبو الفضل العباس",
@@ -146,7 +146,7 @@
       "checks": [
         {
           "id": "fact_not_list_like",
-          "passed": false,
+          "passed": true,
           "value": null
         },
         {
@@ -254,13 +254,13 @@
       "total_checks": 1,
       "passed": false,
       "meta": {
-        "error": "HTTP 429"
+        "error": "terminated"
       },
       "checks": [
         {
           "id": "category_runtime_error",
           "passed": false,
-          "value": "HTTP 429"
+          "value": "terminated"
         }
       ]
     }

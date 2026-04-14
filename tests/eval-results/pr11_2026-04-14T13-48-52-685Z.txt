@@ -1,19 +1,19 @@
 PR11 Arabic Eval Suite Report
-Run ID: pr11_2026-04-14T13-52-45-716Z
+Run ID: pr11_2026-04-14T13-48-52-685Z
 Base URL: http://localhost:3004
-Timestamp: 2026-04-14T13:52:45.716Z
+Timestamp: 2026-04-14T13:48:52.685Z
 
-Overall: FAIL (6/8 categories passed)
+Overall: FAIL (5/8 categories passed)
 
 Category Summary:
 - repeated_question_stability [runtime] => PASS | pass_rate=1 | threshold>=1
 - news_vs_video_disambiguation [runtime] => PASS | pass_rate=1 | threshold>=1
 - false_unavailable_regression [runtime] => PASS | pass_rate=1 | threshold>=0.85
 - fact_vs_list_intent [runtime] => FAIL | pass_rate=0.5 | threshold>=1
-- biography_vs_shrine_history [runtime] => PASS | pass_rate=1 | threshold>=1
+- biography_vs_shrine_history [runtime] => FAIL | pass_rate=0 | threshold>=1
 - wahy_vs_friday_sermon [runtime] => PASS | pass_rate=1 | threshold>=1
-- project_vs_generic_content [runtime] => PASS | pass_rate=1 | threshold>=1
-- arabic_entity_variation_normalization [runtime] => FAIL | pass_rate=0 | threshold>=0.67
+- project_vs_generic_content [runtime] => FAIL | pass_rate=0 | threshold>=1
+- arabic_entity_variation_normalization [runtime] => PASS | pass_rate=1 | threshold>=0.67
 
 Detailed Checks:
 * repeated_question_stability
@@ -36,13 +36,15 @@ Detailed Checks:
   - fact_not_list_like: FAIL
   - list_has_listing_shape_or_signal: PASS
 * biography_vs_shrine_history
-  - biography_has_person_signal: PASS
-  - shrine_history_has_project_signal: PASS
+  - category_runtime_error: FAIL | HTTP 500
 * wahy_vs_friday_sermon
   - wahy_response_signal: PASS
   - sermon_response_signal: PASS
 * project_vs_generic_content
-  - project_response_has_project_signal: PASS
-  - generic_response_has_generic_content_signal: PASS
+  - category_runtime_error: FAIL | HTTP 500
 * arabic_entity_variation_normalization
-  - category_runtime_error: FAIL | HTTP 429
+  - variation_no_unavailable_1: PASS | اعرض أحدث فيديوهات العتبة
+  - variation_no_unavailable_2: PASS | اعرض احدث فديوهات العتبة
+  - variation_no_unavailable_3: PASS | هات آخر فيديوهات العتبة
+  - variation_similarity_1_2: PASS | 1
+  - variation_similarity_1_3: PASS | 1

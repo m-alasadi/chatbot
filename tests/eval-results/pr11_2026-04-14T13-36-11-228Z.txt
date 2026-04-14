@@ -1,19 +1,19 @@
 PR11 Arabic Eval Suite Report
-Run ID: pr11_2026-04-14T13-52-45-716Z
+Run ID: pr11_2026-04-14T13-36-11-228Z
 Base URL: http://localhost:3004
-Timestamp: 2026-04-14T13:52:45.716Z
+Timestamp: 2026-04-14T13:36:11.228Z
 
-Overall: FAIL (6/8 categories passed)
+Overall: FAIL (7/8 categories passed)
 
 Category Summary:
 - repeated_question_stability [runtime] => PASS | pass_rate=1 | threshold>=1
 - news_vs_video_disambiguation [runtime] => PASS | pass_rate=1 | threshold>=1
 - false_unavailable_regression [runtime] => PASS | pass_rate=1 | threshold>=0.85
-- fact_vs_list_intent [runtime] => FAIL | pass_rate=0.5 | threshold>=1
+- fact_vs_list_intent [runtime] => PASS | pass_rate=1 | threshold>=1
 - biography_vs_shrine_history [runtime] => PASS | pass_rate=1 | threshold>=1
 - wahy_vs_friday_sermon [runtime] => PASS | pass_rate=1 | threshold>=1
-- project_vs_generic_content [runtime] => PASS | pass_rate=1 | threshold>=1
-- arabic_entity_variation_normalization [runtime] => FAIL | pass_rate=0 | threshold>=0.67
+- project_vs_generic_content [runtime] => FAIL | pass_rate=0.5 | threshold>=1
+- arabic_entity_variation_normalization [runtime] => PASS | pass_rate=1 | threshold>=0.67
 
 Detailed Checks:
 * repeated_question_stability
@@ -33,7 +33,7 @@ Detailed Checks:
   - no_unavailable_5: PASS | ما هي أبرز أخبار العتبة اليوم
   - no_unavailable_6: PASS | من هو أبو الفضل العباس
 * fact_vs_list_intent
-  - fact_not_list_like: FAIL
+  - fact_not_list_like: PASS
   - list_has_listing_shape_or_signal: PASS
 * biography_vs_shrine_history
   - biography_has_person_signal: PASS
@@ -42,7 +42,11 @@ Detailed Checks:
   - wahy_response_signal: PASS
   - sermon_response_signal: PASS
 * project_vs_generic_content
-  - project_response_has_project_signal: PASS
+  - project_response_has_project_signal: FAIL
   - generic_response_has_generic_content_signal: PASS
 * arabic_entity_variation_normalization
-  - category_runtime_error: FAIL | HTTP 429
+  - variation_no_unavailable_1: PASS | اعرض أحدث فيديوهات العتبة
+  - variation_no_unavailable_2: PASS | اعرض احدث فديوهات العتبة
+  - variation_no_unavailable_3: PASS | هات آخر فيديوهات العتبة
+  - variation_similarity_1_2: PASS | 1
+  - variation_similarity_1_3: PASS | 1

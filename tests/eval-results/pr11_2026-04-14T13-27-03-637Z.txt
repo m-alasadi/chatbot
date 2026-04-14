@@ -1,7 +1,7 @@
 PR11 Arabic Eval Suite Report
-Run ID: pr11_2026-04-14T13-52-45-716Z
-Base URL: http://localhost:3004
-Timestamp: 2026-04-14T13:52:45.716Z
+Run ID: pr11_2026-04-14T13-27-03-637Z
+Base URL: http://localhost:3003
+Timestamp: 2026-04-14T13:27:03.637Z
 
 Overall: FAIL (6/8 categories passed)
 

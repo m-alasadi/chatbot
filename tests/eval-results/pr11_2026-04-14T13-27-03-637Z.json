@@ -1,7 +1,7 @@
 {
-  "run_id": "pr11_2026-04-14T13-52-45-716Z",
-  "timestamp": "2026-04-14T13:52:45.716Z",
-  "base_url": "http://localhost:3004",
+  "run_id": "pr11_2026-04-14T13-27-03-637Z",
+  "timestamp": "2026-04-14T13:27:03.637Z",
+  "base_url": "http://localhost:3003",
   "overall_passed": false,
   "passed_categories": 6,
   "total_categories": 8,

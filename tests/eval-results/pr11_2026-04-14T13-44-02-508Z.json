@@ -1,9 +1,9 @@
 {
-  "run_id": "pr11_2026-04-14T13-52-45-716Z",
-  "timestamp": "2026-04-14T13:52:45.716Z",
+  "run_id": "pr11_2026-04-14T13-44-02-508Z",
+  "timestamp": "2026-04-14T13:44:02.508Z",
   "base_url": "http://localhost:3004",
-  "overall_passed": false,
-  "passed_categories": 6,
+  "overall_passed": true,
+  "passed_categories": 8,
   "total_categories": 8,
   "categories": [
     {
@@ -133,10 +133,10 @@
       "threshold": {
         "minPassRate": 1
       },
-      "pass_rate": 0.5,
-      "passed_checks": 1,
+      "pass_rate": 1,
+      "passed_checks": 2,
       "total_checks": 2,
-      "passed": false,
+      "passed": true,
       "meta": {
         "queries": [
           "من هو أبو الفضل العباس",
@@ -146,7 +146,7 @@
       "checks": [
         {
           "id": "fact_not_list_like",
-          "passed": false,
+          "passed": true,
           "value": null
         },
         {
@@ -249,18 +249,41 @@
       "threshold": {
         "minPassRate": 0.67
       },
-      "pass_rate": 0,
-      "passed_checks": 0,
-      "total_checks": 1,
-      "passed": false,
+      "pass_rate": 1,
+      "passed_checks": 5,
+      "total_checks": 5,
+      "passed": true,
       "meta": {
-        "error": "HTTP 429"
+        "similarities": {
+          "sim12": 1,
+          "sim13": 1
+        }
       },
       "checks": [
         {
-          "id": "category_runtime_error",
-          "passed": false,
-          "value": "HTTP 429"
+          "id": "variation_no_unavailable_1",
+          "passed": true,
+          "value": "اعرض أحدث فيديوهات العتبة"
+        },
+        {
+          "id": "variation_no_unavailable_2",
+          "passed": true,
+          "value": "اعرض احدث فديوهات العتبة"
+        },
+        {
+          "id": "variation_no_unavailable_3",
+          "passed": true,
+          "value": "هات آخر فيديوهات العتبة"
+        },
+        {
+          "id": "variation_similarity_1_2",
+          "passed": true,
+          "value": 1
+        },
+        {
+          "id": "variation_similarity_1_3",
+          "passed": true,
+          "value": 1
         }
       ]
     }

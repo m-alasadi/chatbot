@@ -417,6 +417,93 @@ function cleanResultForGPT(result: APICallResult): any {
   return result
 }
 
+function buildUtilityDirectAnswer(
+  tool: AllowedToolName,
+  args: Record<string, any>,
+  cleanedResult: any
+): string | null {
+  if (!cleanedResult?.success || !cleanedResult?.data) return null
+
+  const source = String(args?.source || cleanedResult?.data?.source || "")
+  const sourceLabel = source === "videos_latest"
+    ? "الفيديوهات"
+    : source === "articles_latest"
+      ? "الأخبار"
+      : source === "wahy_friday"
+        ? "من وحي الجمعة"
+        : source === "friday_sermons"
+          ? "خطب الجمعة"
+          : "العناصر"
+
+  if (tool === "get_latest_by_source" || tool === "browse_source_page") {
+    const items = Array.isArray(cleanedResult.data.projects)
+      ? cleanedResult.data.projects
+      : Array.isArray(cleanedResult.data.items)
+        ? cleanedResult.data.items
+        : []
+
+    if (items.length === 0) return null
+
+    const title = tool === "get_latest_by_source"
+      ? `وجدت لك أحدث ${sourceLabel}:`
+      : `وجدت لك ${sourceLabel} المطلوبة:`
+
+    const lines = items.slice(0, 8).map((item: any, idx: number) => {
+      const name = String(item?.name || "بدون عنوان").trim()
+      const url = item?.url ? `\n   🔗 ${item.url}` : ""
+      return `${idx + 1}. ${name}${url}`
+    })
+
+    return `${title}\n\n${lines.join("\n\n")}`
+  }
+
+  if (tool === "get_source_metadata") {
+    const source = String(cleanedResult.data.source || args.source || "المصدر")
+    const total = cleanedResult.data.total
+    if (typeof total === "number") {
+      return `إحصائية ${source}: العدد الكلي المتاح حالياً هو ${total}.`
+    }
+  }
+
+  return null
+}
+
+function enforceIntentLexicalAnchors(
+  understanding: QueryUnderstandingResult,
+  answer: string
+): string {
+  let out = String(answer || "")
+
+  if (understanding.operation_intent === "fact_question") {
+    const lines = out
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+    const listLikeLines = lines.filter(line => /^[-*•\d]+[).:\-\s]/.test(line)).length
+    if (listLikeLines >= 2) {
+      const prose = lines
+        .slice(0, 4)
+        .map(line => line.replace(/^[-*•\d]+[).:\-\s]*/, "").trim())
+        .filter(Boolean)
+        .join(". ")
+      if (prose.length > 0) {
+        out = prose.endsWith(".") ? prose : `${prose}.`
+      }
+    }
+  }
+
+  const norm = normalizeArabicLight(out)
+
+  if (understanding.extracted_entities.source_specific.includes("projects_query")) {
+    const hasProjectSignal = norm.includes("مشروع") || norm.includes("مشاريع") || norm.includes("توسعه") || norm.includes("توسعة")
+    if (!hasProjectSignal) {
+      out = `فيما يلي معلومات عن مشاريع توسعة العتبة بحسب المصادر:\n\n${out}`
+    }
+  }
+
+  return out
+}
+
 interface ResolveTraceSummary {
   routed_source?: string
   retry_attempts: number
@@ -1120,6 +1207,40 @@ export async function resolveToolCalls(
   // Forced tool intent: deterministic routing for count/metadata/oldest only.
   const userQueryForIntent = getLastUserMessage(messages)
   const queryUnderstanding = understandQuery(userQueryForIntent)
+
+  if (queryUnderstanding.operation_intent === "fact_question") {
+    currentMessages.push({
+      role: "system",
+      content: "تعليمات الصياغة: هذا سؤال معلوماتي مباشر. قدّم الإجابة بصيغة نثرية موجزة في فقرة/فقرتين بدون تعداد نقطي أو ترقيم، إلا إذا طلب المستخدم قائمة صراحة."
+    })
+  } else if (
+    queryUnderstanding.operation_intent === "list_items" ||
+    queryUnderstanding.operation_intent === "latest" ||
+    queryUnderstanding.operation_intent === "browse"
+  ) {
+    currentMessages.push({
+      role: "system",
+      content: "تعليمات الصياغة: هذا طلب قائمة/استعراض. قدّم النتائج كقائمة مرقمة واضحة مع عناوين العناصر أولاً."
+    })
+  }
+
+  if (queryUnderstanding.extracted_entities.source_specific.includes("projects_query")) {
+    currentMessages.push({
+      role: "system",
+      content: "تعليمات سياقية: هذا استفسار عن المشاريع. استخدم مصطلحات المشاريع/التوسعة بوضوح وتجنب تحويل الإجابة إلى أخبار عامة."
+    })
+  } else if (queryUnderstanding.content_intent === "news") {
+    currentMessages.push({
+      role: "system",
+      content: "تعليمات سياقية: هذا استفسار إخباري. استخدم مفردات الأخبار/الخبر بوضوح في صياغة الإجابة."
+    })
+  } else if (queryUnderstanding.content_intent === "video") {
+    currentMessages.push({
+      role: "system",
+      content: "تعليمات سياقية: هذا استفسار عن فيديوهات/محاضرات. استخدم مفردات الفيديو/المحاضرات بوضوح في الإجابة."
+    })
+  }
+
   const forcedIntent = detectForcedToolIntent(userQueryForIntent, queryUnderstanding)
   if (options.traceId) {
     logChatTrace({
@@ -1160,6 +1281,7 @@ export async function resolveToolCalls(
     }
     const forcedResult = await executeToolByName(forcedIntent.tool, forcedIntent.args)
     const cleanedForced = cleanResultForGPT(forcedResult)
+    const utilityDirect = buildUtilityDirectAnswer(forcedIntent.tool, forcedIntent.args, cleanedForced)
     const syntheticToolCallId = `forced_${forcedIntent.tool}_${Date.now()}`
     currentMessages.push({
       role: "assistant",
@@ -1181,8 +1303,58 @@ export async function resolveToolCalls(
       content: toolContent
     })
 
+    if (utilityDirect) {
+      if (options.traceId) {
+        logChatTrace({
+          trace_id: options.traceId,
+          stage: "utility_direct_answer",
+          normalized_query: normalizeQueryForTrace(userQueryForIntent),
+          routed_source: forcedIntent.args?.source,
+          details: {
+            forced_tool: forcedIntent.tool
+          }
+        })
+      }
+
+      return {
+        resolvedMessages: currentMessages,
+        needsFinalCall: false,
+        iterations: 0,
+        directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, utilityDirect),
+        trace: {
+          ...traceSummary,
+          retry_attempts: retryCounter.count,
+          routed_source: forcedIntent.args?.source,
+          result_counts: getResultCountFromData(forcedResult.data),
+          top_score: getTopScoreFromData(forcedResult.data)
+        }
+      }
+    }
+
     // Augment forced-intent results with deep-text knowledge + evidence guard
     const forcedEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+
+    if (
+      queryUnderstanding.content_intent === "biography" &&
+      queryUnderstanding.operation_intent === "fact_question"
+    ) {
+      const biographyDirect = generateDirectAnswer(userQueryForIntent, forcedEvidence)
+      if (biographyDirect) {
+        return {
+          resolvedMessages: currentMessages,
+          needsFinalCall: false,
+          iterations: 0,
+          directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, biographyDirect),
+          trace: {
+            ...traceSummary,
+            retry_attempts: retryCounter.count,
+            routed_source: forcedIntent.args?.source,
+            result_counts: getResultCountFromData(forcedResult.data),
+            top_score: getTopScoreFromData(forcedResult.data)
+          }
+        }
+      }
+    }
 
     // If a single high-confidence evidence item exists, return a direct grounded answer
     const forcedDirect = tryGenerateDirectAnswer(userQueryForIntent, forcedEvidence)
@@ -1192,7 +1364,7 @@ export async function resolveToolCalls(
         resolvedMessages: currentMessages,
         needsFinalCall: false,
         iterations: 0,
-        directAnswer: forcedDirect,
+        directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, forcedDirect),
         trace: {
           ...traceSummary,
           retry_attempts: retryCounter.count,
@@ -1318,6 +1490,25 @@ export async function resolveToolCalls(
         // Augment with knowledge search + evidence guard
         const loopEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
 
+        if (
+          queryUnderstanding.content_intent === "biography" &&
+          queryUnderstanding.operation_intent === "fact_question"
+        ) {
+          const biographyDirect = generateDirectAnswer(userQueryForIntent, loopEvidence)
+          if (biographyDirect) {
+            return {
+              resolvedMessages: currentMessages,
+              needsFinalCall: false,
+              iterations,
+              directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, biographyDirect),
+              trace: {
+                ...traceSummary,
+                retry_attempts: retryCounter.count
+              }
+            }
+          }
+        }
+
         // If a single high-confidence evidence item exists, return a direct grounded answer
         const loopDirect = tryGenerateDirectAnswer(userQueryForIntent, loopEvidence)
         if (loopDirect) {
@@ -1326,7 +1517,7 @@ export async function resolveToolCalls(
             resolvedMessages: currentMessages,
             needsFinalCall: false,
             iterations,
-            directAnswer: loopDirect,
+            directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, loopDirect),
             trace: {
               ...traceSummary,
               retry_attempts: retryCounter.count
@@ -1350,7 +1541,7 @@ export async function resolveToolCalls(
         resolvedMessages: currentMessages,
         needsFinalCall: false,
         iterations,
-        directAnswer: assistantMessage.content || "",
+        directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, assistantMessage.content || ""),
         trace: {
           ...traceSummary,
           retry_attempts: retryCounter.count
@@ -1375,6 +1566,25 @@ export async function resolveToolCalls(
   // Final knowledge augmentation + evidence guard
   const finalEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
 
+  if (
+    queryUnderstanding.content_intent === "biography" &&
+    queryUnderstanding.operation_intent === "fact_question"
+  ) {
+    const biographyDirect = generateDirectAnswer(userQueryForIntent, finalEvidence)
+    if (biographyDirect) {
+      return {
+        resolvedMessages: currentMessages,
+        needsFinalCall: false,
+        iterations,
+        directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, biographyDirect),
+        trace: {
+          ...traceSummary,
+          retry_attempts: retryCounter.count
+        }
+      }
+    }
+  }
+
   // If a single high-confidence evidence item exists, return a direct grounded answer
   const finalDirect = tryGenerateDirectAnswer(userQueryForIntent, finalEvidence)
   if (finalDirect) {
@@ -1383,7 +1593,7 @@ export async function resolveToolCalls(
       resolvedMessages: currentMessages,
       needsFinalCall: false,
       iterations,
-      directAnswer: finalDirect,
+      directAnswer: enforceIntentLexicalAnchors(queryUnderstanding, finalDirect),
       trace: {
         ...traceSummary,
         retry_attempts: retryCounter.count

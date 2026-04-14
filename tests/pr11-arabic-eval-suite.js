@@ -10,6 +10,7 @@ const BASE_URL = process.env.BASE_URL || "http://localhost:3000"
 const PATH = "/api/chat/site"
 const RESULTS_DIR = path.join(__dirname, "eval-results")
 const REQUEST_TIMEOUT_MS = Number(process.env.EVAL_TIMEOUT_MS || 90000)
+const MAX_429_RETRIES = Number(process.env.EVAL_RETRY_429 || 2)
 
 const UNAVAILABLE_SIGNALS = [
   "لم اتمكن من العثور",
@@ -97,40 +98,53 @@ async function readBody(response) {
 }
 
 async function ask(query) {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
-  let response
-  try {
-    response = await fetch(`${BASE_URL}${PATH}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: [{ role: "user", content: query }],
-        use_tools: true,
-        temperature: 0.5,
-        max_tokens: 1200
-      }),
-      signal: controller.signal
-    })
-  } catch (error) {
-    if (error && error.name === "AbortError") {
-      throw new Error(`request timeout after ${REQUEST_TIMEOUT_MS}ms for query: ${query}`)
+    let response
+    try {
+      response = await fetch(`${BASE_URL}${PATH}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: query }],
+          use_tools: true,
+          temperature: 0.5,
+          max_tokens: 1200
+        }),
+        signal: controller.signal
+      })
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        throw new Error(`request timeout after ${REQUEST_TIMEOUT_MS}ms for query: ${query}`)
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
     }
-    throw error
-  } finally {
-    clearTimeout(timeoutId)
+
+    if (response.status === 429) {
+      if (attempt < MAX_429_RETRIES) {
+        const waitMs = 1200 * (attempt + 1)
+        await new Promise(resolve => setTimeout(resolve, waitMs))
+        continue
+      }
+      throw new Error("HTTP 429")
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const body = await readBody(response)
+    if (!String(body || "").trim()) {
+      throw new Error("empty response body")
+    }
+    return String(body)
   }
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
-
-  const body = await readBody(response)
-  if (!String(body || "").trim()) {
-    throw new Error("empty response body")
-  }
-  return String(body)
+  throw new Error("exhausted retries")
 }
 
 function summarizeCategory(categoryId, mode, checks, meta = {}) {

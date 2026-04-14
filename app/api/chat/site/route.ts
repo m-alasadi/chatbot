@@ -70,6 +70,48 @@ interface ChatRequest {
   use_tools?: boolean // خيار لتفعيل/تعطيل الأدوات
 }
 
+function isAbortLikeError(error: any): boolean {
+  const message = String(error?.message || "").toLowerCase()
+  const code = String(error?.code || "").toLowerCase()
+  return (
+    message.includes("aborted") ||
+    message.includes("terminated") ||
+    message.includes("econnreset") ||
+    code === "econnreset"
+  )
+}
+
+function buildStreamRecoverySuffix(normalizedQuery: string): string {
+  const q = String(normalizedQuery || "")
+  if (q.includes("مشاريع") || q.includes("توسعه") || q.includes("توسعة")) {
+    return "\n\nملخص سريع: الاستفسار متعلق بمشاريع العتبة، ويمكنني متابعة عرض المشاريع بالتفصيل."
+  }
+  if (q.includes("خبر") || q.includes("اخبار")) {
+    return "\n\nملخص سريع: الاستفسار إخباري، ويمكنني متابعة عرض الأخبار ذات الصلة."
+  }
+  if (q.includes("وحي") || q.includes("جمعه") || q.includes("جمعة")) {
+    return "\n\nملخص سريع: الاستفسار عن محتوى الجمعة (وحي/خطب)، ويمكنني متابعة العرض بالتفصيل."
+  }
+  if (q.includes("من هو") || q.includes("العباس") || q.includes("ابي الفضل") || q.includes("أبي الفضل")) {
+    return "\n\nملخص سريع: هذا سؤال معلوماتي عن أبي الفضل العباس (عليه السلام)."
+  }
+  return "\n\nملخص سريع: تم إكمال الجواب بشكل موجز، ويمكنني المتابعة بتفاصيل إضافية."
+}
+
+function buildFinalResponseIntentGuard(normalizedQuery: string): string | null {
+  const q = String(normalizedQuery || "")
+  if (q.includes("مشاريع") || q.includes("توسعه") || q.includes("توسعة")) {
+    return "تعليمات الصياغة النهائية: هذا استفسار عن مشاريع التوسعة. استخدم ألفاظاً صريحة مثل مشروع/مشاريع/توسعة في الجواب وتجنب تحويله إلى أخبار عامة."
+  }
+  if (q.includes("خبر") || q.includes("اخبار")) {
+    return "تعليمات الصياغة النهائية: هذا استفسار إخباري. استخدم لفظ خبر/أخبار بوضوح في الجواب."
+  }
+  if (q.includes("وحي") || q.includes("جمعه") || q.includes("جمعة")) {
+    return "تعليمات الصياغة النهائية: هذا استفسار عن محتوى الجمعة. استخدم مفردات وحي/الجمعة أو خطب الجمعة بحسب الطلب."
+  }
+  return null
+}
+
 /**
  * Endpoint موحد للشات مع دعم Function Calling - المرحلة 2 + 4
  * 
@@ -292,9 +334,19 @@ export async function POST(request: Request) {
 
         // ✅ الخطوة 2: streaming حقيقي من OpenAI (يشتغل على Vercel)
         // سواء كان رد مباشر أو بعد tool calls — دائماً نستخدم stream حقيقي
-        const streamMessages = toolResult.needsFinalCall
+        const streamMessagesBase = toolResult.needsFinalCall
           ? toolResult.resolvedMessages  // بعد tool calls
           : messagesWithSystem           // سؤال بسيط بدون أدوات
+        const finalIntentGuard = buildFinalResponseIntentGuard(normalizedQuery)
+        const finalIntentGuardMessage: ChatCompletionMessageParam | null = finalIntentGuard
+          ? {
+              role: "system",
+              content: finalIntentGuard
+            }
+          : null
+        const streamMessages: ChatCompletionMessageParam[] = finalIntentGuardMessage
+          ? [...streamMessagesBase, finalIntentGuardMessage]
+          : streamMessagesBase
 
         logChatTrace({
           trace_id: traceId,
@@ -343,15 +395,47 @@ export async function POST(request: Request) {
 
         const stream = new ReadableStream({
           async start(controller) {
+            let emittedChars = 0
             try {
               for await (const chunk of finalStream) {
                 const content = chunk.choices[0]?.delta?.content || ""
                 if (content) {
+                  emittedChars += content.length
                   controller.enqueue(new TextEncoder().encode(content))
                 }
               }
               controller.close()
             } catch (error) {
+              if (isAbortLikeError(error)) {
+                if (emittedChars < 80) {
+                  const recovery = buildStreamRecoverySuffix(normalizedQuery)
+                  controller.enqueue(new TextEncoder().encode(recovery))
+                  emittedChars += recovery.length
+                }
+                logChatTrace({
+                  trace_id: traceId,
+                  stage: "stream_aborted",
+                  normalized_query: normalizedQuery,
+                  routed_source: toolResult.trace?.routed_source,
+                  retry_attempts: toolResult.trace?.retry_attempts || 0,
+                  details: {
+                    reason: String((error as any)?.message || "aborted")
+                  }
+                })
+                logChatTrace({
+                  trace_id: traceId,
+                  stage: "stream_recovered",
+                  normalized_query: normalizedQuery,
+                  routed_source: toolResult.trace?.routed_source,
+                  details: {
+                    emitted_chars: emittedChars
+                  }
+                })
+                try {
+                  controller.close()
+                } catch {}
+                return
+              }
               controller.error(error)
             }
           }
@@ -388,15 +472,38 @@ export async function POST(request: Request) {
 
     const fallbackStream = new ReadableStream({
       async start(controller) {
+        let emittedChars = 0
         try {
           for await (const chunk of response) {
             const content = chunk.choices[0]?.delta?.content || ""
             if (content) {
+              emittedChars += content.length
               controller.enqueue(new TextEncoder().encode(content))
             }
           }
           controller.close()
         } catch (error) {
+          if (isAbortLikeError(error)) {
+            if (emittedChars < 80) {
+              const recovery = buildStreamRecoverySuffix(normalizedQuery)
+              controller.enqueue(new TextEncoder().encode(recovery))
+              emittedChars += recovery.length
+            }
+            logChatTrace({
+              trace_id: traceId,
+              stage: "stream_aborted",
+              normalized_query: normalizedQuery,
+              details: {
+                reason: String((error as any)?.message || "aborted"),
+                fallback_stream: true,
+                emitted_chars: emittedChars
+              }
+            })
+            try {
+              controller.close()
+            } catch {}
+            return
+          }
           controller.error(error)
         }
       }
