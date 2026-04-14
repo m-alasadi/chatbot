@@ -135,7 +135,7 @@ function detectForcedToolIntent(userText: string): { tool: AllowedToolName; args
   const explicitListingWords = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
   const isExplicitLatestListing =
     latestKeywords.some(k => norm.includes(normalizeArabicLight(k))) &&
-    (explicitListingWords.some(k => norm.includes(normalizeArabicLight(k))) || norm.length <= 28)
+    explicitListingWords.some(k => norm.includes(normalizeArabicLight(k)))
 
   if (isExplicitLatestListing) {
     if (isWahyFriday) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "wahy_friday", limit: 5 } }
@@ -711,6 +711,21 @@ function looksLikeSiteContentQuery(text: string): boolean {
     || (text.trim().length >= 25 && !text.includes("?") && !text.includes("\u061F"))
 }
 
+/**
+ * Choose the primary retrieval tool for orchestrator bootstrap.
+ * Project-style requests should use search_projects, otherwise search_content.
+ */
+function getPrimaryRetrievalToolForQuery(text: string): AllowedToolName {
+  const norm = normalizeArabicLight(text)
+  const projectSignals = [
+    "مشروع", "مشاريع", "المشاريع", "انجاز", "انجازات", "اعمار", "توسعه", "توسعة", "خدمي"
+  ]
+  if (projectSignals.some(signal => norm.includes(signal))) {
+    return "search_projects"
+  }
+  return "search_content"
+}
+
 // ── Knowledge layer helpers ─────────────────────────────────────────
 
 /**
@@ -1144,8 +1159,9 @@ export async function resolveToolCalls(
   // Runtime takeover: for general retrieval-style questions,
   // orchestrator is the primary retrieval policy owner before LLM tool selection.
   if (looksLikeSiteContentQuery(userQueryForIntent)) {
+    const primaryRetrievalTool = getPrimaryRetrievalToolForQuery(userQueryForIntent)
     const orchestrated = await orchestrateRetrieval(
-      "search_content" as AllowedToolName,
+      primaryRetrievalTool,
       { query: userQueryForIntent, source: "auto" },
       { traceId: options.traceId }
     )
@@ -1173,7 +1189,7 @@ export async function resolveToolCalls(
       }
 
       const cleaned = cleanResultForGPT(orchestrated.finalResult)
-      const syntheticToolCallId = `bootstrap_search_${Date.now()}`
+      const syntheticToolCallId = `bootstrap_${primaryRetrievalTool}_${Date.now()}`
 
       currentMessages.push({
         role: "assistant",
@@ -1181,7 +1197,7 @@ export async function resolveToolCalls(
         tool_calls: [{
           id: syntheticToolCallId,
           type: "function",
-          function: { name: "search_content", arguments: JSON.stringify({ query: userQueryForIntent, source: "auto" }) }
+          function: { name: primaryRetrievalTool, arguments: JSON.stringify({ query: userQueryForIntent, source: "auto" }) }
         }]
       })
       currentMessages.push({

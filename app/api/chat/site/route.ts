@@ -200,6 +200,16 @@ export async function POST(request: Request) {
       console.log(`[Chat API] Streaming FC (${sanitizedMessages.length} msgs)`)
 
       try {
+        logChatTrace({
+          trace_id: traceId,
+          stage: "tool_resolution_started",
+          normalized_query: normalizedQuery,
+          details: {
+            max_iterations: 3,
+            tools_count: ALL_SITE_TOOLS.length
+          }
+        })
+
         // الخطوة 1: حل جميع tool calls (بدون stream)
         const toolResult = await resolveToolCalls(
           openai,
@@ -209,6 +219,22 @@ export async function POST(request: Request) {
           3,
           { traceId }
         )
+
+        logChatTrace({
+          trace_id: traceId,
+          stage: "tool_resolution_finished",
+          normalized_query: normalizedQuery,
+          routed_source: toolResult.trace?.routed_source,
+          retry_attempts: toolResult.trace?.retry_attempts || 0,
+          result_counts: toolResult.trace?.result_counts,
+          top_score: toolResult.trace?.top_score,
+          unavailable_reason: toolResult.trace?.unavailable_reason,
+          details: {
+            iterations: toolResult.iterations,
+            needs_final_call: toolResult.needsFinalCall,
+            has_direct_answer: Boolean(toolResult.directAnswer)
+          }
+        })
 
         console.log(`[Chat API] Tools resolved in ${toolResult.iterations} iteration(s), needsFinalCall: ${toolResult.needsFinalCall}`)
 
@@ -245,10 +271,23 @@ export async function POST(request: Request) {
           ? toolResult.resolvedMessages  // بعد tool calls
           : messagesWithSystem           // سؤال بسيط بدون أدوات
 
+        logChatTrace({
+          trace_id: traceId,
+          stage: "grounded_stream_started",
+          normalized_query: normalizedQuery,
+          routed_source: toolResult.trace?.routed_source,
+          retry_attempts: toolResult.trace?.retry_attempts || 0,
+          details: {
+            grounded_temperature: 0.1,
+            grounded: true,
+            final_call_required: toolResult.needsFinalCall
+          }
+        })
+
         const finalStream = await openai.chat.completions.create({
           model,
           messages: streamMessages,
-          temperature: 0.2,
+          temperature: 0.1,
           max_tokens: 1200,
           stream: true
         })

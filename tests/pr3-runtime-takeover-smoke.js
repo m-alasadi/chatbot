@@ -71,6 +71,10 @@ async function run() {
   const latestVideos = await ask("اعرض احدث الفيديوهات")
   assertNoImmediateUnavailable(latestVideos, "latest_videos_utility")
 
+  // project-like retrieval should also pass through runtime orchestration safely
+  const projectsIntent = await ask("ما هي مشاريع توسعة العتبة")
+  assertNoImmediateUnavailable(projectsIntent, "projects_intent")
+
   console.log("PASS: PR3 runtime takeover smoke")
 }
 

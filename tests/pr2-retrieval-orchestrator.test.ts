@@ -14,6 +14,7 @@ async function runTests() {
   await testRetryBeforeBroadening()
   await testNoUnavailableBeforeExhaustion()
   await testExplicitSourceRespectedBeforeBroadening()
+  await testSearchProjectsUsesRetryPolicy()
   console.log("PR2 orchestrator tests passed")
 }
 
@@ -124,6 +125,39 @@ async function testExplicitSourceRespectedBeforeBroadening() {
 
   assert.ok(result)
   assert.equal(calls.length, 2)
+  assert.equal(calls[0].args.source, "articles_latest")
+  assert.equal(calls[1].args.source, "auto")
+}
+
+async function testSearchProjectsUsesRetryPolicy() {
+  const calls: ExecCall[] = []
+  const exec = async (toolName: AllowedToolName, args: Record<string, any>): Promise<APICallResult> => {
+    calls.push({ toolName, args })
+    if (calls.length === 1) {
+      return makeResult({
+        results: [],
+        total: 0,
+        top_score: null,
+        source_used: args.source
+      })
+    }
+    return makeResult({
+      results: [{ id: "p1", source_type: "articles_latest", name: "مشروع توسعة" }],
+      total: 1,
+      top_score: 8,
+      source_used: args.source
+    })
+  }
+
+  const result = await orchestrateRetrieval(
+    "search_projects",
+    { query: "مشاريع توسعة العتبة", source: "articles_latest" },
+    { execute: exec, maxAttempts: 3 }
+  )
+
+  assert.ok(result)
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].toolName, "search_projects")
   assert.equal(calls[0].args.source, "articles_latest")
   assert.equal(calls[1].args.source, "auto")
 }

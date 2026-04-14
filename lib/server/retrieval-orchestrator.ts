@@ -260,6 +260,7 @@ export async function orchestrateRetrieval(
       normalized_query: normalizeQueryForTrace(query),
       routed_source: plan.attempts[0]?.source,
       details: {
+        tool_name: toolName,
         max_attempts: plan.maxAttempts,
         intent: plan.sourceConstraint.intent,
         hard_constraint: plan.sourceConstraint.hardConstraint,
@@ -290,6 +291,7 @@ export async function orchestrateRetrieval(
         routed_source: attemptPlan.source,
         retry_attempts: i,
         details: {
+          tool_name: toolName,
           reason: attemptPlan.reason,
           attempt_index: i + 1
         }
@@ -333,6 +335,7 @@ export async function orchestrateRetrieval(
         result_counts: resultCount,
         top_score: topScore,
         details: {
+          tool_name: toolName,
           success: result.success,
           empty,
           rejected_low_confidence: rejection.reject,
