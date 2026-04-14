@@ -975,7 +975,7 @@ Copy-Item .env.local.example .env.local
 ```env
 # OpenAI Configuration
 OPENAI_API_KEY=sk-...                    # مطلوب
-OPENAI_MODEL=gpt-4o-mini                  # اختياري (افتراضي: gpt-4o-mini)
+OPENAI_MODEL=gpt-4o                       # اختياري (قيمة القالب: gpt-4o)
 
 # Site API Configuration
 SITE_API_BASE_URL=https://alkafeel.net        # مطلوب
@@ -1025,7 +1025,7 @@ npm run start
 
 | المتغير | الوصف | القيمة الافتراضية |
 |---------|-------|-------------------|
-| `OPENAI_MODEL` | نموذج OpenAI المستخدم | `gpt-4o-mini` |
+| `OPENAI_MODEL` | نموذج OpenAI المستخدم | `gpt-4o` (في القالب) / `gpt-4o-mini` (عند عدم التعيين) |
 | `SITE_API_TOKEN` | توكن مصادقة للـ API | `null` (بدون مصادقة) |
 | `SITE_API_ACCEPT_LANGUAGE` | لغة طلبات الـ API | `ar` |
 | `SITE_DOMAIN` | نطاق الموقع الأساسي | `https://alkafeel.net` |
@@ -1385,7 +1385,7 @@ pm2 startup
 ```env
 NODE_ENV=production
 NEXT_PUBLIC_APP_URL=https://chatbot.alkafeel.net
-SITE_API_BASE_URL=https://alkafeel.net/v1
+SITE_API_BASE_URL=https://alkafeel.net
 # ... other production vars
 ```
 
@@ -1394,7 +1394,7 @@ SITE_API_BASE_URL=https://alkafeel.net/v1
 ```env
 NODE_ENV=development
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-SITE_API_BASE_URL=http://localhost:8000/api/v1
+SITE_API_BASE_URL=http://localhost:8000
 # ... other dev vars
 ```
 
