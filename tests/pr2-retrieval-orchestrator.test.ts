@@ -14,6 +14,7 @@ async function runTests() {
   await testRetryBeforeBroadening()
   await testNoUnavailableBeforeExhaustion()
   await testExplicitSourceRespectedBeforeBroadening()
+  await testRoutedSourceFidelityOnFirstPassSuccess()
   await testSearchProjectsOrchestration()
   await testSearchProjectsUsesRetryPolicy()
   console.log("PR2 orchestrator tests passed")
@@ -128,6 +129,30 @@ async function testExplicitSourceRespectedBeforeBroadening() {
   assert.equal(calls.length, 2)
   assert.equal(calls[0].args.source, "articles_latest")
   assert.equal(calls[1].args.source, "auto")
+}
+
+async function testRoutedSourceFidelityOnFirstPassSuccess() {
+  const calls: ExecCall[] = []
+  const exec = async (toolName: AllowedToolName, args: Record<string, any>): Promise<APICallResult> => {
+    calls.push({ toolName, args })
+    return makeResult({
+      results: [{ id: "v1", source_type: "videos_latest", name: "محاضرة" }],
+      total: 1,
+      top_score: 14,
+      source_used: args.source
+    })
+  }
+
+  const result = await orchestrateRetrieval(
+    "search_content",
+    { query: "محاضرات الشيخ زمان الحسناوي", source: "auto" },
+    { execute: exec }
+  )
+
+  assert.ok(result)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].args.source, "videos_latest")
+  assert.equal(result?.routedSource, "videos_latest")
 }
 
 async function testSearchProjectsOrchestration() {
