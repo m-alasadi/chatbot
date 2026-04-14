@@ -1051,7 +1051,6 @@ export async function resolveToolCalls(
   let currentMessages = [...messages]
   let iterations = 0
   let toolsWereCalled = false
-  let retrievalForced = false
   const retryCounter = { count: 0 }
   const traceSummary: ResolveTraceSummary = { retry_attempts: 0 }
 
@@ -1142,6 +1141,60 @@ export async function resolveToolCalls(
     }
   }
 
+  // Runtime takeover: for general retrieval-style questions,
+  // orchestrator is the primary retrieval policy owner before LLM tool selection.
+  if (looksLikeSiteContentQuery(userQueryForIntent)) {
+    const orchestrated = await orchestrateRetrieval(
+      "search_content" as AllowedToolName,
+      { query: userQueryForIntent, source: "auto" },
+      { traceId: options.traceId }
+    )
+
+    if (orchestrated) {
+      if (options.traceId) {
+        logChatTrace({
+          trace_id: options.traceId,
+          stage: "orchestrator_runtime_takeover",
+          normalized_query: normalizeQueryForTrace(userQueryForIntent),
+          routed_source: orchestrated.routedSource,
+          retry_attempts: Math.max(0, orchestrated.attempts.length - 1),
+          result_counts: orchestrated.resultCount,
+          top_score: orchestrated.topScore,
+          unavailable_reason: orchestrated.exhausted ? orchestrated.unavailableReason : undefined
+        })
+      }
+
+      retryCounter.count += Math.max(0, orchestrated.attempts.length - 1)
+      traceSummary.routed_source = orchestrated.routedSource || traceSummary.routed_source
+      traceSummary.result_counts = orchestrated.resultCount
+      traceSummary.top_score = orchestrated.topScore
+      if (orchestrated.exhausted) {
+        traceSummary.unavailable_reason = orchestrated.unavailableReason
+      }
+
+      const cleaned = cleanResultForGPT(orchestrated.finalResult)
+      const syntheticToolCallId = `bootstrap_search_${Date.now()}`
+
+      currentMessages.push({
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: syntheticToolCallId,
+          type: "function",
+          function: { name: "search_content", arguments: JSON.stringify({ query: userQueryForIntent, source: "auto" }) }
+        }]
+      })
+      currentMessages.push({
+        role: "tool",
+        tool_call_id: syntheticToolCallId,
+        content: JSON.stringify(cleaned)
+      })
+
+      await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
+      toolsWereCalled = true
+    }
+  }
+
   while (iterations < maxIterations) {
     iterations++
     console.log(`[Tool Resolution] Iteration ${iterations}`)
@@ -1194,67 +1247,6 @@ export async function resolveToolCalls(
             retry_attempts: retryCounter.count
           }
         }
-      }
-
-      // ✅ Retrieval-first safety: if no tools were called yet and the user
-      // is asking about site content, orchestrator becomes the primary retrieval entrypoint.
-      const userQuery = getLastUserMessage(messages)
-      if (!retrievalForced && looksLikeSiteContentQuery(userQuery)) {
-        retrievalForced = true
-        console.log(`[Tool Resolution] Orchestrator-first retrieval for site-content query`)
-
-        // Remove the direct answer so we can retry with tool results
-        currentMessages.pop()
-
-        // Build a synthetic search_content tool call result via orchestrator-first policy
-        const orchestrated = await orchestrateRetrieval(
-          "search_content" as AllowedToolName,
-          { query: userQuery, source: "auto" },
-          { traceId: options.traceId }
-        )
-
-        const forcedResult = orchestrated
-          ? orchestrated.finalResult
-          : await executeToolByName("search_content" as AllowedToolName, {
-              query: userQuery,
-              source: "auto"
-            })
-
-        if (orchestrated) {
-          retryCounter.count += Math.max(0, orchestrated.attempts.length - 1)
-          traceSummary.routed_source = orchestrated.routedSource || traceSummary.routed_source
-          traceSummary.result_counts = orchestrated.resultCount
-          traceSummary.top_score = orchestrated.topScore
-          if (orchestrated.exhausted) {
-            traceSummary.unavailable_reason = orchestrated.unavailableReason
-          }
-        }
-
-        const cleanedForced = cleanResultForGPT(forcedResult)
-
-        // Inject as if assistant called search_content and got a result
-        const syntheticToolCallId = `forced_search_${Date.now()}`
-        currentMessages.push({
-          role: "assistant",
-          content: null,
-          tool_calls: [{
-            id: syntheticToolCallId,
-            type: "function",
-            function: { name: "search_content", arguments: JSON.stringify({ query: userQuery, source: "auto" }) }
-          }]
-        })
-        currentMessages.push({
-          role: "tool",
-          tool_call_id: syntheticToolCallId,
-          content: JSON.stringify(cleanedForced)
-        })
-
-        // Also inject deep-text knowledge + evidence guard
-        await injectKnowledgeAndGuard(currentMessages, userQuery)
-
-        toolsWereCalled = true
-        // Continue the loop — OpenAI will now see the search results
-        continue
       }
 
       // سؤال بسيط بدون أدوات → نرجعه كـ directAnswer
