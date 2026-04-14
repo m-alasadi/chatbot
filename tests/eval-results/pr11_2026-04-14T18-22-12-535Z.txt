@@ -1,0 +1,34 @@
+PR11 Arabic Eval Suite Report
+Run ID: pr11_2026-04-14T18-22-12-535Z
+Base URL: http://localhost:3001
+Timestamp: 2026-04-14T18:22:12.535Z
+
+Overall: FAIL (0/8 categories passed)
+
+Category Summary:
+- repeated_question_stability [runtime] => FAIL | pass_rate=0 | threshold>=1
+- news_vs_video_disambiguation [runtime] => FAIL | pass_rate=0 | threshold>=1
+- false_unavailable_regression [runtime] => FAIL | pass_rate=0 | threshold>=0.85
+- fact_vs_list_intent [runtime] => FAIL | pass_rate=0 | threshold>=1
+- biography_vs_shrine_history [runtime] => FAIL | pass_rate=0 | threshold>=1
+- wahy_vs_friday_sermon [runtime] => FAIL | pass_rate=0 | threshold>=1
+- project_vs_generic_content [runtime] => FAIL | pass_rate=0 | threshold>=1
+- arabic_entity_variation_normalization [runtime] => FAIL | pass_rate=0 | threshold>=0.67
+
+Detailed Checks:
+* repeated_question_stability
+  - category_runtime_error: FAIL | fetch failed
+* news_vs_video_disambiguation
+  - category_runtime_error: FAIL | fetch failed
+* false_unavailable_regression
+  - category_runtime_error: FAIL | fetch failed
+* fact_vs_list_intent
+  - category_runtime_error: FAIL | fetch failed
+* biography_vs_shrine_history
+  - category_runtime_error: FAIL | fetch failed
+* wahy_vs_friday_sermon
+  - category_runtime_error: FAIL | fetch failed
+* project_vs_generic_content
+  - category_runtime_error: FAIL | fetch failed
+* arabic_entity_variation_normalization
+  - category_runtime_error: FAIL | fetch failed

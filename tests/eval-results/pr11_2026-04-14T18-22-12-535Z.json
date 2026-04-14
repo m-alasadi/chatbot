@@ -1,0 +1,178 @@
+{
+  "run_id": "pr11_2026-04-14T18-22-12-535Z",
+  "timestamp": "2026-04-14T18:22:12.535Z",
+  "base_url": "http://localhost:3001",
+  "overall_passed": false,
+  "passed_categories": 0,
+  "total_categories": 8,
+  "categories": [
+    {
+      "id": "repeated_question_stability",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 0,
+      "passed_checks": 0,
+      "total_checks": 1,
+      "passed": false,
+      "meta": {
+        "error": "fetch failed"
+      },
+      "checks": [
+        {
+          "id": "category_runtime_error",
+          "passed": false,
+          "value": "fetch failed"
+        }
+      ]
+    },
+    {
+      "id": "news_vs_video_disambiguation",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 0,
+      "passed_checks": 0,
+      "total_checks": 1,
+      "passed": false,
+      "meta": {
+        "error": "fetch failed"
+      },
+      "checks": [
+        {
+          "id": "category_runtime_error",
+          "passed": false,
+          "value": "fetch failed"
+        }
+      ]
+    },
+    {
+      "id": "false_unavailable_regression",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 0.85
+      },
+      "pass_rate": 0,
+      "passed_checks": 0,
+      "total_checks": 1,
+      "passed": false,
+      "meta": {
+        "error": "fetch failed"
+      },
+      "checks": [
+        {
+          "id": "category_runtime_error",
+          "passed": false,
+          "value": "fetch failed"
+        }
+      ]
+    },
+    {
+      "id": "fact_vs_list_intent",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 0,
+      "passed_checks": 0,
+      "total_checks": 1,
+      "passed": false,
+      "meta": {
+        "error": "fetch failed"
+      },
+      "checks": [
+        {
+          "id": "category_runtime_error",
+          "passed": false,
+          "value": "fetch failed"
+        }
+      ]
+    },
+    {
+      "id": "biography_vs_shrine_history",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 0,
+      "passed_checks": 0,
+      "total_checks": 1,
+      "passed": false,
+      "meta": {
+        "error": "fetch failed"
+      },
+      "checks": [
+        {
+          "id": "category_runtime_error",
+          "passed": false,
+          "value": "fetch failed"
+        }
+      ]
+    },
+    {
+      "id": "wahy_vs_friday_sermon",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 0,
+      "passed_checks": 0,
+      "total_checks": 1,
+      "passed": false,
+      "meta": {
+        "error": "fetch failed"
+      },
+      "checks": [
+        {
+          "id": "category_runtime_error",
+          "passed": false,
+          "value": "fetch failed"
+        }
+      ]
+    },
+    {
+      "id": "project_vs_generic_content",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 1
+      },
+      "pass_rate": 0,
+      "passed_checks": 0,
+      "total_checks": 1,
+      "passed": false,
+      "meta": {
+        "error": "fetch failed"
+      },
+      "checks": [
+        {
+          "id": "category_runtime_error",
+          "passed": false,
+          "value": "fetch failed"
+        }
+      ]
+    },
+    {
+      "id": "arabic_entity_variation_normalization",
+      "mode": "runtime",
+      "threshold": {
+        "minPassRate": 0.67
+      },
+      "pass_rate": 0,
+      "passed_checks": 0,
+      "total_checks": 1,
+      "passed": false,
+      "meta": {
+        "error": "fetch failed"
+      },
+      "checks": [
+        {
+          "id": "category_runtime_error",
+          "passed": false,
+          "value": "fetch failed"
+        }
+      ]
+    }
+  ]
+}
