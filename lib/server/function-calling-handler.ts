@@ -490,7 +490,7 @@ function enforceIntentLexicalAnchors(
         out = prose.endsWith(".") ? prose : `${prose}.`
       }
     } else if (lines.length >= 4) {
-      // Too many plain paragraphs for a fact question → compress to dense prose (max 3 lines)
+      // Too many plain paragraphs for a fact question → compress to first 3 lines of dense prose
       const compact = lines.slice(0, 3).join(" ")
       if (compact.length > 0) {
         out = compact
