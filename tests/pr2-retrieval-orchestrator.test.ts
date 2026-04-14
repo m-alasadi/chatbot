@@ -1,0 +1,106 @@
+import assert from "node:assert/strict"
+import { orchestrateRetrieval } from "../lib/server/retrieval-orchestrator.ts"
+import type { APICallResult } from "../lib/server/site-api-service.ts"
+import type { AllowedToolName } from "../lib/server/site-tools-definitions.ts"
+
+type ExecCall = { toolName: AllowedToolName; args: Record<string, any> }
+
+function makeResult(data: any): APICallResult {
+  return { success: true, data }
+}
+
+async function runTests() {
+  await testVideoIntentFirstPassNotNews()
+  await testRetryBeforeBroadening()
+  await testNoUnavailableBeforeExhaustion()
+  console.log("PR2 orchestrator tests passed")
+}
+
+async function testVideoIntentFirstPassNotNews() {
+  const calls: ExecCall[] = []
+  const exec = async (toolName: AllowedToolName, args: Record<string, any>): Promise<APICallResult> => {
+    calls.push({ toolName, args })
+    return makeResult({
+      results: [{ id: "1", source_type: "videos_latest", name: "video" }],
+      total: 1,
+      top_score: 12,
+      source_used: args.source
+    })
+  }
+
+  const result = await orchestrateRetrieval(
+    "search_content",
+    { query: "محاضرات الشيخ زمان الحسناوي", source: "auto" },
+    { execute: exec }
+  )
+
+  assert.ok(result)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].args.source, "videos_latest")
+  assert.equal(result?.attempts[0].source, "videos_latest")
+}
+
+async function testRetryBeforeBroadening() {
+  const calls: ExecCall[] = []
+  const exec = async (toolName: AllowedToolName, args: Record<string, any>): Promise<APICallResult> => {
+    calls.push({ toolName, args })
+
+    if (calls.length === 1) {
+      return makeResult({
+        results: [],
+        total: 0,
+        top_score: null,
+        source_used: args.source
+      })
+    }
+
+    return makeResult({
+      results: [{ id: "2", source_type: "videos_latest", name: "hit" }],
+      total: 1,
+      top_score: 9,
+      source_used: args.source
+    })
+  }
+
+  const result = await orchestrateRetrieval(
+    "search_content",
+    { query: "فيديو عن العتبة", source: "auto" },
+    { execute: exec }
+  )
+
+  assert.ok(result)
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].args.source, "videos_latest")
+  assert.equal(calls[1].args.source, "auto")
+  assert.equal(result?.fallbackApplied, true)
+}
+
+async function testNoUnavailableBeforeExhaustion() {
+  const calls: ExecCall[] = []
+  const exec = async (toolName: AllowedToolName, args: Record<string, any>): Promise<APICallResult> => {
+    calls.push({ toolName, args })
+    return makeResult({
+      results: [],
+      total: 0,
+      top_score: null,
+      source_used: args.source
+    })
+  }
+
+  const result = await orchestrateRetrieval(
+    "search_content",
+    { query: "فيديو نادر جدا", source: "auto" },
+    { execute: exec, maxAttempts: 3 }
+  )
+
+  assert.ok(result)
+  assert.equal(calls.length, 2)
+  assert.equal(result?.exhausted, true)
+  assert.equal(result?.unavailableReason, "attempts_exhausted")
+  assert.equal(result?.attempts.length, calls.length)
+}
+
+runTests().catch(err => {
+  console.error(err)
+  process.exit(1)
+})

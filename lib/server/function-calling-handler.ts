@@ -36,6 +36,7 @@ import {
   type Evidence
 } from "./evidence-extractor"
 import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace"
+import { orchestrateRetrieval } from "./retrieval-orchestrator"
 
 // ── Light Arabic normalization for intent detection ────────────────
 function normalizeArabicLight(text: string): string {
@@ -466,32 +467,6 @@ function getTopScoreFromData(data: any): number | null {
   return null
 }
 
-function buildRetrySources(
-  query: string,
-  toolName: string,
-  args: Record<string, any>
-): string[] {
-  if (toolName !== "search_content" && toolName !== "search_projects") return []
-
-  const currentSource = typeof args.source === "string" ? args.source : "auto"
-  const norm = normalizeQueryForTrace(query)
-  const candidates: string[] = []
-
-  if (currentSource !== "auto") candidates.push("auto")
-
-  const videoHints = ["فيديو", "فديو", "محاضره", "محاضرات", "مرئي", "مقطع"]
-  const newsHints = ["خبر", "اخبار", "مقال", "مقالات"]
-
-  if (videoHints.some(h => norm.includes(normalizeQueryForTrace(h))) && currentSource !== "videos_latest") {
-    candidates.push("videos_latest")
-  }
-  if (newsHints.some(h => norm.includes(normalizeQueryForTrace(h))) && currentSource !== "articles_latest") {
-    candidates.push("articles_latest")
-  }
-
-  return [...new Set(candidates)].slice(0, 2)
-}
-
 /**
  * نتيجة معالجة Function Calling
  */
@@ -551,11 +526,40 @@ async function processToolCall(
     }
   }
 
-  // تنفيذ الأداة
-  let result: APICallResult = await executeToolByName(
-    toolName as AllowedToolName,
-    args
-  )
+  // تنفيذ الأداة (orchestrator-aware for retrieval tools)
+  let result: APICallResult
+  const isRetrievalTool = toolName === "search_content" || toolName === "search_projects"
+  if (isRetrievalTool) {
+    const orchestrated = await orchestrateRetrieval(
+      toolName as AllowedToolName,
+      args,
+      { traceId: context.traceId }
+    )
+    if (orchestrated) {
+      result = orchestrated.finalResult
+      if (context.retryCounter) {
+        context.retryCounter.count += Math.max(0, orchestrated.attempts.length - 1)
+      }
+      if (context.traceSummary) {
+        context.traceSummary.routed_source = orchestrated.routedSource || context.traceSummary.routed_source
+        context.traceSummary.result_counts = orchestrated.resultCount
+        context.traceSummary.top_score = orchestrated.topScore
+        if (orchestrated.exhausted) {
+          context.traceSummary.unavailable_reason = orchestrated.unavailableReason
+        }
+      }
+    } else {
+      result = await executeToolByName(
+        toolName as AllowedToolName,
+        args
+      )
+    }
+  } else {
+    result = await executeToolByName(
+      toolName as AllowedToolName,
+      args
+    )
+  }
 
   const traceQuery = args.query || context.userQuery || ""
 
@@ -578,54 +582,6 @@ async function processToolCall(
       context.traceSummary.routed_source = args.source
       context.traceSummary.result_counts = resultCount
       context.traceSummary.top_score = topScore
-    }
-  }
-
-  // ✅ Phase 3: معالجة النتائج الفارغة مع اقتراحات ذكية
-  if (result.success && isEmptyAPIResponse(result.data)) {
-    console.log(`[Function Call] Empty results detected, applying bounded retry`)
-
-    const query = args.query || args.searchTerm || args.keyword || ""
-    const retrySources = buildRetrySources(query, toolName, args)
-    for (const retrySource of retrySources) {
-      const retryArgs = { ...args, source: retrySource }
-      const retryResult = await executeToolByName(
-        toolName as AllowedToolName,
-        retryArgs
-      )
-
-      if (context.retryCounter) {
-        context.retryCounter.count += 1
-      }
-
-      if (context.traceId) {
-        const retryCount = getResultCountFromData(retryResult.data)
-        const retryTopScore = getTopScoreFromData(retryResult.data)
-        logChatTrace({
-          trace_id: context.traceId,
-          stage: "retry_attempt",
-          normalized_query: normalizeQueryForTrace(query),
-          routed_source: retrySource,
-          retry_attempts: context.retryCounter?.count || 0,
-          result_counts: retryCount,
-          top_score: retryTopScore,
-          details: {
-            tool_name: toolName,
-            previous_source: args.source || "auto"
-          }
-        })
-
-        if (context.traceSummary) {
-          context.traceSummary.routed_source = retrySource
-          context.traceSummary.result_counts = retryCount
-          context.traceSummary.top_score = retryTopScore
-        }
-      }
-
-      if (retryResult.success && !isEmptyAPIResponse(retryResult.data)) {
-        result = retryResult
-        break
-      }
     }
   }
 
