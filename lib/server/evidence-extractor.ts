@@ -335,6 +335,8 @@ export function formatGroundedAnswer(
     normQuery.includes("نبذه") ||
     normQuery.includes("سيره")
 
+
+    // cccccccccc
   if (isFactStyleQuery && evidenceList.length > 0) {
     const top = evidenceList[0]
     const quote = String(top.quote || "").replace(/\s+/g, " ").trim()
