@@ -726,6 +726,20 @@ function getPrimaryRetrievalToolForQuery(text: string): AllowedToolName {
   return "search_content"
 }
 
+/**
+ * After orchestrator bootstrap, keep model tool access limited to
+ * deterministic utility/non-retrieval tools to prevent policy re-expansion.
+ */
+function getPostBootstrapTools(
+  tools: OpenAI.Chat.Completions.ChatCompletionTool[]
+): OpenAI.Chat.Completions.ChatCompletionTool[] {
+  return tools.filter(tool => {
+    if (tool.type !== "function") return true
+    const name = tool.function?.name
+    return name !== "search_content" && name !== "search_projects"
+  })
+}
+
 // ── Knowledge layer helpers ─────────────────────────────────────────
 
 /**
@@ -1066,6 +1080,7 @@ export async function resolveToolCalls(
   let currentMessages = [...messages]
   let iterations = 0
   let toolsWereCalled = false
+  let orchestratorBootstrapped = false
   const retryCounter = { count: 0 }
   const traceSummary: ResolveTraceSummary = { retry_attempts: 0 }
 
@@ -1190,6 +1205,7 @@ export async function resolveToolCalls(
 
       const cleaned = cleanResultForGPT(orchestrated.finalResult)
       const syntheticToolCallId = `bootstrap_${primaryRetrievalTool}_${Date.now()}`
+      const routedSourceForSynthetic = orchestrated.routedSource || "auto"
 
       currentMessages.push({
         role: "assistant",
@@ -1197,7 +1213,10 @@ export async function resolveToolCalls(
         tool_calls: [{
           id: syntheticToolCallId,
           type: "function",
-          function: { name: primaryRetrievalTool, arguments: JSON.stringify({ query: userQueryForIntent, source: "auto" }) }
+          function: {
+            name: primaryRetrievalTool,
+            arguments: JSON.stringify({ query: userQueryForIntent, source: routedSourceForSynthetic })
+          }
         }]
       })
       currentMessages.push({
@@ -1208,6 +1227,7 @@ export async function resolveToolCalls(
 
       await injectKnowledgeAndGuard(currentMessages, userQueryForIntent)
       toolsWereCalled = true
+      orchestratorBootstrapped = true
     }
   }
 
@@ -1215,10 +1235,14 @@ export async function resolveToolCalls(
     iterations++
     console.log(`[Tool Resolution] Iteration ${iterations}`)
 
+    const toolsForIteration = orchestratorBootstrapped
+      ? getPostBootstrapTools(tools)
+      : tools
+
     const response = await openai.chat.completions.create({
       model,
       messages: currentMessages,
-      tools,
+      tools: toolsForIteration,
       tool_choice: "auto",
       temperature: 0.2,
       max_tokens: 1200

@@ -222,7 +222,7 @@ export async function POST(request: Request) {
 
         logChatTrace({
           trace_id: traceId,
-          stage: "tool_resolution_finished",
+          stage: "tools_resolved",
           normalized_query: normalizedQuery,
           routed_source: toolResult.trace?.routed_source,
           retry_attempts: toolResult.trace?.retry_attempts || 0,
@@ -241,6 +241,16 @@ export async function POST(request: Request) {
         // إذا كان هناك إجابة مباشرة (من evidence عالي الثقة) → أرجعها فوراً
         if (toolResult.directAnswer) {
           console.log(`[Chat API] Returning direct grounded answer (bypassing final LLM call)`)
+          logChatTrace({
+            trace_id: traceId,
+            stage: "direct_answer_returned",
+            normalized_query: normalizedQuery,
+            answer_mode: "direct_grounded",
+            routed_source: toolResult.trace?.routed_source,
+            retry_attempts: toolResult.trace?.retry_attempts || 0,
+            result_counts: toolResult.trace?.result_counts,
+            top_score: toolResult.trace?.top_score
+          })
           logChatTrace({
             trace_id: traceId,
             stage: "response_ready",
@@ -273,12 +283,12 @@ export async function POST(request: Request) {
 
         logChatTrace({
           trace_id: traceId,
-          stage: "grounded_stream_started",
+          stage: "final_stream_started",
           normalized_query: normalizedQuery,
           routed_source: toolResult.trace?.routed_source,
           retry_attempts: toolResult.trace?.retry_attempts || 0,
           details: {
-            grounded_temperature: 0.1,
+            grounded_temperature: 0.0,
             grounded: true,
             final_call_required: toolResult.needsFinalCall
           }
@@ -287,7 +297,7 @@ export async function POST(request: Request) {
         const finalStream = await openai.chat.completions.create({
           model,
           messages: streamMessages,
-          temperature: 0.1,
+          temperature: 0.0,
           max_tokens: 1200,
           stream: true
         })
@@ -375,8 +385,9 @@ export async function POST(request: Request) {
     console.error("Chat API Error:", error)
     logChatTrace({
       trace_id: traceId,
-      stage: "request_error",
+      stage: "runtime_error",
       answer_mode: "error",
+      normalized_query: normalizeQueryForTrace(""),
       unavailable_reason: error?.message || "unknown_error"
     })
 
