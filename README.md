@@ -109,7 +109,7 @@
 
 - **Rate Limiting**: حماية من إساءة الاستخدام والـ DDoS
 - **Data Sanitization**: تنظيف المدخلات من المحتوى الضار
-- **CORS Protection**: قيود صارمة على المصادر المسموح بها
+- **CORS Protection**: دعم CORS متوافق مع التضمين الخارجي للودجت
 - **Sensitive Data Removal**: إزالة البيانات الحساسة من الاستجابات
 - **Security Headers**: رؤوس أمان شاملة (CSP, XSS Protection, etc.)
 
@@ -201,7 +201,7 @@
    - التحقق من أن الأداة مسموحة (Whitelist)
    - تنفيذ الأداة عبر API Service
    - إرجاع النتيجة لـ GPT
-   - تكرار العملية حتى 5 مرات
+  - تكرار العملية حتى 3 مرات
 8. **Response Generation**: GPT يولد رد نهائي بناءً على البيانات
 9. **Data Sanitization**: تنظيف الاستجابة من البيانات الحساسة
 10. **Client Response**: إرسال الرد للمستخدم
@@ -790,22 +790,12 @@ const cleanData = removeSensitiveFields(apiResponse)
 
 ### 3. CORS Protection
 
-**الهدف**: السماح فقط للنطاقات الموثوقة
+**الهدف**: تمكين التضمين الخارجي للودجت مع الحفاظ على ضوابط الطلبات
 
 ```typescript
-const ALLOWED_ORIGINS = [
-  "https://alkafeel.net",  // Production
-  "http://localhost:3000",          // Development
-  "http://localhost:3001"           // Development (alternative)
-]
-
-function getSecurityHeaders(origin?: string): HeadersInit {
-  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin)
-    ? origin
-    : ALLOWED_ORIGINS[0]
-
+function getSecurityHeaders(): HeadersInit {
   return {
-    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization"
   }
@@ -985,16 +975,18 @@ Copy-Item .env.local.example .env.local
 ```env
 # OpenAI Configuration
 OPENAI_API_KEY=sk-...                    # مطلوب
-OPENAI_MODEL=gpt-4o                       # اختياري (افتراضي: gpt-4o)
+OPENAI_MODEL=gpt-4o-mini                  # اختياري (افتراضي: gpt-4o-mini)
 
 # Site API Configuration
-SITE_API_BASE_URL=https://alkafeel.net/v1    # مطلوب
+SITE_API_BASE_URL=https://alkafeel.net        # مطلوب
 SITE_API_TOKEN=your-api-token-here       # اختياري
-SITE_DOMAIN=https://alkafeel.net # اختياري
+SITE_API_ACCEPT_LANGUAGE=ar               # اختياري
+SITE_DOMAIN=https://alkafeel.net          # اختياري
+SITE_ARTICLE_URL_TEMPLATE=/news/index?id={id} # اختياري
 
 # Optional: Alternative AI Providers
 ANTHROPIC_API_KEY=sk-ant-...             # لاستخدام Claude
-GOOGLE_API_KEY=...                        # لاستخدام Gemini
+GOOGLE_GEMINI_API_KEY=...                 # لاستخدام Gemini
 AZURE_OPENAI_ENDPOINT=...                 # لاستخدام Azure OpenAI
 MISTRAL_API_KEY=...                       # لاستخدام Mistral
 ```
@@ -1027,15 +1019,17 @@ npm run start
 | المتغير | الوصف | مثال |
 |---------|-------|------|
 | `OPENAI_API_KEY` | مفتاح OpenAI API | `sk-proj-...` |
-| `SITE_API_BASE_URL` | رابط REST API للموقع | `https://alkafeel.net/v1` |
+| `SITE_API_BASE_URL` | رابط REST API للموقع | `https://alkafeel.net` |
 
 ### المتغيرات الاختيارية
 
 | المتغير | الوصف | القيمة الافتراضية |
 |---------|-------|-------------------|
-| `OPENAI_MODEL` | نموذج OpenAI المستخدم | `gpt-4o` |
+| `OPENAI_MODEL` | نموذج OpenAI المستخدم | `gpt-4o-mini` |
 | `SITE_API_TOKEN` | توكن مصادقة للـ API | `null` (بدون مصادقة) |
+| `SITE_API_ACCEPT_LANGUAGE` | لغة طلبات الـ API | `ar` |
 | `SITE_DOMAIN` | نطاق الموقع الأساسي | `https://alkafeel.net` |
+| `SITE_ARTICLE_URL_TEMPLATE` | قالب رابط المقال | `/news/index?id={id}` |
 | `NODE_ENV` | بيئة التشغيل | `development` |
 | `NEXT_PUBLIC_APP_URL` | رابط التطبيق (للـ PWA) | `http://localhost:3000` |
 
@@ -1046,7 +1040,7 @@ npm run start
 ANTHROPIC_API_KEY=sk-ant-...
 
 # Google Gemini
-GOOGLE_API_KEY=...
+GOOGLE_GEMINI_API_KEY=...
 
 # Azure OpenAI
 AZURE_OPENAI_ENDPOINT=https://...
