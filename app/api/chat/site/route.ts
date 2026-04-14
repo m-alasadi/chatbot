@@ -26,22 +26,12 @@ import { ChatCompletionMessageParam } from "openai/resources/chat/completions.mj
 export const runtime: ServerRuntime = "edge"
 
 /**
- * CORS Headers - السماح فقط من دومين محدد
- */
-const ALLOWED_ORIGINS = [
-  process.env.SITE_DOMAIN || "https://alkafeel.net",
-  "http://localhost:3000", // للتطوير
-  "http://localhost:3001", // للتطوير (بديل)
-  "null" // للـ file:// protocol (HTML files)
-]
-
-/**
  * Security Headers
  */
-function getSecurityHeaders(origin?: string | null): HeadersInit {
-  // السماح لأي origin لأن الودجت يُضمّن في مواقع خارجية
+function getSecurityHeaders(): HeadersInit {
+  // السماح لأي origin لأن الودجت يُضمّن في مواقع خارجية متعددة
   return {
-    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400",
@@ -59,7 +49,7 @@ function getSecurityHeaders(origin?: string | null): HeadersInit {
 export async function OPTIONS(request: Request) {
   return new Response(null, {
     status: 204,
-    headers: getSecurityHeaders(request.headers.get("origin"))
+    headers: getSecurityHeaders()
   })
 }
 
@@ -79,8 +69,7 @@ interface ChatRequest {
  * ✅ Phase 4: Rate Limiting + Security + Data Sanitization
  */
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin")
-  const securityHeaders = getSecurityHeaders(origin)
+  const securityHeaders = getSecurityHeaders()
   const traceId = buildTraceId()
 
   try {
@@ -436,8 +425,7 @@ export async function POST(request: Request) {
     })
 
     // الحصول على origin للـ security headers
-    const origin = request.headers.get("origin")
-    const errorSecurityHeaders = getSecurityHeaders(origin)
+    const errorSecurityHeaders = getSecurityHeaders()
 
     // معالجة أنواع الأخطاء المختلفة
     let errorMessage = "حدث خطأ غير متوقع"
