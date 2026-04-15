@@ -47,6 +47,7 @@
 - [التطوير](#-التطوير)
 - [النشر](#-النشر)
 - [API Documentation](#-api-documentation)
+- [Release Hardening (Phase 5)](#-release-hardening-phase-5)
 
 ---
 
@@ -80,6 +81,40 @@
 - الاستعلام عن تفاصيل المشاريع
 - الحصول على إحصائيات وتقارير
 - استكشاف أقسام وفئات المشاريع
+
+---
+
+## ⚙️ Release Hardening (Phase 5)
+
+هذا الإصدار يعتمد على تحسينات تشغيلية للحفاظ على الجودة مع خفض زمن الاستجابة:
+
+- **Request-level retrieval budget** داخل orchestrator للحد من الاستهلاك الزائد للطلب الواحد.
+- **Entity-first retrieval** للاستعلامات الدقيقة (حقائق الأشخاص/الفعاليات/المشاريع الفردية) قبل التوسعة الواسعة.
+- **Source-specific timeout/retry policy** بدلاً من سياسة موحدة لكل المصادر.
+- **Structured runtime metrics** عبر traces + تجميع دوري في السجل لتشخيص الأداء.
+
+### متغيرات Phase 5
+
+أضف/راجع هذه القيم في `.env.local`:
+
+```bash
+RETRIEVAL_REQUEST_BUDGET_MS=18000
+RETRIEVAL_SLOW_ATTEMPT_MS=3000
+SITE_API_SLOW_THRESHOLD_MS=3500
+RUNTIME_METRICS_LOG_EVERY=25
+```
+
+### تنبيه تشغيلي مهم (Eval)
+
+سكربت التقييم العربي يستخدم `BASE_URL` إن كانت مضبوطة في البيئة.
+لتجنب توجيه التقييم إلى منفذ خاطئ:
+
+- تأكد أن السيرفر الهدف يعمل فعليًا.
+- نفّذ التقييم مع تحديد واضح مثل:
+
+```powershell
+$env:BASE_URL='http://localhost:3000'; npm run eval:ar
+```
 
 ### الجمهور المستهدف
 

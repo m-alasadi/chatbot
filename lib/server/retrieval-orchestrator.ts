@@ -2,7 +2,12 @@ import { type AllowedToolName } from "./site-tools-definitions"
 import { executeToolByName, type APICallResult } from "./site-api-service"
 import { isEmptyAPIResponse } from "./smart-suggestions"
 import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace"
-import { understandQuery, type QueryUnderstandingResult } from "./query-understanding"
+import { recordOrchestratorMetrics } from "./observability/runtime-metrics"
+import {
+  understandQuery,
+  deriveRetrievalCapabilitySignals,
+  type QueryUnderstandingResult
+} from "./query-understanding"
 
 export type ContentIntentConstraint =
   | "video"
@@ -101,43 +106,11 @@ function detectEntityFirstPriority(
   query: string,
   understanding: QueryUnderstandingResult
 ): { enabled: boolean; reason: string } {
-  const norm = normalizeQueryForTrace(query)
-  const sourceSpecific = understanding.extracted_entities.source_specific
-  const personTopics = ["زوج", "زوجات", "ابناء", "اولاد", "القاب", "كنيه", "كنية", "عمر", "تاريخ"]
-  const officeHolderSignals = ["المتولي", "الشرعي", "الامين العام", "أمين عام"]
-  const namedEventSignals = ["نداء العقيدة", "مهرجان", "فعالية", "برنامج", "مبادرة", "حملة"]
-  const singularProjectSignals = ["مشروع", "دجاج", "انتاج", "إنتاج", "زراعي", "تعليمي", "تربوي"]
-
-  const hasOfficeHolderSignal = officeHolderSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
-  const hasNamedEventSignal = namedEventSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
-  const hasPersonAttributeSignal =
-    understanding.extracted_entities.person.length > 0 &&
-    personTopics.some(s => norm.includes(normalizeQueryForTrace(s)))
-  const hasSingularProjectSignal =
-    singularProjectSignals.some(s => norm.includes(normalizeQueryForTrace(s))) &&
-    !norm.includes(normalizeQueryForTrace("مشاريع"))
-
-  if (hasOfficeHolderSignal || sourceSpecific.includes("articles_latest") && hasOfficeHolderSignal) {
-    return { enabled: true, reason: "office_holder_fact" }
+  const capability = deriveRetrievalCapabilitySignals(understanding, query)
+  return {
+    enabled: capability.entity_first_mode,
+    reason: capability.entity_first_reason
   }
-  if (hasNamedEventSignal) {
-    return { enabled: true, reason: "named_event_or_program" }
-  }
-  if (hasPersonAttributeSignal) {
-    return { enabled: true, reason: "person_attribute_fact" }
-  }
-  if (hasSingularProjectSignal || sourceSpecific.includes("projects_query")) {
-    return { enabled: true, reason: "singular_project_lookup" }
-  }
-
-  const isFactLikeOperation =
-    understanding.operation_intent === "fact_question" ||
-    understanding.operation_intent === "direct_answer"
-  if (isFactLikeOperation && understanding.extracted_entities.topic.length > 0) {
-    return { enabled: true, reason: "entity_fact_query" }
-  }
-
-  return { enabled: false, reason: "general" }
 }
 
 function getResultCount(data: any): number {
@@ -448,6 +421,18 @@ export async function orchestrateRetrieval(
   let lowConfidenceRejected = false
 
   const executeFn = options.execute || executeToolByName
+  const finalizeResult = (result: OrchestratorResult): OrchestratorResult => {
+    recordOrchestratorMetrics({
+      traceId: options.traceId,
+      latencyMs: Date.now() - requestStartedAt,
+      retryCount: Math.max(0, result.attempts.length - 1),
+      budgetExhausted: result.unavailableReason === "request_budget_exhausted",
+      fallbackApplied: result.fallbackApplied,
+      routedSource: result.routedSource,
+      unavailableReason: result.unavailableReason
+    })
+    return result
+  }
 
   for (let i = 0; i < plan.attempts.length; i++) {
     const attemptPlan = plan.attempts[i]
@@ -472,7 +457,7 @@ export async function orchestrateRetrieval(
         })
       }
 
-      return {
+      return finalizeResult({
         plan,
         attempts,
         finalResult: {
@@ -486,7 +471,7 @@ export async function orchestrateRetrieval(
         routedSource: attempts[attempts.length - 1]?.source,
         resultCount: 0,
         topScore: null
-      }
+      })
     }
 
     if (options.traceId) {
@@ -599,7 +584,7 @@ export async function orchestrateRetrieval(
     }
 
     if (result.success && !empty && !rejection.reject) {
-      return {
+      return finalizeResult({
         plan,
         attempts,
         finalResult: result,
@@ -609,7 +594,7 @@ export async function orchestrateRetrieval(
         routedSource: attemptPlan.source,
         resultCount,
         topScore
-      }
+      })
     }
 
     if (i < plan.attempts.length - 1) {
@@ -649,7 +634,7 @@ export async function orchestrateRetrieval(
         })
       }
 
-      return {
+      return finalizeResult({
         plan,
         attempts,
         finalResult: result,
@@ -660,11 +645,11 @@ export async function orchestrateRetrieval(
         routedSource: attemptPlan.source,
         resultCount,
         topScore
-      }
+      })
     }
   }
 
-  return {
+  return finalizeResult({
     plan,
     attempts,
     finalResult: lastResult,
@@ -675,5 +660,5 @@ export async function orchestrateRetrieval(
     routedSource: attempts[attempts.length - 1]?.source,
     resultCount: getResultCount(lastResult.data),
     topScore: getTopScore(lastResult.data)
-  }
+  })
 }

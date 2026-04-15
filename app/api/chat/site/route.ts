@@ -19,6 +19,11 @@ import {
   logChatTrace,
   normalizeQueryForTrace
 } from "@/lib/server/observability/chat-trace"
+import {
+  startRuntimeRequestMetrics,
+  finishRuntimeRequestMetrics
+} from "@/lib/server/observability/runtime-metrics"
+import { understandQuery, getQueryClassKey } from "@/lib/server/query-understanding"
 import { ServerRuntime } from "next"
 import OpenAI from "openai"
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions.mjs"
@@ -40,6 +45,13 @@ function getSecurityHeaders(): HeadersInit {
     "X-XSS-Protection": "1; mode=block",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Content-Security-Policy": "default-src 'self'",
+  }
+}
+
+function getSecurityHeadersWithTrace(traceId?: string): HeadersInit {
+  return {
+    ...getSecurityHeaders(),
+    ...(traceId ? { "X-Trace-Id": traceId } : {})
   }
 }
 
@@ -69,8 +81,21 @@ interface ChatRequest {
  * ✅ Phase 4: Rate Limiting + Security + Data Sanitization
  */
 export async function POST(request: Request) {
-  const securityHeaders = getSecurityHeaders()
   const traceId = buildTraceId()
+  const securityHeaders = getSecurityHeadersWithTrace(traceId)
+  const requestStartedAt = Date.now()
+  let metricsFinalized = false
+  const finalizeMetrics = (input: { answerMode?: string; unavailableReason?: string; routedSource?: string }) => {
+    if (metricsFinalized) return
+    metricsFinalized = true
+    finishRuntimeRequestMetrics({
+      traceId,
+      totalLatencyMs: Date.now() - requestStartedAt,
+      answerMode: input.answerMode,
+      unavailableReason: input.unavailableReason,
+      routedSource: input.routedSource
+    })
+  }
 
   try {
     const host = String(request.headers.get("host") || "").toLowerCase()
@@ -131,6 +156,11 @@ export async function POST(request: Request) {
 
     // التحقق من صحة آخر رسالة (من المستخدم)
     const lastMessage = sanitizedMessages[sanitizedMessages.length - 1]
+    const requestUnderstanding = understandQuery(lastMessage?.content || "")
+    startRuntimeRequestMetrics({
+      traceId,
+      queryClass: getQueryClassKey(requestUnderstanding)
+    })
     const normalizedQuery = normalizeQueryForTrace(lastMessage?.content || "")
     logChatTrace({
       trace_id: traceId,
@@ -216,7 +246,10 @@ export async function POST(request: Request) {
           messagesWithSystem,
           ALL_SITE_TOOLS,
           3,
-          { traceId }
+          {
+            traceId,
+            queryUnderstanding: requestUnderstanding
+          }
         )
 
         logChatTrace({
@@ -280,6 +313,11 @@ export async function POST(request: Request) {
               controller.enqueue(new TextEncoder().encode(toolResult.directAnswer!))
               controller.close()
             }
+          })
+          finalizeMetrics({
+            answerMode: "direct_grounded",
+            unavailableReason: toolResult.trace?.unavailable_reason,
+            routedSource: toolResult.trace?.routed_source
           })
           return new Response(directStream, {
             headers: {
@@ -356,6 +394,12 @@ export async function POST(request: Request) {
           }
         })
 
+        finalizeMetrics({
+          answerMode: "llm_stream",
+          unavailableReason: toolResult.trace?.unavailable_reason,
+          routedSource: toolResult.trace?.routed_source
+        })
+
         return new Response(stream, {
           headers: {
             "Content-Type": "text/plain; charset=utf-8",
@@ -401,6 +445,8 @@ export async function POST(request: Request) {
       }
     })
 
+    finalizeMetrics({ answerMode: "fallback_stream" })
+
     return new Response(fallbackStream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
@@ -409,6 +455,10 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     console.error("Chat API Error:", error)
+    finalizeMetrics({
+      answerMode: "error",
+      unavailableReason: error?.message || "unknown_error"
+    })
     logChatTrace({
       trace_id: traceId,
       stage: "runtime_error",

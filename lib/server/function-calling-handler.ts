@@ -1144,7 +1144,7 @@ export async function resolveToolCalls(
   messages: ChatCompletionMessageParam[],
   tools: OpenAI.Chat.Completions.ChatCompletionTool[],
   maxIterations: number = 3,
-  options: { traceId?: string } = {}
+  options: { traceId?: string; queryUnderstanding?: QueryUnderstandingResult } = {}
 ): Promise<{
   resolvedMessages: ChatCompletionMessageParam[]
   needsFinalCall: boolean
@@ -1161,7 +1161,7 @@ export async function resolveToolCalls(
 
   // Forced tool intent: deterministic routing for count/metadata/oldest only.
   const userQueryForIntent = getLastUserMessage(messages)
-  const queryUnderstanding = understandQuery(userQueryForIntent)
+  const queryUnderstanding = options.queryUnderstanding || understandQuery(userQueryForIntent)
   const answerShapeInstruction = buildAnswerShapeInstruction(userQueryForIntent)
   if (answerShapeInstruction) {
     currentMessages.push({ role: "system", content: answerShapeInstruction })

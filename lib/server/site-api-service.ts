@@ -34,7 +34,7 @@ import {
   scoreUnifiedItem,
   tokenizeArabicQuery
 } from "./site-ranking-policy"
-import { understandQuery } from "./query-understanding"
+import { understandQuery, deriveRetrievalCapabilitySignals } from "./query-understanding"
 
 export type { APICallResult } from "./site-api-transport"
 
@@ -389,24 +389,8 @@ export async function siteSearchContent(
   params: SourceFetchParams = {}
 ): Promise<APICallResult> {
   const understanding = understandQuery(query)
-  const entityFirstMode = (() => {
-    const norm = normalizeArabic(query)
-    const officeHolderSignals = ["المتولي", "الشرعي", "الامين العام", "أمين عام"]
-    const namedEventSignals = ["نداء العقيدة", "مهرجان", "فعالية", "برنامج", "مبادرة"]
-    const personAttributeSignals = ["زوج", "زوجات", "ابناء", "أبناء", "القاب", "كنيه", "كنية", "عمر"]
-    const singularProjectSignals = ["مشروع", "دجاج", "انتاج", "إنتاج", "زراعي", "تعليمي", "تربوي"]
-
-    const officeHolder = officeHolderSignals.some(s => norm.includes(normalizeArabic(s)))
-    const namedEvent = namedEventSignals.some(s => norm.includes(normalizeArabic(s)))
-    const personAttribute =
-      understanding.extracted_entities.person.length > 0 &&
-      personAttributeSignals.some(s => norm.includes(normalizeArabic(s)))
-    const singularProject =
-      singularProjectSignals.some(s => norm.includes(normalizeArabic(s))) &&
-      !norm.includes(normalizeArabic("مشاريع"))
-
-    return officeHolder || namedEvent || personAttribute || singularProject
-  })()
+  const capability = deriveRetrievalCapabilitySignals(understanding, query)
+  const entityFirstMode = capability.entity_first_mode
 
   const safeLimit = Math.min(Math.max(limit || 5, 1), 20)
   const rawCandidates = source === "auto"

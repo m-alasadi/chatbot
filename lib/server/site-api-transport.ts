@@ -1,5 +1,6 @@
 import { getSiteAPIConfig } from "./site-api-config"
 import { sanitizeAPIResponse } from "./data-sanitizer"
+import { recordSourceFetchMetrics } from "./observability/runtime-metrics"
 
 /**
  * إعدادات Timeout و Retry
@@ -121,10 +122,13 @@ export async function callSiteAPI(
     source
   } = options
   const requestStartedAt = Date.now()
+  let attemptsExecuted = 0
+  let timeoutDetected = false
 
   // تغليف العملية في retry logic
   return await retryOperation(
     async () => {
+      attemptsExecuted++
       try {
         const config = getSiteAPIConfig()
 
@@ -205,6 +209,13 @@ export async function callSiteAPI(
         }
       } catch (error: any) {
         console.error("[Site API Error]:", error.message)
+        if (
+          error.message?.includes("مهلة") ||
+          error.message?.toLowerCase?.().includes("timeout") ||
+          error.message?.includes("AbortError")
+        ) {
+          timeoutDetected = true
+        }
 
         // إذا كان خطأ Network، يُعاد المحاولة
         if (
@@ -228,6 +239,14 @@ export async function callSiteAPI(
   ).then((result) => {
     const durationMs = Date.now() - requestStartedAt
     const slowThresholdMs = Number(process.env.SITE_API_SLOW_THRESHOLD_MS || 3500)
+    recordSourceFetchMetrics({
+      source: source || "unknown",
+      endpoint,
+      durationMs,
+      success: Boolean(result.success),
+      retryCount: Math.max(0, attemptsExecuted - 1),
+      timedOut: timeoutDetected
+    })
     if (durationMs >= slowThresholdMs) {
       console.log(
         `[SiteAPI SlowPath] source=${source || "unknown"} endpoint=${endpoint} duration_ms=${durationMs} timeout_ms=${timeout} retries=${retries}`
@@ -235,6 +254,14 @@ export async function callSiteAPI(
     }
     return result
   }).catch((error: Error) => {
+    recordSourceFetchMetrics({
+      source: source || "unknown",
+      endpoint,
+      durationMs: Date.now() - requestStartedAt,
+      success: false,
+      retryCount: Math.max(0, attemptsExecuted - 1),
+      timedOut: timeoutDetected || error.message.includes("timeout")
+    })
     // إذا فشلت جميع المحاولات
     return {
       success: false,

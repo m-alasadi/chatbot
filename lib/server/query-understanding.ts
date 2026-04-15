@@ -37,6 +37,15 @@ export interface QueryUnderstandingResult {
   route_confidence: number
 }
 
+export interface RetrievalCapabilitySignals {
+  office_holder_fact: boolean
+  named_event_or_program: boolean
+  person_attribute_fact: boolean
+  singular_project_lookup: boolean
+  entity_first_mode: boolean
+  entity_first_reason: string
+}
+
 function uniq(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))]
 }
@@ -242,4 +251,55 @@ export function understandQuery(query: string): QueryUnderstandingResult {
     hinted_sources: hintedSources,
     route_confidence: routeConfidence
   }
+}
+
+export function deriveRetrievalCapabilitySignals(
+  understanding: QueryUnderstandingResult,
+  rawQuery?: string
+): RetrievalCapabilitySignals {
+  const norm = rawQuery
+    ? normalizeQueryForTrace(rawQuery)
+    : understanding.normalized_query
+
+  const officeHolderSignals = ["المتولي", "الشرعي", "الامين العام", "أمين عام"]
+  const namedEventSignals = ["نداء العقيدة", "مهرجان", "فعالية", "برنامج", "مبادرة", "حملة"]
+  const personAttributeSignals = ["زوج", "زوجات", "ابناء", "أبناء", "اولاد", "أولاد", "القاب", "كنيه", "كنية", "عمر", "تاريخ"]
+  const singularProjectSignals = ["مشروع", "دجاج", "انتاج", "إنتاج", "زراعي", "تعليمي", "تربوي"]
+
+  const officeHolderFact = officeHolderSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
+  const namedEventOrProgram = namedEventSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
+  const personAttributeFact =
+    understanding.extracted_entities.person.length > 0 &&
+    personAttributeSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
+  const singularProjectLookup =
+    singularProjectSignals.some(s => norm.includes(normalizeQueryForTrace(s))) &&
+    !norm.includes(normalizeQueryForTrace("مشاريع"))
+
+  let entityFirstReason = "general"
+  if (officeHolderFact) entityFirstReason = "office_holder_fact"
+  else if (namedEventOrProgram) entityFirstReason = "named_event_or_program"
+  else if (personAttributeFact) entityFirstReason = "person_attribute_fact"
+  else if (singularProjectLookup || understanding.extracted_entities.source_specific.includes("projects_query")) {
+    entityFirstReason = "singular_project_lookup"
+  } else if (
+    (understanding.operation_intent === "fact_question" || understanding.operation_intent === "direct_answer") &&
+    understanding.extracted_entities.topic.length > 0
+  ) {
+    entityFirstReason = "entity_fact_query"
+  }
+
+  const entityFirstMode = entityFirstReason !== "general"
+
+  return {
+    office_holder_fact: officeHolderFact,
+    named_event_or_program: namedEventOrProgram,
+    person_attribute_fact: personAttributeFact,
+    singular_project_lookup: singularProjectLookup,
+    entity_first_mode: entityFirstMode,
+    entity_first_reason: entityFirstReason
+  }
+}
+
+export function getQueryClassKey(understanding: QueryUnderstandingResult): string {
+  return `${understanding.operation_intent}:${understanding.content_intent}`
 }

@@ -1,12 +1,12 @@
 PR11 Arabic Eval Suite Report
-Run ID: pr11_2026-04-15T10-57-31-089Z
+Run ID: pr11_2026-04-15T10-51-59-471Z
 Base URL: http://localhost:3002
-Timestamp: 2026-04-15T10:57:31.089Z
+Timestamp: 2026-04-15T10:51:59.471Z
 
-Overall: PASS (14/14 categories passed)
+Overall: FAIL (13/14 categories passed)
 
 Category Summary:
-- repeated_question_stability [runtime] => PASS | pass_rate=1 | threshold>=1
+- repeated_question_stability [runtime] => FAIL | pass_rate=0.75 | threshold>=1
 - news_vs_video_disambiguation [runtime] => PASS | pass_rate=1 | threshold>=1
 - false_unavailable_regression [runtime] => PASS | pass_rate=1 | threshold>=0.85
 - fact_vs_list_intent [runtime] => PASS | pass_rate=1 | threshold>=1
@@ -26,7 +26,7 @@ Detailed Checks:
   - stability_no_unavailable_1: PASS
   - stability_no_unavailable_2: PASS
   - stability_no_unavailable_3: PASS
-  - stability_similarity: PASS | 1
+  - stability_similarity: FAIL | 0.357
 * news_vs_video_disambiguation
   - news_response_news_signal: PASS
   - video_response_video_signal: PASS
