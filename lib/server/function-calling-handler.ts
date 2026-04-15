@@ -38,6 +38,18 @@ import {
 import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace"
 import { orchestrateRetrieval } from "./retrieval-orchestrator"
 import { understandQuery, type QueryUnderstandingResult } from "./query-understanding"
+import {
+  getLastUserMessage,
+  hasPriorAssistantContext,
+  getLastAssistantText,
+  extractFirstListedTitle,
+  isContextualFollowUpQuery,
+} from "./runtime/dialog-context-policy"
+import {
+  buildAnswerShapeInstruction,
+  buildDeterministicFactFallback,
+  getDeterministicDirectAnswer,
+} from "./runtime/answer-shape-policy"
 
 // ── Light Arabic normalization for intent detection ────────────────
 function normalizeArabicLight(text: string): string {
@@ -51,61 +63,6 @@ function normalizeArabicLight(text: string): string {
     .trim()
 }
 
-function isOfficeHolderFactQuery(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-  return norm.includes("المتولي") && norm.includes("الشرعي")
-}
-
-function isAbbasChildrenQuery(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-  const asksChildren = ["ابناء", "أبناء", "اولاد", "أولاد"].some(t => norm.includes(normalizeArabicLight(t)))
-  const isAbbas = ["ابي الفضل", "أبي الفضل", "ابو الفضل", "العباس"].some(t => norm.includes(normalizeArabicLight(t)))
-  return asksChildren && isAbbas
-}
-
-function buildDeterministicFactFallback(query: string): any | null {
-  if (isOfficeHolderFactQuery(query)) {
-    return {
-      id: "fallback_office_holder",
-      name: "المتولي الشرعي للعتبة العباسية",
-      description: "اسم المتولي الشرعي للعتبة العباسية المقدسة هو سماحة العلامة السيد أحمد الصافي.",
-      url: "https://alkafeel.net/",
-      source_type: "deterministic_fallback"
-    }
-  }
-
-  if (isAbbasChildrenQuery(query)) {
-    return {
-      id: "fallback_abbas_children",
-      name: "أبناء أبي الفضل العباس",
-      description: "بحسب المصادر التاريخية، من أبناء أبي الفضل العباس (عليه السلام): الفضل، عبيد الله، الحسن، القاسم، ومحمد.",
-      url: "https://alkafeel.net/abbas?lang=ar",
-      source_type: "deterministic_fallback"
-    }
-  }
-
-  return null
-}
-
-function getDeterministicDirectAnswer(query: string): string | null {
-  if (isOfficeHolderFactQuery(query)) {
-    return "المتولي الشرعي للعتبة العباسية المقدسة هو سماحة العلامة السيد أحمد الصافي."
-  }
-
-  if (isAbbasChildrenQuery(query)) {
-    return "بحسب المصادر التاريخية، من أبناء أبي الفضل العباس (عليه السلام): الفضل، عبيد الله، الحسن، القاسم، ومحمد."
-  }
-
-  const norm = normalizeArabicLight(query)
-  const asksSingularFoodProject =
-    norm.includes(normalizeArabicLight("مشروع")) &&
-    ["دجاج", "غذائي", "انتاج", "إنتاج"].some(t => norm.includes(normalizeArabicLight(t)))
-  if (asksSingularFoodProject) {
-    return "لا تتوفر في البيانات الحالية معلومة مؤكدة عن مشروع دجاج أو مشروع غذائي مماثل تابع للعتبة العباسية المقدسة."
-  }
-
-  return null
-}
 
 /**
  * Detect user intents that require a deterministic tool call
@@ -836,21 +793,6 @@ export async function handleToolCalls(
  * الجاهزة ليقوم route.ts بالاستدعاء الأخير كـ stream مباشرة للمستخدم
  */
 
-/** Extract the last user message text from a messages array */
-function getLastUserMessage(messages: ChatCompletionMessageParam[]): string {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]
-    if (m.role === "user") {
-      if (typeof m.content === "string") return m.content
-      if (Array.isArray(m.content)) {
-        const textPart = m.content.find((p: any) => p.type === "text")
-        if (textPart && "text" in textPart) return textPart.text
-      }
-    }
-  }
-  return ""
-}
-
 /** Detect whether a user message is asking about site content (news, videos, history, etc.) */
 function looksLikeSiteContentQuery(text: string): boolean {
   if (!text || text.trim().length < 4) return false
@@ -880,51 +822,6 @@ function looksLikeSiteContentQuery(text: string): boolean {
     || (text.trim().length >= 25 && !text.includes("?") && !text.includes("\u061F"))
 }
 
-function hasPriorAssistantContext(messages: ChatCompletionMessageParam[]): boolean {
-  return messages.some(m => m.role === "assistant")
-}
-
-function getLastAssistantText(messages: ChatCompletionMessageParam[]): string {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]
-    if (m.role !== "assistant") continue
-    if (typeof m.content === "string") return m.content
-    if (Array.isArray(m.content)) {
-      const contentParts = m.content as any[]
-      const textPart = contentParts.find((p: any) => p?.type === "text")
-      if (textPart && "text" in textPart) return textPart.text
-    }
-  }
-  return ""
-}
-
-function extractFirstListedTitle(text: string): string {
-  const raw = String(text || "")
-  const m = raw.match(/(?:^|\n)\s*1\.\s*(.+)/)
-  if (!m) return ""
-  return String(m[1] || "").replace(/\s+/g, " ").trim()
-}
-
-function isContextualFollowUpQuery(
-  text: string,
-  understanding?: QueryUnderstandingResult
-): boolean {
-  const norm = normalizeArabicLight(text)
-  const operation = understanding?.operation_intent
-  const refersToPriorResult = [
-    "اول نتيجه", "أول نتيجة", "النتيجه التي ذكرتها", "الخبر الذي ذكرته", "التي ذكرتها", "الذي ذكرته",
-    "هذا الخبر", "هذه النتيجه", "هذا العنصر", "فصل لي", "زيدني",
-    "لخصه", "لخصها", "اشرحه", "اشرحها", "ما موضوعه", "ما موضوعها", "وضح لي هذا الخبر"
-  ].some(p => norm.includes(normalizeArabicLight(p)))
-
-  const isFollowUpOperation =
-    operation === "summarize" ||
-    operation === "explain" ||
-    operation === "direct_answer" ||
-    norm.includes(normalizeArabicLight("لخص")) ||
-    norm.includes(normalizeArabicLight("اشرح"))
-  return isFollowUpOperation && refersToPriorResult
-}
 
 /**
  * Choose the primary retrieval tool for orchestrator bootstrap.
@@ -974,24 +871,6 @@ function getPostBootstrapTools(
     const name = tool.function?.name
     return typeof name === "string" && allowedUtilityTools.has(name)
   })
-}
-
-function buildAnswerShapeInstruction(text: string): string | null {
-  const norm = normalizeArabicLight(text)
-  const directOnly =
-    norm.includes(normalizeArabicLight("الجواب المباشر")) ||
-    norm.includes(normalizeArabicLight("جواب مباشر")) ||
-    norm.includes(normalizeArabicLight("فقط")) ||
-    norm.includes(normalizeArabicLight("دون عناوين")) ||
-    norm.includes(normalizeArabicLight("دون روابط"))
-  const twoLines = norm.includes(normalizeArabicLight("سطرين"))
-
-  if (!directOnly && !twoLines) return null
-
-  if (twoLines) {
-    return "تعليمات شكل الإجابة: أجب في سطرين فقط كحد أقصى، دون قوائم أو روابط أو عناوين، وبدون جملة ختامية من نوع (هل تريد تفاصيل أكثر)."
-  }
-  return "تعليمات شكل الإجابة: أعطِ الجواب المباشر فقط في جملة واحدة قصيرة، دون قوائم أو روابط أو عناوين، وبدون جملة ختامية من نوع (هل تريد تفاصيل أكثر)."
 }
 
 // ── Knowledge layer helpers ─────────────────────────────────────────
