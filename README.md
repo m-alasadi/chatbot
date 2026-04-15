@@ -1413,8 +1413,8 @@ SITE_API_BASE_URL=http://localhost:8000
 ```typescript
 {
   messages: ChatCompletionMessageParam[]  // مطلوب: سجل المحادثة
-  temperature?: number                    // اختياري: 0.0-2.0 (افتراضي: 0.7)
-  max_tokens?: number                     // اختياري: الحد الأقصى (افتراضي: 2000)
+  temperature?: number                    // اختياري: 0.0-2.0 (افتراضي: 0.5)
+  max_tokens?: number                     // اختياري: الحد الأقصى (افتراضي: 1200)
   use_tools?: boolean                     // اختياري: تفعيل الأدوات (افتراضي: true)
 }
 ```
@@ -1426,19 +1426,16 @@ SITE_API_BASE_URL=http://localhost:8000
   "messages": [
     { "role": "user", "content": "أريد مشاريع طبية" }
   ],
-  "temperature": 0.7,
-  "max_tokens": 2000,
+  "temperature": 0.5,
+  "max_tokens": 1200,
   "use_tools": true
 }
 ```
 
 **Response (Success)**:
 
-```json
-{
-  "message": "وجدت لك 5 مشاريع في قسم المشاريع الطبية...",
-  "iterations": 2
-}
+```text
+استجابة نصية متدفقة (streaming text/plain) تحتوي الإجابة النهائية مباشرة.
 ```
 
 **Response (Error)**:
@@ -1453,13 +1450,16 @@ SITE_API_BASE_URL=http://localhost:8000
 
 - `200`: نجاح
 - `400`: خطأ في البيانات المرسلة
+- `401`: إعداد أو مفتاح API غير صالح
 - `429`: تجاوز حد الطلبات (Rate Limit)
+- `503`: النموذج غير متاح حالياً
 - `500`: خطأ في السيرفر
 
 **Headers**:
 
 ```
-Content-Type: application/json
+Content-Type: text/plain; charset=utf-8  (نجاح)
+Content-Type: application/json           (أخطاء)
 Access-Control-Allow-Origin: *
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
