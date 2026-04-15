@@ -1169,7 +1169,7 @@ function scoreUnifiedItem(item: any, query: string): number {
   }
 
   if (specificTokens.length > 0 && !matchedSpecificToken && !hasSpecificNamedPhrase) {
-    score = Math.floor(score * 0.3)
+    return 0
   }
 
   // Penalty: if score only came from weak section/source_type matches
