@@ -27,6 +27,7 @@ export interface APIRequestOptions {
   params?: Record<string, string | number | boolean>
   timeout?: number // Timeout مخصص
   retries?: number // عدد محاولات مخصص
+  source?: string // وسم المصدر لأغراض التتبع وضبط الأداء
 }
 
 /**
@@ -69,7 +70,8 @@ function delay(ms: number): Promise<void> {
 async function retryOperation<T>(
   operation: () => Promise<T>,
   maxRetries: number = MAX_RETRIES,
-  delayMs: number = RETRY_DELAY_MS
+  delayMs: number = RETRY_DELAY_MS,
+  contextLabel: string = "unknown"
 ): Promise<T> {
   let lastError: Error
 
@@ -86,7 +88,7 @@ async function retryOperation<T>(
 
       // سجل المحاولة
       console.log(
-        `[API Retry] Attempt ${attempt + 1} failed. Retrying in ${delayMs}ms...`
+        `[API Retry] source=${contextLabel} attempt=${attempt + 1} retry_in_ms=${delayMs}`
       )
 
       // انتظر قبل المحاولة التالية
@@ -115,8 +117,10 @@ export async function callSiteAPI(
     body,
     params,
     timeout = API_TIMEOUT_MS,
-    retries = MAX_RETRIES
+    retries = MAX_RETRIES,
+    source
   } = options
+  const requestStartedAt = Date.now()
 
   // تغليف العملية في retry logic
   return await retryOperation(
@@ -219,8 +223,18 @@ export async function callSiteAPI(
       }
     },
     retries,
-    RETRY_DELAY_MS
-  ).catch((error: Error) => {
+    RETRY_DELAY_MS,
+    source || endpoint
+  ).then((result) => {
+    const durationMs = Date.now() - requestStartedAt
+    const slowThresholdMs = Number(process.env.SITE_API_SLOW_THRESHOLD_MS || 3500)
+    if (durationMs >= slowThresholdMs) {
+      console.log(
+        `[SiteAPI SlowPath] source=${source || "unknown"} endpoint=${endpoint} duration_ms=${durationMs} timeout_ms=${timeout} retries=${retries}`
+      )
+    }
+    return result
+  }).catch((error: Error) => {
     // إذا فشلت جميع المحاولات
     return {
       success: false,

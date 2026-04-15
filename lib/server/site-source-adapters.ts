@@ -46,6 +46,23 @@ const SOURCE_CACHE_DURATION_MS: Record<SiteSourceName, number> = {
   wahy_friday: 30 * 60 * 1000
 }
 
+const SOURCE_REQUEST_POLICY: Record<SiteSourceName, { timeout: number; retries: number }> = {
+  articles_latest: { timeout: 12000, retries: 0 },
+  videos_latest: { timeout: 14000, retries: 0 },
+  videos_categories: { timeout: 8000, retries: 0 },
+  videos_by_category: { timeout: 12000, retries: 0 },
+  shrine_history_sections: { timeout: 10000, retries: 0 },
+  shrine_history_by_section: { timeout: 14000, retries: 1 },
+  abbas_history_by_id: { timeout: 14000, retries: 1 },
+  lang_words_ar: { timeout: 7000, retries: 0 },
+  friday_sermons: { timeout: 13000, retries: 0 },
+  wahy_friday: { timeout: 13000, retries: 0 }
+}
+
+function getSourceRequestPolicy(source: SiteSourceName): { timeout: number; retries: number } {
+  return SOURCE_REQUEST_POLICY[source]
+}
+
 export const CATEGORY_INDEX_SOURCES: SiteSourceName[] = ["videos_categories", "shrine_history_sections"]
 export const EXPANDABLE_SOURCES: SiteSourceName[] = ["articles_latest", "videos_latest", "friday_sermons", "wahy_friday"]
 
@@ -329,7 +346,12 @@ export async function getSourceDocuments(
     return { success: false, error: `Skipped ${source}: missing required parameter` }
   }
 
-  const result = await callSiteAPI(endpoint)
+  const policy = getSourceRequestPolicy(source)
+  const result = await callSiteAPI(endpoint, {
+    timeout: policy.timeout,
+    retries: policy.retries,
+    source
+  })
   if (!result.success) return result
 
   const normalized = normalizeSourceDataset(source, result.data)
@@ -349,7 +371,12 @@ export async function fetchSourceMetadataRaw(
   } catch {
     return fallback
   }
-  const result = await callSiteAPI(endpoint)
+  const policy = getSourceRequestPolicy(source)
+  const result = await callSiteAPI(endpoint, {
+    timeout: policy.timeout,
+    retries: policy.retries,
+    source
+  })
   if (!result.success || !result.data || typeof result.data !== "object") return fallback
 
   const raw = result.data
@@ -392,7 +419,12 @@ export async function fetchSourcePage(
   const pagedEndpoint = endpoint.replace(/([?&])page=\d+/, `$1page=${page}`)
   if (pagedEndpoint === endpoint && page !== 1) return [] // source doesn't support pagination
 
-  const result = await callSiteAPI(pagedEndpoint)
+  const policy = getSourceRequestPolicy(source)
+  const result = await callSiteAPI(pagedEndpoint, {
+    timeout: policy.timeout,
+    retries: policy.retries,
+    source
+  })
   if (!result.success) return []
   return normalizeSourceDataset(source, result.data)
 }

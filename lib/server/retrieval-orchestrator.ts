@@ -65,8 +65,79 @@ export interface OrchestratorResult {
 interface OrchestratorOptions {
   traceId?: string
   maxAttempts?: number
+  requestBudgetMs?: number
   execute?: (toolName: AllowedToolName, args: Record<string, any>) => Promise<APICallResult>
   queryUnderstanding?: QueryUnderstandingResult
+}
+
+const DEFAULT_REQUEST_BUDGET_MS = Number(process.env.RETRIEVAL_REQUEST_BUDGET_MS || 18000)
+const MIN_ATTEMPT_TIMEOUT_MS = 1200
+const SLOW_ATTEMPT_THRESHOLD_MS = Number(process.env.RETRIEVAL_SLOW_ATTEMPT_MS || 3000)
+
+function clampRequestBudgetMs(value?: number): number {
+  const budget = Number(value)
+  if (!Number.isFinite(budget)) return DEFAULT_REQUEST_BUDGET_MS
+  return Math.max(4000, Math.min(Math.floor(budget), 60000))
+}
+
+async function executeWithTimeout<T>(
+  operation: () => Promise<T>,
+  timeoutMs: number,
+  timeoutReason: string
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutReason)), timeoutMs)
+  })
+
+  try {
+    return await Promise.race([operation(), timeoutPromise])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
+function detectEntityFirstPriority(
+  query: string,
+  understanding: QueryUnderstandingResult
+): { enabled: boolean; reason: string } {
+  const norm = normalizeQueryForTrace(query)
+  const sourceSpecific = understanding.extracted_entities.source_specific
+  const personTopics = ["زوج", "زوجات", "ابناء", "اولاد", "القاب", "كنيه", "كنية", "عمر", "تاريخ"]
+  const officeHolderSignals = ["المتولي", "الشرعي", "الامين العام", "أمين عام"]
+  const namedEventSignals = ["نداء العقيدة", "مهرجان", "فعالية", "برنامج", "مبادرة", "حملة"]
+  const singularProjectSignals = ["مشروع", "دجاج", "انتاج", "إنتاج", "زراعي", "تعليمي", "تربوي"]
+
+  const hasOfficeHolderSignal = officeHolderSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
+  const hasNamedEventSignal = namedEventSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
+  const hasPersonAttributeSignal =
+    understanding.extracted_entities.person.length > 0 &&
+    personTopics.some(s => norm.includes(normalizeQueryForTrace(s)))
+  const hasSingularProjectSignal =
+    singularProjectSignals.some(s => norm.includes(normalizeQueryForTrace(s))) &&
+    !norm.includes(normalizeQueryForTrace("مشاريع"))
+
+  if (hasOfficeHolderSignal || sourceSpecific.includes("articles_latest") && hasOfficeHolderSignal) {
+    return { enabled: true, reason: "office_holder_fact" }
+  }
+  if (hasNamedEventSignal) {
+    return { enabled: true, reason: "named_event_or_program" }
+  }
+  if (hasPersonAttributeSignal) {
+    return { enabled: true, reason: "person_attribute_fact" }
+  }
+  if (hasSingularProjectSignal || sourceSpecific.includes("projects_query")) {
+    return { enabled: true, reason: "singular_project_lookup" }
+  }
+
+  const isFactLikeOperation =
+    understanding.operation_intent === "fact_question" ||
+    understanding.operation_intent === "direct_answer"
+  if (isFactLikeOperation && understanding.extracted_entities.topic.length > 0) {
+    return { enabled: true, reason: "entity_fact_query" }
+  }
+
+  return { enabled: false, reason: "general" }
 }
 
 function getResultCount(data: any): number {
@@ -250,11 +321,17 @@ function buildPlan(
   maxAttempts: number
 ): RetrievalPlan {
   const sourceConstraint = buildSourceConstraint(query, args, understanding)
-  const uniqueSources = [...new Set(sourceConstraint.preferredSources)].slice(0, maxAttempts)
+  const entityPriority = detectEntityFirstPriority(query, understanding)
+  const orderedPreferredSources = entityPriority.enabled
+    ? sourceConstraint.preferredSources.filter(s => s !== "auto").concat("auto")
+    : sourceConstraint.preferredSources
+  const uniqueSources = [...new Set(orderedPreferredSources)].slice(0, maxAttempts)
   const attempts = uniqueSources.map((source, idx) => ({
     source,
     reason: idx === 0
-      ? "first_pass"
+      ? entityPriority.enabled
+        ? `entity_first:${entityPriority.reason}`
+        : "first_pass"
       : source === "auto"
         ? "broaden_search"
         : "retry_constrained_source"
@@ -338,8 +415,10 @@ export async function orchestrateRetrieval(
 
   const query = String(args.query || args.searchTerm || args.keyword || "").trim()
   const maxAttempts = Math.max(1, Math.min(options.maxAttempts || 3, 3))
+  const requestBudgetMs = clampRequestBudgetMs(options.requestBudgetMs)
   const understanding = options.queryUnderstanding || understandQuery(query)
   const plan = buildPlan(toolName, query, args, understanding, maxAttempts)
+  const requestStartedAt = Date.now()
 
   if (options.traceId) {
     logChatTrace({
@@ -354,7 +433,8 @@ export async function orchestrateRetrieval(
         operation_intent: understanding.operation_intent,
         route_confidence: understanding.route_confidence,
         hard_constraint: plan.sourceConstraint.hardConstraint,
-        attempt_sources: plan.attempts.map(a => a.source)
+        attempt_sources: plan.attempts.map(a => a.source),
+        request_budget_ms: requestBudgetMs
       }
     })
   }
@@ -372,6 +452,42 @@ export async function orchestrateRetrieval(
   for (let i = 0; i < plan.attempts.length; i++) {
     const attemptPlan = plan.attempts[i]
     const startedAt = Date.now()
+    const elapsedBeforeAttempt = startedAt - requestStartedAt
+    const budgetRemainingBeforeAttempt = requestBudgetMs - elapsedBeforeAttempt
+
+    if (budgetRemainingBeforeAttempt <= 0) {
+      if (options.traceId) {
+        logChatTrace({
+          trace_id: options.traceId,
+          stage: "orchestrator_budget_exhausted",
+          normalized_query: normalizeQueryForTrace(query),
+          routed_source: attemptPlan.source,
+          retry_attempts: i,
+          unavailable_reason: "request_budget_exhausted",
+          details: {
+            elapsed_ms: elapsedBeforeAttempt,
+            request_budget_ms: requestBudgetMs,
+            attempt_index: i + 1
+          }
+        })
+      }
+
+      return {
+        plan,
+        attempts,
+        finalResult: {
+          success: false,
+          error: `نفدت ميزانية الاسترجاع بعد ${elapsedBeforeAttempt}ms`
+        },
+        exhausted: true,
+        fallbackApplied,
+        lowConfidenceRejected,
+        unavailableReason: "request_budget_exhausted",
+        routedSource: attempts[attempts.length - 1]?.source,
+        resultCount: 0,
+        topScore: null
+      }
+    }
 
     if (options.traceId) {
       logChatTrace({
@@ -383,7 +499,8 @@ export async function orchestrateRetrieval(
         details: {
           tool_name: toolName,
           reason: attemptPlan.reason,
-          attempt_index: i + 1
+          attempt_index: i + 1,
+          budget_remaining_ms: budgetRemainingBeforeAttempt
         }
       })
     }
@@ -392,7 +509,15 @@ export async function orchestrateRetrieval(
       ...args,
       source: attemptPlan.source
     }
-    const result = await executeFn(toolName, attemptArgs)
+    const attemptTimeoutMs = Math.max(MIN_ATTEMPT_TIMEOUT_MS, budgetRemainingBeforeAttempt)
+    const result = await executeWithTimeout(
+      () => executeFn(toolName, attemptArgs),
+      attemptTimeoutMs,
+      `request_budget_exhausted_during_attempt:${attemptPlan.source}`
+    ).catch((error: Error) => ({
+      success: false,
+      error: error.message
+    } as APICallResult))
     lastResult = result
 
     const resultCount = getResultCount(result.data)
@@ -414,6 +539,9 @@ export async function orchestrateRetrieval(
       topScore
     }
     attempts.push(attempt)
+    const durationMs = (attempt.finishedAt || Date.now()) - startedAt
+    const elapsedAfterAttempt = (attempt.finishedAt || Date.now()) - requestStartedAt
+    const budgetRemainingAfterAttempt = requestBudgetMs - elapsedAfterAttempt
 
     if (options.traceId) {
       logChatTrace({
@@ -429,7 +557,27 @@ export async function orchestrateRetrieval(
           success: result.success,
           empty,
           rejected_low_confidence: rejection.reject,
-          rejection_reason: rejection.reason
+          rejection_reason: rejection.reason,
+          duration_ms: durationMs,
+          elapsed_ms: elapsedAfterAttempt,
+          budget_remaining_ms: Math.max(0, budgetRemainingAfterAttempt)
+        }
+      })
+    }
+
+    if (durationMs >= SLOW_ATTEMPT_THRESHOLD_MS && options.traceId) {
+      logChatTrace({
+        trace_id: options.traceId,
+        stage: "orchestrator_slow_source_path",
+        normalized_query: normalizeQueryForTrace(query),
+        routed_source: attemptPlan.source,
+        retry_attempts: i,
+        result_counts: resultCount,
+        top_score: topScore,
+        details: {
+          duration_ms: durationMs,
+          slow_threshold_ms: SLOW_ATTEMPT_THRESHOLD_MS,
+          reason: attemptPlan.reason
         }
       })
     }
@@ -475,9 +623,43 @@ export async function orchestrateRetrieval(
           retry_attempts: i + 1,
           details: {
             from_source: attemptPlan.source,
-            to_source: plan.attempts[i + 1].source
+            to_source: plan.attempts[i + 1].source,
+            trigger_reason: rejection.reject
+              ? (rejection.reason || "low_confidence")
+              : (empty ? "empty_result" : (result.success ? "insufficient_result" : "api_failure"))
           }
         })
+      }
+    }
+
+    if (budgetRemainingAfterAttempt <= 0) {
+      if (options.traceId) {
+        logChatTrace({
+          trace_id: options.traceId,
+          stage: "orchestrator_budget_exhausted",
+          normalized_query: normalizeQueryForTrace(query),
+          routed_source: attemptPlan.source,
+          retry_attempts: i,
+          unavailable_reason: "request_budget_exhausted",
+          details: {
+            elapsed_ms: elapsedAfterAttempt,
+            request_budget_ms: requestBudgetMs,
+            attempt_index: i + 1
+          }
+        })
+      }
+
+      return {
+        plan,
+        attempts,
+        finalResult: result,
+        exhausted: true,
+        fallbackApplied,
+        lowConfidenceRejected,
+        unavailableReason: "request_budget_exhausted",
+        routedSource: attemptPlan.source,
+        resultCount,
+        topScore
       }
     }
   }

@@ -512,6 +512,7 @@ async function processToolCall(
       args,
       {
         traceId: context.traceId,
+        requestBudgetMs: Number(process.env.RETRIEVAL_REQUEST_BUDGET_MS || 18000),
         queryUnderstanding: retrievalUnderstanding
       }
     )
@@ -551,6 +552,19 @@ async function processToolCall(
     if (normQ.includes(normalizeArabicLight("نداء العقيدة"))) {
       const relaxedQuery = args.query.replace(/نداء\s+العقيدة/g, "العقيدة")
       if (relaxedQuery !== args.query) {
+        if (context.traceId) {
+          logChatTrace({
+            trace_id: context.traceId,
+            stage: "retrieval_relaxed_retry",
+            normalized_query: normalizeQueryForTrace(String(args.query || "")),
+            routed_source: args.source,
+            details: {
+              reason: "named_event_phrase_relaxation",
+              original_query: args.query,
+              relaxed_query: relaxedQuery
+            }
+          })
+        }
         const relaxedResult = await executeToolByName(
           toolName as AllowedToolName,
           { ...args, query: relaxedQuery, source: args.source || "auto" }
@@ -566,6 +580,19 @@ async function processToolCall(
     const fallbackQuery = String(args.query || context.userQuery || "")
     const deterministicFallback = buildDeterministicFactFallback(fallbackQuery)
     if (deterministicFallback) {
+      if (context.traceId) {
+        logChatTrace({
+          trace_id: context.traceId,
+          stage: "deterministic_fallback_applied",
+          normalized_query: normalizeQueryForTrace(fallbackQuery),
+          routed_source: "deterministic_fallback",
+          unavailable_reason: "empty_results",
+          details: {
+            fallback_id: deterministicFallback.id,
+            reason: "empty_results_after_retrieval"
+          }
+        })
+      }
       result = {
         success: true,
         data: {
@@ -610,6 +637,21 @@ async function processToolCall(
 
   if (result.success && isEmptyAPIResponse(result.data)) {
     console.log(`[Function Call] Empty results detected after retries, generating suggestions`)
+
+    if (context.traceId) {
+      logChatTrace({
+        trace_id: context.traceId,
+        stage: "empty_results_fallback",
+        normalized_query: normalizeQueryForTrace(String(args.query || context.userQuery || "")),
+        routed_source: args.source,
+        retry_attempts: context.retryCounter?.count || 0,
+        unavailable_reason: "empty_results_after_retries",
+        details: {
+          tool_name: toolName,
+          attempted_action: toolName
+        }
+      })
+    }
     
     // استخرج query من المعاملات
     const query = args.query || args.searchTerm || args.keyword || ""
@@ -640,6 +682,20 @@ async function processToolCall(
   // معالجة الأخطاء مع اقتراحات
   if (!result.success) {
     console.error(`[Function Call] API Error:`, result.error)
+
+    if (context.traceId) {
+      logChatTrace({
+        trace_id: context.traceId,
+        stage: "tool_error_fallback",
+        normalized_query: normalizeQueryForTrace(String(args.query || context.userQuery || "")),
+        routed_source: args.source,
+        retry_attempts: context.retryCounter?.count || 0,
+        unavailable_reason: String(result.error || "tool_execution_failed"),
+        details: {
+          tool_name: toolName
+        }
+      })
+    }
     
     const errorSuggestions = generateAPIErrorSuggestions()
     

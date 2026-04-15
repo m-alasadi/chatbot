@@ -9,23 +9,47 @@ function normalizeArabicLight(text: string): string {
     .trim()
 }
 
+function includesAny(norm: string, candidates: string[]): boolean {
+  return candidates.some(c => norm.includes(normalizeArabicLight(c)))
+}
+
+function hasAbbasPersonSignal(norm: string): boolean {
+  return includesAny(norm, ["ابي الفضل", "أبي الفضل", "ابو الفضل", "أبو الفضل", "العباس"])
+}
+
+function hasOfficeHolderSignal(norm: string): boolean {
+  return includesAny(norm, ["المتولي", "الشرعي"])
+}
+
+/**
+ * Guardrail catalog keeps deterministic patches discoverable and reviewable
+ * so runtime stability fixes don't silently grow into many one-off detectors.
+ */
+export const DETERMINISTIC_RULE_AUDIT: Array<{
+  id: string
+  classification: "generalized_capability" | "temporary_stabilization_patch" | "risky_overfitting"
+}> = [
+  { id: "office_holder_fact", classification: "generalized_capability" },
+  { id: "abbas_children_fact", classification: "generalized_capability" },
+  { id: "abbas_who_is_shape_stability", classification: "temporary_stabilization_patch" },
+  { id: "singular_food_project_direct_answer", classification: "temporary_stabilization_patch" }
+]
+
 export function isOfficeHolderFactQuery(text: string): boolean {
   const norm = normalizeArabicLight(text)
-  return norm.includes("المتولي") && norm.includes("الشرعي")
+  return hasOfficeHolderSignal(norm)
 }
 
 export function isAbbasChildrenQuery(text: string): boolean {
   const norm = normalizeArabicLight(text)
-  const asksChildren = ["ابناء", "أبناء", "اولاد", "أولاد"].some(t => norm.includes(normalizeArabicLight(t)))
-  const isAbbas = ["ابي الفضل", "أبي الفضل", "ابو الفضل", "العباس"].some(t => norm.includes(normalizeArabicLight(t)))
-  return asksChildren && isAbbas
+  const asksChildren = includesAny(norm, ["ابناء", "أبناء", "اولاد", "أولاد"])
+  return asksChildren && hasAbbasPersonSignal(norm)
 }
 
-function isAbbasWhoIsQuery(text: string): boolean {
+function isAbbasBiographyWhoIsQuery(text: string): boolean {
   const norm = normalizeArabicLight(text)
-  const asksWho = ["من هو", "من هي"].some(t => norm.includes(normalizeArabicLight(t)))
-  const isAbbas = ["ابي الفضل", "أبي الفضل", "ابو الفضل", "العباس"].some(t => norm.includes(normalizeArabicLight(t)))
-  return asksWho && isAbbas
+  const asksWho = includesAny(norm, ["من هو", "من هي"])
+  return asksWho && hasAbbasPersonSignal(norm)
 }
 
 export function buildDeterministicFactFallback(query: string): any | null {
@@ -53,7 +77,7 @@ export function buildDeterministicFactFallback(query: string): any | null {
 }
 
 export function getDeterministicDirectAnswer(query: string): string | null {
-  if (isAbbasWhoIsQuery(query)) {
+  if (isAbbasBiographyWhoIsQuery(query)) {
     return "أبو الفضل العباس بن علي (عليه السلام) هو ابن الإمام علي بن أبي طالب (عليه السلام) وأخو الإمام الحسن والإمام الحسين، ويُعرف بلقب قمر بني هاشم وساقي عطاشى كربلاء."
   }
 
