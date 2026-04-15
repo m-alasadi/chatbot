@@ -787,6 +787,25 @@ function looksLikeSiteContentQuery(text: string): boolean {
     || (text.trim().length >= 25 && !text.includes("?") && !text.includes("\u061F"))
 }
 
+function hasPriorAssistantContext(messages: ChatCompletionMessageParam[]): boolean {
+  return messages.some(m => m.role === "assistant")
+}
+
+function isContextualFollowUpQuery(
+  text: string,
+  understanding?: QueryUnderstandingResult
+): boolean {
+  const norm = normalizeArabicLight(text)
+  const operation = understanding?.operation_intent
+  const refersToPriorResult = [
+    "اول نتيجه", "أول نتيجة", "النتيجه التي ذكرتها", "الخبر الذي ذكرته", "التي ذكرتها", "الذي ذكرته",
+    "هذا الخبر", "هذه النتيجه", "هذا العنصر", "فصل لي", "زيدني"
+  ].some(p => norm.includes(normalizeArabicLight(p)))
+
+  const isFollowUpOperation = operation === "summarize" || operation === "explain"
+  return isFollowUpOperation && refersToPriorResult
+}
+
 /**
  * Choose the primary retrieval tool for orchestrator bootstrap.
  * Project-style requests should use search_projects, otherwise search_content.
@@ -844,16 +863,16 @@ function shouldUseKnowledgeLayer(
 ): boolean {
   const norm = normalizeArabicLight(text)
 
+  // Abbas biographical queries always use the knowledge layer —
+  // even when "عدد/كم" is present (e.g. "عدد زوجات العباس").
+  if (isAbbasBiographyQuery(text)) return true
+
   if (understanding) {
     const op = understanding.operation_intent
     if (op === "count" || op === "latest" || op === "list_items" || op === "browse") {
       return false
     }
   }
-
-  // Abbas biographical queries always use the knowledge layer —
-  // even when "عدد/كم" is present (e.g. "عدد ألقاب أبو الفضل" is biographical, not a count of API items)
-  if (isAbbasBiographyQuery(text)) return true
 
   // Skip: counts, metadata, category listing, latest/oldest
   const skipPatterns = [
@@ -1205,6 +1224,40 @@ export async function resolveToolCalls(
   // Forced tool intent: deterministic routing for count/metadata/oldest only.
   const userQueryForIntent = getLastUserMessage(messages)
   const queryUnderstanding = understandQuery(userQueryForIntent)
+  const isContextualFollowUp =
+    isContextualFollowUpQuery(userQueryForIntent, queryUnderstanding) &&
+    hasPriorAssistantContext(messages)
+
+  if (isContextualFollowUp) {
+    if (options.traceId) {
+      logChatTrace({
+        trace_id: options.traceId,
+        stage: "follow_up_context_mode",
+        normalized_query: normalizeQueryForTrace(userQueryForIntent),
+        details: {
+          operation_intent: queryUnderstanding.operation_intent,
+          content_intent: queryUnderstanding.content_intent
+        }
+      })
+    }
+
+    currentMessages.push({
+      role: "system",
+      content:
+        "السؤال الحالي متابعة على نتائج سابقة في نفس المحادثة. لخص أو اشرح اعتماداً على آخر نتيجة سبق أن عرضتها أنت، ولا تبدأ بحثاً جديداً ما دام السياق السابق كافياً. إذا لم تجد نتيجة سابقة واضحة، اطلب من المستخدم إعادة النتيجة المراد تلخيصها." 
+    })
+
+    return {
+      resolvedMessages: currentMessages,
+      needsFinalCall: true,
+      iterations: 0,
+      trace: {
+        ...traceSummary,
+        retry_attempts: retryCounter.count
+      }
+    }
+  }
+
   const forcedIntent = detectForcedToolIntent(userQueryForIntent, queryUnderstanding)
   if (options.traceId) {
     logChatTrace({

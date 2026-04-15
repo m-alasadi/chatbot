@@ -1,9 +1,9 @@
 {
-  "run_id": "pr11_2026-04-15T07-31-46-893Z",
-  "timestamp": "2026-04-15T07:31:46.893Z",
+  "run_id": "pr11_2026-04-15T07-28-46-008Z",
+  "timestamp": "2026-04-15T07:28:46.008Z",
   "base_url": "http://localhost:3001",
-  "overall_passed": true,
-  "passed_categories": 13,
+  "overall_passed": false,
+  "passed_categories": 12,
   "total_categories": 13,
   "categories": [
     {
@@ -397,10 +397,10 @@
       "threshold": {
         "minPassRate": 1
       },
-      "pass_rate": 1,
-      "passed_checks": 2,
+      "pass_rate": 0.5,
+      "passed_checks": 1,
       "total_checks": 2,
-      "passed": true,
+      "passed": false,
       "meta": {
         "queries": [
           "اعرض أحدث فيديوهات العتبة",
@@ -415,8 +415,8 @@
         },
         {
           "id": "follow_up_has_grounding_overlap",
-          "passed": true,
-          "value": "سماحه"
+          "passed": false,
+          "value": "الفيديوهات:"
         }
       ]
     }

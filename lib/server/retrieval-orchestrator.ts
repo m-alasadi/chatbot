@@ -179,7 +179,9 @@ function buildSourceConstraint(
       }
     default:
       if (understanding.hinted_sources.length > 0) {
-        const preferred = [...new Set(understanding.hinted_sources)].slice(0, 3)
+        const hintedWithoutAuto = understanding.hinted_sources.filter(s => s !== "auto")
+        const preferredBase = [...new Set(hintedWithoutAuto)].slice(0, 3)
+        const preferred = [...preferredBase, "auto"]
         return {
           intent,
           hardConstraint: false,

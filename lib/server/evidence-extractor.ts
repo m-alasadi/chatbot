@@ -339,11 +339,60 @@ export function formatGroundedAnswer(
     normQuery.includes("من هي") ||
     normQuery.includes("ما هو") ||
     normQuery.includes("ما هي") ||
+    normQuery.includes("ما اسم") ||
+    normQuery.includes("اين") ||
+    normQuery.includes("متي") ||
+    normQuery.includes("كم") ||
+    normQuery.includes("عدد") ||
+    normQuery.includes("هل") ||
     normQuery.includes("نبذه") ||
     normQuery.includes("سيره")
 
+  const isOfficeHolderQuery =
+    normQuery.includes("المتولي") ||
+    normQuery.includes("المتولي الشرعي")
+
+  const isLocationQuery = normQuery.includes("اين")
+
+  const extractOfficeHolderName = (): string | null => {
+    const pool = evidenceList
+      .slice(0, 3)
+      .map(e => `${e.quote} ${e.source_title}`)
+      .join(" ")
+      .replace(/\s+/g, " ")
+
+    const nameRegex = /(السيد|سماحه العلامه السيد|سماحة العلامة السيد|الشيخ)\s+[\u0621-\u064A]{2,}(?:\s+[\u0621-\u064A]{2,}){1,3}/
+    const match = pool.match(nameRegex)
+    return match ? match[0].replace(/\s+/g, " ").trim() : null
+  }
+
+  const extractLocationPhrase = (quote: string): string | null => {
+    const normalizedQuote = String(quote || "").replace(/\s+/g, " ")
+    const locRegex = /(في\s+[\u0621-\u064A\s]{3,40})/
+    const match = normalizedQuote.match(locRegex)
+    return match ? match[1].trim() : null
+  }
+
   if (!isProjectStyleQuery && isFactStyleQuery && evidenceList.length > 0) {
     const top = evidenceList[0]
+    if (isOfficeHolderQuery) {
+      const holder = extractOfficeHolderName()
+      if (holder) {
+        const src = top.source_title ? ` المصدر: ${top.source_title}.` : ""
+        const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
+        return `اسم المتولي الشرعي للعتبة العباسية هو ${holder}.${src}${url} هل تريد تفاصيل أكثر؟`
+      }
+    }
+
+    if (isLocationQuery) {
+      const location = extractLocationPhrase(top.quote)
+      if (location) {
+        const src = top.source_title ? ` المصدر: ${top.source_title}.` : ""
+        const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
+        return `بحسب ما ورد في المصادر، ${location}.${src}${url} هل تريد تفاصيل أكثر؟`
+      }
+    }
+
     const quote = String(top.quote || "").replace(/\s+/g, " ").trim()
     const source = top.source_title ? ` المصدر: ${top.source_title}.` : ""
     const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""

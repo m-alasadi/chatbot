@@ -1,9 +1,9 @@
 PR11 Arabic Eval Suite Report
-Run ID: pr11_2026-04-15T07-31-46-893Z
+Run ID: pr11_2026-04-15T07-28-46-008Z
 Base URL: http://localhost:3001
-Timestamp: 2026-04-15T07:31:46.893Z
+Timestamp: 2026-04-15T07:28:46.008Z
 
-Overall: PASS (13/13 categories passed)
+Overall: FAIL (12/13 categories passed)
 
 Category Summary:
 - repeated_question_stability [runtime] => PASS | pass_rate=1 | threshold>=1
@@ -18,7 +18,7 @@ Category Summary:
 - office_holder_facts [runtime] => PASS | pass_rate=1 | threshold>=1
 - named_event_lookup [runtime] => PASS | pass_rate=1 | threshold>=1
 - singular_project_queries [runtime] => PASS | pass_rate=1 | threshold>=1
-- follow_up_grounding [runtime] => PASS | pass_rate=1 | threshold>=1
+- follow_up_grounding [runtime] => FAIL | pass_rate=0.5 | threshold>=1
 
 Detailed Checks:
 * repeated_question_stability
@@ -69,4 +69,4 @@ Detailed Checks:
   - singular_project_mentions_query_domain: PASS
 * follow_up_grounding
   - follow_up_not_unavailable: PASS
-  - follow_up_has_grounding_overlap: PASS | سماحه
+  - follow_up_has_grounding_overlap: FAIL | الفيديوهات:

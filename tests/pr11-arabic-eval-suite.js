@@ -25,7 +25,12 @@ const CATEGORY_THRESHOLDS = {
   biography_vs_shrine_history: { minPassRate: 1.0 },
   wahy_vs_friday_sermon: { minPassRate: 1.0 },
   project_vs_generic_content: { minPassRate: 1.0 },
-  arabic_entity_variation_normalization: { minPassRate: 0.67 }
+  arabic_entity_variation_normalization: { minPassRate: 0.67 },
+  person_attribute_facts: { minPassRate: 1.0 },
+  office_holder_facts: { minPassRate: 1.0 },
+  named_event_lookup: { minPassRate: 1.0 },
+  singular_project_queries: { minPassRate: 1.0 },
+  follow_up_grounding: { minPassRate: 1.0 }
 }
 
 function ensureDir(dirPath) {
@@ -97,6 +102,10 @@ async function readBody(response) {
 }
 
 async function ask(query) {
+  return await askWithMessages([{ role: "user", content: query }])
+}
+
+async function askWithMessages(messages) {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
@@ -106,7 +115,7 @@ async function ask(query) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: [{ role: "user", content: query }],
+        messages,
         use_tools: true,
         temperature: 0.5,
         max_tokens: 1200
@@ -115,7 +124,7 @@ async function ask(query) {
     })
   } catch (error) {
     if (error && error.name === "AbortError") {
-      throw new Error(`request timeout after ${REQUEST_TIMEOUT_MS}ms for query: ${query}`)
+      throw new Error(`request timeout after ${REQUEST_TIMEOUT_MS}ms`)
     }
     throw error
   } finally {
@@ -131,6 +140,18 @@ async function ask(query) {
     throw new Error("empty response body")
   }
   return String(body)
+}
+
+function pickFirstUsefulToken(text) {
+  const stop = new Set(["وجدت", "لك", "نتائج", "من", "الفيديوهات", "الأخبار", "المصدر", "هل", "تريد", "تفاصيل", "أكثر"])
+  const tokens = tokenize(text).filter(t => t.length >= 3 && !stop.has(t))
+  return tokens[0] || ""
+}
+
+function extractFirstListedItemTitle(text) {
+  const raw = String(text || "")
+  const m = raw.match(/(?:^|\n)\s*1\.\s*(.+)/)
+  return m ? m[1].trim() : ""
 }
 
 function summarizeCategory(categoryId, mode, checks, meta = {}) {
@@ -386,6 +407,120 @@ async function evalArabicEntityVariationNormalization() {
   })
 }
 
+async function evalPersonAttributeFacts() {
+  const query = "عدد لي زوجات العباس"
+  const response = await ask(query)
+
+  const checks = [
+    {
+      id: "person_attribute_not_unavailable",
+      passed: !hasUnavailable(response),
+      value: query
+    },
+    {
+      id: "person_attribute_has_relevant_signal",
+      passed: hasAny(response, ["زوج", "زوجة", "زوجات", "العباس", "أم البنين", "لبابة"]),
+      value: null
+    }
+  ]
+
+  return summarizeCategory("person_attribute_facts", "runtime", checks, { query })
+}
+
+async function evalOfficeHolderFacts() {
+  const query = "ما اسم المتولي الشرعي للعتبة العباسية"
+  const response = await ask(query)
+
+  const checks = [
+    {
+      id: "office_holder_not_unavailable",
+      passed: !hasUnavailable(response),
+      value: query
+    },
+    {
+      id: "office_holder_has_name_signal",
+      passed: hasAny(response, ["السيد", "أحمد", "الصافي", "المتولي الشرعي"]),
+      value: null
+    }
+  ]
+
+  return summarizeCategory("office_holder_facts", "runtime", checks, { query })
+}
+
+async function evalNamedEventLookup() {
+  const query = "أين يقام نداء العقيدة"
+  const response = await ask(query)
+
+  const checks = [
+    {
+      id: "named_event_not_unavailable",
+      passed: !hasUnavailable(response),
+      value: query
+    },
+    {
+      id: "named_event_has_event_or_location_signal",
+      passed: hasAny(response, ["نداء العقيدة", "يقام", "في", "كربلاء", "الصحن", "العتبة"]),
+      value: null
+    }
+  ]
+
+  return summarizeCategory("named_event_lookup", "runtime", checks, { query })
+}
+
+async function evalSingularProjectQueries() {
+  const query = "هل للعتبة العباسية مشروع دجاج"
+  const response = await ask(query)
+
+  const checks = [
+    {
+      id: "singular_project_not_unavailable",
+      passed: !hasUnavailable(response),
+      value: query
+    },
+    {
+      id: "singular_project_mentions_query_domain",
+      passed: hasAny(response, ["دجاج", "مشروع", "العتبة"]),
+      value: null
+    }
+  ]
+
+  return summarizeCategory("singular_project_queries", "runtime", checks, { query })
+}
+
+async function evalFollowUpGrounding() {
+  const firstQuery = "اعرض أحدث فيديوهات العتبة"
+  const firstResponse = await ask(firstQuery)
+
+  const followUpQuery = "لخص لي أول نتيجة ذكرتها"
+  const followUpResponse = await askWithMessages([
+    { role: "user", content: firstQuery },
+    { role: "assistant", content: firstResponse },
+    { role: "user", content: followUpQuery }
+  ])
+
+  const firstItemTitle = extractFirstListedItemTitle(firstResponse)
+  const anchorToken = pickFirstUsefulToken(firstItemTitle || firstResponse)
+
+  const checks = [
+    {
+      id: "follow_up_not_unavailable",
+      passed: !hasUnavailable(followUpResponse),
+      value: null
+    },
+    {
+      id: "follow_up_has_grounding_overlap",
+      passed: anchorToken
+        ? normalizeArabic(followUpResponse).includes(normalizeArabic(anchorToken))
+        : jaccardSimilarity(firstResponse, followUpResponse) >= 0.1,
+      value: anchorToken || Number(jaccardSimilarity(firstResponse, followUpResponse).toFixed(3))
+    }
+  ]
+
+  return summarizeCategory("follow_up_grounding", "runtime", checks, {
+    queries: [firstQuery, followUpQuery]
+  })
+}
+
 function formatTextReport(report) {
   const lines = []
   lines.push("PR11 Arabic Eval Suite Report")
@@ -429,7 +564,12 @@ async function run() {
     { id: "biography_vs_shrine_history", fn: evalBiographyVsShrineHistory },
     { id: "wahy_vs_friday_sermon", fn: evalWahyVsFridaySermon },
     { id: "project_vs_generic_content", fn: evalProjectVsGenericContent },
-    { id: "arabic_entity_variation_normalization", fn: evalArabicEntityVariationNormalization }
+    { id: "arabic_entity_variation_normalization", fn: evalArabicEntityVariationNormalization },
+    { id: "person_attribute_facts", fn: evalPersonAttributeFacts },
+    { id: "office_holder_facts", fn: evalOfficeHolderFacts },
+    { id: "named_event_lookup", fn: evalNamedEventLookup },
+    { id: "singular_project_queries", fn: evalSingularProjectQueries },
+    { id: "follow_up_grounding", fn: evalFollowUpGrounding }
   ]
 
   const categories = []

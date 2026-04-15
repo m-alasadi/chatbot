@@ -330,6 +330,30 @@ function tokenizeArabicQuery(query: string): string[] {
     .filter(w => w.length >= 2)
 }
 
+function extractNamedPhrase(query: string): string {
+  const norm = normalizeArabic(query)
+  const removablePrefixes = [
+    "ما اسم", "من هو", "من هي", "اين يقام", "اين", "هل", "كم", "عدد لي", "عدد", "لخص لي", "اشرح لي"
+  ]
+
+  let cleaned = norm
+  for (const prefix of removablePrefixes) {
+    if (cleaned.startsWith(normalizeArabic(prefix))) {
+      cleaned = cleaned.substring(normalizeArabic(prefix).length).trim()
+      break
+    }
+  }
+
+  const removableFillers = ["لعتبه", "للعتبه", "العتبه", "العباسيه", "العباسية", "من", "عن", "في", "على", "هل", "يوجد"]
+  const tokens = cleaned
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter(t => !removableFillers.includes(t))
+
+  if (tokens.length < 2) return ""
+  return tokens.slice(0, 4).join(" ")
+}
+
 /**
  * Detect whether the query looks like a (partial) article title rather than a question.
  * Title-like queries are long Arabic phrases without interrogative structure.
@@ -1103,19 +1127,34 @@ function scoreUnifiedItem(item: any, query: string): number {
   if (!normQ) return 1
 
   const tokens = tokenizeArabicQuery(query)
+  const namedPhrase = extractNamedPhrase(query)
   const fields = getItemSearchFields(item)
   let score = 0
   let matchedTokenCount = 0
+  let hasSpecificNamedPhrase = false
+
+  const genericTokens = new Set(["ما", "اسم", "من", "هو", "هي", "هل", "اين", "يقام", "كم", "عدد", "لي", "عن", "في", "على", "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع"])
+  const specificTokens = tokens.filter(t => !genericTokens.has(t))
+  let matchedSpecificToken = false
 
   for (const { text, weight } of fields) {
     if (!text) continue
     // Full query match — highest boost
     if (text.includes(normQ)) score += weight * 4
+
+    if (namedPhrase && text.includes(namedPhrase)) {
+      score += weight * 6
+      hasSpecificNamedPhrase = true
+    }
+
     // Per-token matching
     for (const tok of tokens) {
       if (text.includes(tok)) {
         score += weight
         matchedTokenCount++
+        if (!matchedSpecificToken && specificTokens.includes(tok)) {
+          matchedSpecificToken = true
+        }
       }
     }
   }
@@ -1123,6 +1162,14 @@ function scoreUnifiedItem(item: any, query: string): number {
   // Bonus when ALL tokens matched somewhere
   if (tokens.length > 1 && matchedTokenCount >= tokens.length) {
     score += 8
+  }
+
+  if (hasSpecificNamedPhrase) {
+    score += 10
+  }
+
+  if (specificTokens.length > 0 && !matchedSpecificToken && !hasSpecificNamedPhrase) {
+    score = Math.floor(score * 0.3)
   }
 
   // Penalty: if score only came from weak section/source_type matches
@@ -1500,6 +1547,30 @@ function rankCandidateSources(query: string, params: SourceFetchParams = {}): Si
 
     scores.push({ source: "friday_sermons", score: 6 + sermonBoost + sermonBias })
     scores.push({ source: "wahy_friday", score: 5 + sermonBoost + wahyBias })
+  }
+
+  // Office-holder facts + named initiatives/events
+  const officeHolderHints = ["المتولي", "المتولي الشرعي", "الامين العام", "امين عام", "مسؤول"]
+  const officeBoost = officeHolderHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 7 : 0), 0)
+  if (officeBoost > 0) {
+    scores.push({ source: "articles_latest", score: 8 + officeBoost })
+    scores.push({ source: "shrine_history_sections", score: 6 + officeBoost })
+  }
+
+  const namedEventHints = ["نداء العقيده", "نداء العقيدة", "مهرجان", "فعاليه", "فعالية", "مبادره", "مبادرة", "برنامج"]
+  const eventBoost = namedEventHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 7 : 0), 0)
+  if (eventBoost > 0) {
+    scores.push({ source: "articles_latest", score: 8 + eventBoost })
+    scores.push({ source: "videos_latest", score: 7 + eventBoost })
+    scores.push({ source: "wahy_friday", score: 5 + eventBoost })
+    scores.push({ source: "friday_sermons", score: 5 + eventBoost })
+  }
+
+  const singularProjectHints = ["مشروع ", "مشروع", "دجاج", "زراعي", "انتاج", "إنتاج", "تربية"]
+  const projectBoost = singularProjectHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 5 : 0), 0)
+  if (projectBoost > 0) {
+    scores.push({ source: "articles_latest", score: 7 + projectBoost })
+    scores.push({ source: "videos_latest", score: 5 + projectBoost })
   }
 
   // Language signals
