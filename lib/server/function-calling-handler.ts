@@ -50,6 +50,12 @@ import {
   buildDeterministicFactFallback,
   getDeterministicDirectAnswer,
 } from "./runtime/answer-shape-policy"
+import { detectForcedUtilityIntent } from "./runtime/forced-utility-routing-policy"
+import {
+  getPostBootstrapTools,
+  getPrimaryRetrievalToolForQuery,
+  looksLikeSiteContentQuery,
+} from "./runtime/retrieval-bootstrap-policy"
 
 // ── Light Arabic normalization for intent detection ────────────────
 function normalizeArabicLight(text: string): string {
@@ -102,93 +108,6 @@ function isAbbasBiographyQuery(text: string): boolean {
   if (biographyPatterns.some(p => norm.includes(p))) return true
 
   return false
-}
-
-function detectForcedToolIntent(
-  userText: string,
-  understanding?: QueryUnderstandingResult
-): { tool: AllowedToolName; args: Record<string, any> } | null {
-  const norm = normalizeArabicLight(userText)
-
-  const newsHints = ["اخبار", "خبر", "مقال", "مقالات"]
-  const videoHints = ["فيديو", "فديو", "فيديوهات", "مقاطع", "مرئي"]
-  const wahyFridayHints = ["وحي الجمعه", "من وحي", "وحي"]
-  const sermonHints = ["خطبه", "خطب", "جمعه", "خطيب", "منبر", "صلاه الجمعه", "صلاه جمعه"]
-  const isNews = newsHints.some(h => norm.includes(h))
-  const isVideo = videoHints.some(h => norm.includes(h))
-  const isWahyFriday = wahyFridayHints.some(h => norm.includes(h))
-  const isSermon = sermonHints.some(h => norm.includes(h))
-
-  const understoodNews = understanding?.content_intent === "news"
-  const understoodVideo = understanding?.content_intent === "video"
-  const understoodWahy = understanding?.content_intent === "wahy"
-  const understoodSermon = understanding?.content_intent === "sermon"
-  const isCountIntent = understanding?.operation_intent === "count"
-  const isLatestIntent = understanding?.operation_intent === "latest"
-  const isListIntent = understanding?.operation_intent === "list_items"
-  const isBrowseIntent = understanding?.operation_intent === "browse"
-  const isExplicitTopNewsRequest =
-    (isNews || understoodNews) &&
-    !(isVideo || understoodVideo) &&
-    (
-      norm.includes(normalizeArabicLight("ابرز")) ||
-      norm.includes(normalizeArabicLight("اليوم"))
-    )
-
-  // 1. Source-specific count → get_source_metadata
-  // But NOT for biographical queries like "عدد ألقاب العباس" — those go to knowledge layer
-  const countKeywords = ["عدد", "كم", "اجمالي", "كلي", "مجموع"]
-  if ((isCountIntent || countKeywords.some(k => norm.includes(k))) && !isAbbasBiographyQuery(userText)) {
-    if (isWahyFriday || understoodWahy) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "wahy_friday" } }
-    if (isSermon || understoodSermon) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "friday_sermons" } }
-    if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
-    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "videos_latest" } }
-  }
-
-  // 2. Metadata / descriptive info → get_source_metadata
-  const metaKeywords = ["معلومات وصفيه", "وصفي", "ميتاداتا"]
-  if (metaKeywords.some(k => norm.includes(k))) {
-    if (isNews || (!isVideo && norm.includes("مصدر"))) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "articles_latest" } }
-    if (isVideo) return { tool: "get_source_metadata" as AllowedToolName, args: { source: "videos_latest" } }
-  }
-
-  // 3. Oldest / first → browse_source_page with order=oldest
-  const oldestKeywords = ["اول", "اقدم", "oldest", "first"]
-  if (isBrowseIntent || oldestKeywords.some(k => norm.includes(k))) {
-    if (isWahyFriday || understoodWahy) return { tool: "browse_source_page" as AllowedToolName, args: { source: "wahy_friday", page: 1, order: "oldest" } }
-    if (isSermon || understoodSermon) return { tool: "browse_source_page" as AllowedToolName, args: { source: "friday_sermons", page: 1, order: "oldest" } }
-    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "browse_source_page" as AllowedToolName, args: { source: "videos_latest", page: 1, order: "oldest" } }
-    if (isNews || understoodNews || norm.includes("نشر") || norm.includes("موقع")) {
-      return { tool: "browse_source_page" as AllowedToolName, args: { source: "articles_latest", page: 1, order: "oldest" } }
-    }
-  }
-
-  // 4. Explicit latest listing requests (utility listing, not semantic retrieval)
-  const latestKeywords = ["احدث", "اخر", "آخر", "الجديد", "احدث ", "اخر "]
-  const explicitListingWords = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
-  const isExplicitLatestListing =
-    (isLatestIntent || latestKeywords.some(k => norm.includes(normalizeArabicLight(k)))) &&
-    (isListIntent || explicitListingWords.some(k => norm.includes(normalizeArabicLight(k))))
-
-  if (isExplicitLatestListing) {
-    if (isWahyFriday || understoodWahy) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "wahy_friday", limit: 5 } }
-    if (isSermon || understoodSermon) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "friday_sermons", limit: 5 } }
-    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "videos_latest", limit: 5 } }
-    if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_latest_by_source" as AllowedToolName, args: { source: "articles_latest", limit: 5 } }
-  }
-
-  // 5. Explicit top-news requests (e.g. "ما أبرز أخبار العتبة اليوم")
-  // must stay on news source and return list-shaped news output.
-  if (isExplicitTopNewsRequest) {
-    return {
-      tool: "get_latest_by_source" as AllowedToolName,
-      args: { source: "articles_latest", limit: 5 }
-    }
-  }
-
-  // Compatibility-only forced routing:
-  // keep deterministic non-search flows here; retrieval routing is owned by orchestrator.
-  return null
 }
 
 /**
@@ -793,86 +712,6 @@ export async function handleToolCalls(
  * الجاهزة ليقوم route.ts بالاستدعاء الأخير كـ stream مباشرة للمستخدم
  */
 
-/** Detect whether a user message is asking about site content (news, videos, history, etc.) */
-function looksLikeSiteContentQuery(text: string): boolean {
-  if (!text || text.trim().length < 4) return false
-  const norm = text.trim().toLowerCase()
-
-  // Skip short greetings / trivial chat
-  const greetings = ["مرحبا", "اهلا", "سلام", "هلا", "hi", "hello", "hey", "شكرا", "thanks"]
-  if (greetings.some(g => norm === g || norm === g + "!")) return false
-
-  // Positive signals: keywords that suggest site-content retrieval
-  const contentSignals = [
-    "خبر", "اخبار", "مقال", "مقالات", "فيديو", "فديو", "تاريخ",
-    "العتبه", "العباس", "الكفيل", "عتبه", "عباس",
-    "قاموس", "ترجم", "كلم", "مصطلح",
-    "اقسام", "تصنيف", "فئ",
-    "احدث", "اخر", "جديد",
-    "ابحث", "بحث", "اريد", "اعرف", "عايز",
-    "ماهو", "ماهي", "ما هو", "ما هي", "ماذا",
-    "شنو", "شنهو", "شكد",
-    "زيار", "حرم", "صحن", "ضريح", "مرقد",
-    "مشروع", "مشاريع", "المشاريع",
-    "خطبه", "خطب", "جمعه", "وحي", "خطيب", "منبر"
-  ]
-
-  return contentSignals.some(signal => norm.includes(signal))
-    // Long Arabic text without question marks → likely a title paste or direct content query
-    || (text.trim().length >= 25 && !text.includes("?") && !text.includes("\u061F"))
-}
-
-
-/**
- * Choose the primary retrieval tool for orchestrator bootstrap.
- * Project-style requests should use search_projects, otherwise search_content.
- */
-function getPrimaryRetrievalToolForQuery(
-  text: string,
-  understanding?: QueryUnderstandingResult
-): AllowedToolName {
-  const norm = normalizeArabicLight(text)
-  const projectSignals = [
-    "مشروع", "مشاريع", "المشاريع", "انجاز", "انجازات", "اعمار", "توسعه", "توسعة", "خدمي"
-  ]
-  const isProjectQuery =
-    understanding?.extracted_entities.source_specific.includes("projects_query") ||
-    projectSignals.some(signal => norm.includes(signal))
-  const asksProjectCount =
-    understanding?.operation_intent === "count" ||
-    norm.includes(normalizeArabicLight("كم")) ||
-    norm.includes(normalizeArabicLight("عدد"))
-
-  // Project-specific fact/entity queries perform better on multi-source content retrieval.
-  // Keep search_projects for explicit project counting/aggregate intents only.
-  if (isProjectQuery && asksProjectCount) {
-    return "search_projects"
-  }
-  return "search_content"
-}
-
-/**
- * After orchestrator bootstrap, keep model tool access limited to
- * deterministic utility/non-retrieval tools to prevent policy re-expansion.
- */
-function getPostBootstrapTools(
-  tools: OpenAI.Chat.Completions.ChatCompletionTool[]
-): OpenAI.Chat.Completions.ChatCompletionTool[] {
-  const allowedUtilityTools = new Set([
-    "get_source_metadata",
-    "browse_source_page",
-    "get_latest_by_source",
-    "list_source_categories",
-    "get_statistics"
-  ])
-
-  return tools.filter(tool => {
-    if (tool.type !== "function") return true
-    const name = tool.function?.name
-    return typeof name === "string" && allowedUtilityTools.has(name)
-  })
-}
-
 // ── Knowledge layer helpers ─────────────────────────────────────────
 
 /**
@@ -1327,7 +1166,11 @@ export async function resolveToolCalls(
     }
   }
 
-  const forcedIntent = detectForcedToolIntent(userQueryForIntent, queryUnderstanding)
+  const forcedIntent = detectForcedUtilityIntent(
+    userQueryForIntent,
+    queryUnderstanding,
+    isAbbasBiographyQuery
+  )
   if (options.traceId) {
     logChatTrace({
       trace_id: options.traceId,
