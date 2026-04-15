@@ -195,12 +195,8 @@ export async function callSiteAPI(
         // قراءة البيانات
         let data = await response.json()
 
-        console.log("[callSiteAPI] Response type:", typeof data, "| Is Array:", Array.isArray(data))
-
         // ✅ تنظيف البيانات الحساسة
         data = sanitizeAPIResponse(data)
-
-        console.log("[callSiteAPI] After sanitize - type:", typeof data, "| Is Array:", Array.isArray(data), "| Length:", Array.isArray(data) ? data.length : "N/A")
 
         return {
           success: true,

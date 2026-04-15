@@ -434,11 +434,29 @@ export async function searchKnowledgeWithBackfill(
     return { ...initial, backfilled: false }
   }
 
-  // Phase 3: backfill one batch per source
+  // Phase 3: backfill one batch per source (incremental, stop early once strong)
   console.log(`[Knowledge] Weak results — backfilling: ${sources.join(", ")}`)
   let totalNew = 0
+  let best = initial
   for (const src of sources) {
-    totalNew += await backfillOlderPages(src)
+    const newItems = await backfillOlderPages(src)
+    totalNew += newItems
+
+    if (newItems <= 0) continue
+
+    const retry = searchKnowledgeChunks(query, options)
+    console.log(`[Knowledge] Backfill checkpoint (${src}): ${retry.chunks.length} chunks (top=${retry.chunks[0]?.score.toFixed(1) ?? "–"}) [+${newItems}]`)
+
+    if (
+      retry.chunks.length > best.chunks.length ||
+      (retry.chunks[0]?.score ?? 0) > (best.chunks[0]?.score ?? 0)
+    ) {
+      best = retry
+    }
+
+    if (!isWeakResult(retry)) {
+      return { ...retry, backfilled: true }
+    }
   }
 
   if (totalNew === 0) {
@@ -446,14 +464,6 @@ export async function searchKnowledgeWithBackfill(
     return { ...initial, backfilled: true }
   }
 
-  // Phase 4: retry search
-  const retry = searchKnowledgeChunks(query, options)
-  console.log(`[Knowledge] After backfill: ${retry.chunks.length} chunks (top=${retry.chunks[0]?.score.toFixed(1) ?? "–"}) [+${totalNew} items]`)
-
-  // Return whichever set is better
-  const best = (retry.chunks.length > initial.chunks.length ||
-    (retry.chunks[0]?.score ?? 0) > (initial.chunks[0]?.score ?? 0))
-    ? retry : initial
-
+  console.log(`[Knowledge] After backfill: ${best.chunks.length} chunks (top=${best.chunks[0]?.score.toFixed(1) ?? "–"}) [+${totalNew} items]`)
   return { ...best, backfilled: true }
 }

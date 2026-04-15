@@ -931,9 +931,20 @@ async function injectKnowledgeAndGuard(
   userQuery: string,
   understanding?: QueryUnderstandingResult
 ): Promise<Evidence[]> {
+  const extractedEvidence = injectToolResultEvidence(messages, userQuery)
+  const topEvidenceConfidence = extractedEvidence[0]?.confidence ?? 0
+  const hasKnowledgeContextAlready = messages.some(
+    m => m.role === "system" && typeof m.content === "string" && m.content.includes("[سياق معرفي إضافي من النصوص الكاملة]")
+  )
+
   // Only use knowledge layer for qualifying queries
   let abbasKnowledgeInjected = false
-  if (shouldUseKnowledgeLayer(userQuery, understanding)) {
+  const shouldRunKnowledgeLayer =
+    !hasKnowledgeContextAlready &&
+    topEvidenceConfidence < 55 &&
+    shouldUseKnowledgeLayer(userQuery, understanding)
+
+  if (shouldRunKnowledgeLayer) {
     const kResult = await getKnowledgeContext(userQuery)
     if (kResult) {
       const { context: kCtx, topScore } = kResult
@@ -1020,12 +1031,8 @@ async function injectKnowledgeAndGuard(
     }
     // Non-biographical query (shrine activities, expansion, etc.) — inject tool evidence normally
     console.log(`[Evidence Guard] Abbas shrine/activity query — tool-result evidence allowed`)
-    const ev = injectToolResultEvidence(messages, userQuery)
-    return ev
+    return extractedEvidence
   }
-
-  // Extract evidence from tool results for grounded quoting
-  const extractedEvidence = injectToolResultEvidence(messages, userQuery)
 
   // Evidence guard: if the question demands hard facts and results lack them
   if (isHardEvidenceSensitive(userQuery)) {

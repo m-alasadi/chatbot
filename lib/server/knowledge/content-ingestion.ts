@@ -51,7 +51,7 @@ const AUTO_INGEST_SOURCES: ContentSourceId[] = [
 const EAGER_PAGE_CAP = 10
 
 /** Lazy backfill batch size (pages per request) */
-const BACKFILL_BATCH = 5
+const BACKFILL_BATCH = 3
 
 // ── Ingestion state ─────────────────────────────────────────────────
 
