@@ -21,6 +21,13 @@ export function isAbbasChildrenQuery(text: string): boolean {
   return asksChildren && isAbbas
 }
 
+function isAbbasWhoIsQuery(text: string): boolean {
+  const norm = normalizeArabicLight(text)
+  const asksWho = ["من هو", "من هي"].some(t => norm.includes(normalizeArabicLight(t)))
+  const isAbbas = ["ابي الفضل", "أبي الفضل", "ابو الفضل", "العباس"].some(t => norm.includes(normalizeArabicLight(t)))
+  return asksWho && isAbbas
+}
+
 export function buildDeterministicFactFallback(query: string): any | null {
   if (isOfficeHolderFactQuery(query)) {
     return {
@@ -46,6 +53,10 @@ export function buildDeterministicFactFallback(query: string): any | null {
 }
 
 export function getDeterministicDirectAnswer(query: string): string | null {
+  if (isAbbasWhoIsQuery(query)) {
+    return "أبو الفضل العباس بن علي (عليه السلام) هو ابن الإمام علي بن أبي طالب (عليه السلام) وأخو الإمام الحسن والإمام الحسين، ويُعرف بلقب قمر بني هاشم وساقي عطاشى كربلاء."
+  }
+
   if (isOfficeHolderFactQuery(query)) {
     return "المتولي الشرعي للعتبة العباسية المقدسة هو سماحة العلامة السيد أحمد الصافي."
   }
