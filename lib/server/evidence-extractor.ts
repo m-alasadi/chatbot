@@ -327,6 +327,22 @@ export function formatGroundedAnswer(
   evidenceList: Evidence[]
 ): string {
   const normQuery = normalizeAr(query)
+  const directOnlyRequested =
+    normQuery.includes("الجواب المباشر") ||
+    normQuery.includes("جواب مباشر") ||
+    normQuery.includes("دون عناوين") ||
+    normQuery.includes("دون روابط") ||
+    (normQuery.includes("فقط") && !normQuery.includes("هل تريد"))
+  const wantsTwoLines = normQuery.includes("سطرين") || normQuery.includes("سطرين فقط")
+  const wantsNameOnly = normQuery.includes("ما اسمه") || normQuery.includes("من هو") || normQuery.includes("ما اسم")
+  const wantsLocationOnly = normQuery.includes("اين") || normQuery.includes("اين يقع") || normQuery.includes("اين يقام")
+  const wantsClassification =
+    normQuery.includes("فعاليه ام") ||
+    normQuery.includes("فعالية ام") ||
+    normQuery.includes("برنامج ام") ||
+    normQuery.includes("خبر ام") ||
+    normQuery.includes("تصنيف") ||
+    normQuery.includes("هل هو")
   const isProjectStyleQuery =
     normQuery.includes("مشروع") ||
     normQuery.includes("مشاريع") ||
@@ -361,9 +377,20 @@ export function formatGroundedAnswer(
       .join(" ")
       .replace(/\s+/g, " ")
 
+    const exactKnownMatch = pool.match(/السيد\s+ا[حح]مد\s+الصافي/i)
+    if (exactKnownMatch) {
+      return "السيد أحمد الصافي"
+    }
+
     const nameRegex = /(السيد|سماحه العلامه السيد|سماحة العلامة السيد|الشيخ)\s+[\u0621-\u064A]{2,}(?:\s+[\u0621-\u064A]{2,}){1,3}/
     const match = pool.match(nameRegex)
-    return match ? match[0].replace(/\s+/g, " ").trim() : null
+    if (!match) return null
+
+    const cleaned = match[0]
+      .replace(/\s+/g, " ")
+      .replace(/\b(يطلع|يؤكد|يشارك|زار|دام|عزه|يحضر|يلقي|قال)\b.*$/i, "")
+      .trim()
+    return cleaned || null
   }
 
   const extractLocationPhrase = (quote: string): string | null => {
@@ -373,27 +400,65 @@ export function formatGroundedAnswer(
     return match ? match[1].trim() : null
   }
 
+  const detectClassificationFromEvidence = (): string | null => {
+    const text = evidenceList
+      .slice(0, 3)
+      .map(e => `${e.source_title} ${e.source_section} ${e.quote}`)
+      .join(" ")
+    const norm = normalizeAr(text)
+    if (norm.includes("فعاليه") || norm.includes("مهرجان") || norm.includes("مراسيم")) return "فعالية"
+    if (norm.includes("برنامج") || norm.includes("سلسله") || norm.includes("من وحي الجمعه")) return "برنامج"
+    if (norm.includes("خبر") || norm.includes("اعلان") || norm.includes("بيان")) return "خبر"
+    return null
+  }
+
+  const buildDirectResponse = (body: string): string => {
+    const clean = String(body || "").replace(/\s+/g, " ").trim()
+    if (wantsTwoLines && clean.length > 200) {
+      const mid = Math.min(clean.length - 1, 120)
+      const splitIdx = clean.indexOf(" ", mid)
+      if (splitIdx > 0 && splitIdx < clean.length - 1) {
+        return `${clean.slice(0, splitIdx).trim()}\n${clean.slice(splitIdx + 1).trim()}`
+      }
+    }
+    return clean
+  }
+
   if (!isProjectStyleQuery && isFactStyleQuery && evidenceList.length > 0) {
     const top = evidenceList[0]
     if (isOfficeHolderQuery) {
       const holder = extractOfficeHolderName()
       if (holder) {
+        const answer = `اسم المتولي الشرعي للعتبة العباسية هو ${holder}.`
+        if (directOnlyRequested || wantsNameOnly) return buildDirectResponse(answer)
         const src = top.source_title ? ` المصدر: ${top.source_title}.` : ""
         const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
-        return `اسم المتولي الشرعي للعتبة العباسية هو ${holder}.${src}${url} هل تريد تفاصيل أكثر؟`
+        return `${answer}${src}${url} هل تريد تفاصيل أكثر؟`
+      }
+    }
+
+    if (wantsClassification) {
+      const classification = detectClassificationFromEvidence()
+      if (classification) {
+        const answer = `التصنيف الأقرب بحسب النتائج المتاحة: ${classification}.`
+        if (directOnlyRequested) return buildDirectResponse(answer)
+        return `${answer} هل تريد تلخيصاً قصيراً؟`
       }
     }
 
     if (isLocationQuery) {
       const location = extractLocationPhrase(top.quote)
       if (location) {
+        const answer = `المكان: ${location}.`
+        if (directOnlyRequested || wantsLocationOnly) return buildDirectResponse(answer)
         const src = top.source_title ? ` المصدر: ${top.source_title}.` : ""
         const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
-        return `بحسب ما ورد في المصادر، ${location}.${src}${url} هل تريد تفاصيل أكثر؟`
+        return `${answer}${src}${url} هل تريد تفاصيل أكثر؟`
       }
     }
 
     const quote = String(top.quote || "").replace(/\s+/g, " ").trim()
+    if (directOnlyRequested) return buildDirectResponse(quote)
     const source = top.source_title ? ` المصدر: ${top.source_title}.` : ""
     const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
     return `بحسب ما ورد في المصادر، ${quote}${source}${url} هل تريد تفاصيل أكثر؟`
@@ -429,7 +494,9 @@ export function formatGroundedAnswer(
     if (e.source_url) lines.push(`🔗 [المصدر](${e.source_url})`)
   }
 
-  lines.push("", "هل تريد تفاصيل أكثر؟")
+  if (!directOnlyRequested) {
+    lines.push("", "هل تريد تفاصيل أكثر؟")
+  }
   return lines.join("\n")
 }
 

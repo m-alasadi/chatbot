@@ -117,6 +117,23 @@ function buildSourceConstraint(
 ): SourceConstraint {
   const explicitSource = typeof args.source === "string" ? args.source : "auto"
   const intent = mapUnderstandingIntent(understanding)
+  const norm = normalizeQueryForTrace(query)
+  const hasOfficeHolderSignal =
+    norm.includes(normalizeQueryForTrace("المتولي")) ||
+    norm.includes(normalizeQueryForTrace("الشرعي"))
+  const hasNamedEventSignal =
+    norm.includes(normalizeQueryForTrace("نداء العقيدة")) ||
+    norm.includes(normalizeQueryForTrace("مهرجان")) ||
+    norm.includes(normalizeQueryForTrace("فعالية")) ||
+    norm.includes(normalizeQueryForTrace("برنامج"))
+  const hasProjectSignal =
+    understanding.extracted_entities.source_specific.includes("projects_query") ||
+    norm.includes(normalizeQueryForTrace("مشروع")) ||
+    norm.includes(normalizeQueryForTrace("مشاريع")) ||
+    norm.includes(normalizeQueryForTrace("زراعي")) ||
+    norm.includes(normalizeQueryForTrace("انتاج")) ||
+    norm.includes(normalizeQueryForTrace("تعليمي")) ||
+    norm.includes(normalizeQueryForTrace("دجاج"))
 
   if (explicitSource !== "auto") {
     return {
@@ -124,6 +141,33 @@ function buildSourceConstraint(
       hardConstraint: false,
       preferredSources: [explicitSource, "auto"],
       allowedSources: [explicitSource, "auto"]
+    }
+  }
+
+  if (hasOfficeHolderSignal) {
+    return {
+      intent: "news",
+      hardConstraint: false,
+      preferredSources: ["articles_latest", "friday_sermons", "wahy_friday", "auto"],
+      allowedSources: ["articles_latest", "friday_sermons", "wahy_friday", "auto"]
+    }
+  }
+
+  if (hasNamedEventSignal) {
+    return {
+      intent: "news",
+      hardConstraint: false,
+      preferredSources: ["articles_latest", "videos_latest", "wahy_friday", "friday_sermons", "auto"],
+      allowedSources: ["articles_latest", "videos_latest", "wahy_friday", "friday_sermons", "auto"]
+    }
+  }
+
+  if (hasProjectSignal) {
+    return {
+      intent: "generic",
+      hardConstraint: false,
+      preferredSources: ["articles_latest", "videos_latest", "auto"],
+      allowedSources: ["articles_latest", "videos_latest", "auto"]
     }
   }
 

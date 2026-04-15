@@ -16,6 +16,8 @@ export type QueryOperationIntent =
   | "count"
   | "summarize"
   | "explain"
+  | "classify"
+  | "direct_answer"
   | "browse"
 
 export interface QueryExtractedEntities {
@@ -55,7 +57,8 @@ function detectContentIntent(norm: string): QueryContentIntent {
   if (wahyHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "wahy"
   if (videoHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "video"
   if (sermonHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "sermon"
-  if (officeHolderHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "history"
+  // Office-holder facts are usually published as news/media updates, not shrine-history pages.
+  if (officeHolderHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "news"
   if (namedProgramHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "news"
   if (newsHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "news"
   if (biographyHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "biography"
@@ -70,6 +73,8 @@ function detectOperationIntent(norm: string): QueryOperationIntent {
   const listHints = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
   const summarizeHints = ["لخص", "تلخيص", "خلاصه", "خلاصة", "ملخص", "اختصر"]
   const explainHints = ["اشرح", "شرح", "فسر", "تفسير", "وضح", "توضيح"]
+  const classifyHints = ["فعاليه ام", "فعالية ام", "برنامج ام", "خبر ام", "صنف", "تصنيف", "هل هو"]
+  const directShapeHints = ["الجواب المباشر", "جواب مباشر", "فقط", "في سطرين", "ما اسمه", "اين يقع", "دون عناوين", "دون روابط"]
   const browseHints = ["تصفح", "صفحه", "صفحة", "الصفحه", "الصفحة", "اقدم", "اول", "oldest", "first"]
   const followUpSummaryHints = ["اول نتيجة", "أول نتيجة", "النتيجة التي ذكرتها", "الخبر الذي ذكرته", "التي ذكرتها", "الذي ذكرته"]
 
@@ -83,6 +88,8 @@ function detectOperationIntent(norm: string): QueryOperationIntent {
   if (listHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "list_items"
   if (summarizeHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "summarize"
   if (explainHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "explain"
+  if (classifyHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "classify"
+  if (directShapeHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "direct_answer"
   if (browseHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "browse"
 
   return "fact_question"
@@ -102,7 +109,7 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
 
   const topicPatterns = [
     "توسعه", "توسعة", "مشاريع", "المشاريع", "مشروع", "محاضرات", "فيديوهات", "اخبار", "خطب", "وحي الجمعة",
-    "نداء العقيدة", "المتولي الشرعي", "زوجات", "ابناء", "القاب"
+    "نداء العقيدة", "المتولي الشرعي", "زوجات", "ابناء", "القاب", "تعليمي", "زراعي", "انتاجي"
   ]
   for (const t of topicPatterns) {
     const nt = normalizeQueryForTrace(t)
@@ -122,19 +129,32 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
   if (norm.includes(normalizeQueryForTrace("تاريخ")) || norm.includes(normalizeQueryForTrace("العتبة"))) sourceSpecific.push("shrine_history_sections")
   if (norm.includes(normalizeQueryForTrace("المتولي")) || norm.includes(normalizeQueryForTrace("الشرعي"))) {
     sourceSpecific.push("articles_latest")
-    sourceSpecific.push("shrine_history_sections")
+    sourceSpecific.push("friday_sermons")
+    sourceSpecific.push("wahy_friday")
   }
-  if (norm.includes(normalizeQueryForTrace("نداء العقيدة")) || norm.includes(normalizeQueryForTrace("مهرجان")) || norm.includes(normalizeQueryForTrace("فعالية"))) {
+  if (norm.includes(normalizeQueryForTrace("نداء العقيدة")) || norm.includes(normalizeQueryForTrace("مهرجان")) || norm.includes(normalizeQueryForTrace("فعالية")) || norm.includes(normalizeQueryForTrace("برنامج"))) {
     sourceSpecific.push("articles_latest")
     sourceSpecific.push("videos_latest")
+    sourceSpecific.push("wahy_friday")
+    sourceSpecific.push("friday_sermons")
   }
   if (norm.includes(normalizeQueryForTrace("زوج")) || norm.includes(normalizeQueryForTrace("زوجات")) || norm.includes(normalizeQueryForTrace("ابناء")) || norm.includes(normalizeQueryForTrace("القاب"))) {
     sourceSpecific.push("shrine_history_sections")
     sourceSpecific.push("abbas_history_by_id")
   }
 
-  if (norm.includes(normalizeQueryForTrace("مشاريع")) || norm.includes(normalizeQueryForTrace("مشروع")) || norm.includes(normalizeQueryForTrace("توسعة"))) {
+  if (
+    norm.includes(normalizeQueryForTrace("مشاريع")) ||
+    norm.includes(normalizeQueryForTrace("مشروع")) ||
+    norm.includes(normalizeQueryForTrace("توسعة")) ||
+    norm.includes(normalizeQueryForTrace("تعليمي")) ||
+    norm.includes(normalizeQueryForTrace("زراعي")) ||
+    norm.includes(normalizeQueryForTrace("انتاج")) ||
+    norm.includes(normalizeQueryForTrace("دجاج"))
+  ) {
     sourceSpecific.push("projects_query")
+    sourceSpecific.push("articles_latest")
+    sourceSpecific.push("videos_latest")
   }
 
   if (rawQuery.match(/[\u0621-\u064A]{3,}\s+[\u0621-\u064A]{3,}/)) {

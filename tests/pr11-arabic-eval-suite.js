@@ -30,7 +30,8 @@ const CATEGORY_THRESHOLDS = {
   office_holder_facts: { minPassRate: 1.0 },
   named_event_lookup: { minPassRate: 1.0 },
   singular_project_queries: { minPassRate: 1.0 },
-  follow_up_grounding: { minPassRate: 1.0 }
+  follow_up_grounding: { minPassRate: 1.0 },
+  direct_answer_shape_control: { minPassRate: 1.0 }
 }
 
 function ensureDir(dirPath) {
@@ -90,6 +91,15 @@ function isFactLike(text) {
   const raw = String(text || "")
   if (isListLike(raw)) return false
   return raw.length >= 40
+}
+
+function isDirectShape(text) {
+  const raw = String(text || "")
+  const norm = normalizeArabic(raw)
+  const hasLinks = /https?:\/\//i.test(raw) || raw.includes("[المصدر]") || raw.includes("🔗")
+  const hasBullets = isListLike(raw)
+  const hasNarrativeTail = norm.includes(normalizeArabic("هل تريد تفاصيل أكثر"))
+  return !hasLinks && !hasBullets && !hasNarrativeTail
 }
 
 async function readBody(response) {
@@ -430,6 +440,7 @@ async function evalPersonAttributeFacts() {
 async function evalOfficeHolderFacts() {
   const query = "ما اسم المتولي الشرعي للعتبة العباسية"
   const response = await ask(query)
+  const norm = normalizeArabic(response)
 
   const checks = [
     {
@@ -439,7 +450,15 @@ async function evalOfficeHolderFacts() {
     },
     {
       id: "office_holder_has_name_signal",
-      passed: hasAny(response, ["السيد", "أحمد", "الصافي", "المتولي الشرعي"]),
+      passed:
+        norm.includes(normalizeArabic("السيد")) &&
+        norm.includes(normalizeArabic("احمد")) &&
+        norm.includes(normalizeArabic("الصافي")),
+      value: null
+    },
+    {
+      id: "office_holder_not_list_dump",
+      passed: !isListLike(response),
       value: null
     }
   ]
@@ -450,6 +469,7 @@ async function evalOfficeHolderFacts() {
 async function evalNamedEventLookup() {
   const query = "أين يقام نداء العقيدة"
   const response = await ask(query)
+  const norm = normalizeArabic(response)
 
   const checks = [
     {
@@ -458,8 +478,13 @@ async function evalNamedEventLookup() {
       value: query
     },
     {
-      id: "named_event_has_event_or_location_signal",
-      passed: hasAny(response, ["نداء العقيدة", "يقام", "في", "كربلاء", "الصحن", "العتبة"]),
+      id: "named_event_mentions_event_name",
+      passed: norm.includes(normalizeArabic("نداء العقيدة")),
+      value: null
+    },
+    {
+      id: "named_event_has_location_or_context",
+      passed: hasAny(response, ["يقام", "في", "كربلاء", "الصحن", "العتبة", "الموكب", "الموقع"]),
       value: null
     }
   ]
@@ -470,6 +495,7 @@ async function evalNamedEventLookup() {
 async function evalSingularProjectQueries() {
   const query = "هل للعتبة العباسية مشروع دجاج"
   const response = await ask(query)
+  const norm = normalizeArabic(response)
 
   const checks = [
     {
@@ -478,8 +504,16 @@ async function evalSingularProjectQueries() {
       value: query
     },
     {
-      id: "singular_project_mentions_query_domain",
-      passed: hasAny(response, ["دجاج", "مشروع", "العتبة"]),
+      id: "singular_project_domain_preserved",
+      passed:
+        norm.includes(normalizeArabic("دجاج")) ||
+        norm.includes(normalizeArabic("لا توجد معلومة")) ||
+        norm.includes(normalizeArabic("لم اجد")),
+      value: null
+    },
+    {
+      id: "singular_project_not_unrelated_list_dump",
+      passed: !isListLike(response) || hasAny(response, ["دجاج", "غذائي", "انتاج"]),
       value: null
     }
   ]
@@ -513,11 +547,45 @@ async function evalFollowUpGrounding() {
         ? normalizeArabic(followUpResponse).includes(normalizeArabic(anchorToken))
         : jaccardSimilarity(firstResponse, followUpResponse) >= 0.1,
       value: anchorToken || Number(jaccardSimilarity(firstResponse, followUpResponse).toFixed(3))
+    },
+    {
+      id: "follow_up_not_retrieval_reset",
+      passed: !hasAny(followUpResponse, ["وجدت لك", "نتائج من", "1.", "2."]),
+      value: null
     }
   ]
 
   return summarizeCategory("follow_up_grounding", "runtime", checks, {
     queries: [firstQuery, followUpQuery]
+  })
+}
+
+async function evalDirectAnswerShapeControl() {
+  const officeQuery = "اذكر لي الجواب المباشر فقط: من هو المتولي الشرعي؟"
+  const officeResponse = await ask(officeQuery)
+  const projectQuery = "أعطني جواباً مباشراً فقط دون عناوين أو روابط: هل يوجد للعتبة العباسية مشروع تعليمي؟ وما اسمه؟"
+  const projectResponse = await ask(projectQuery)
+
+  const checks = [
+    {
+      id: "direct_shape_office_holder",
+      passed: isDirectShape(officeResponse),
+      value: null
+    },
+    {
+      id: "direct_shape_project_query",
+      passed: isDirectShape(projectResponse),
+      value: null
+    },
+    {
+      id: "direct_shape_contains_substance",
+      passed: hasAny(officeResponse + " " + projectResponse, ["السيد", "الصافي", "مشروع", "تعليمي", "لا توجد"]),
+      value: null
+    }
+  ]
+
+  return summarizeCategory("direct_answer_shape_control", "runtime", checks, {
+    queries: [officeQuery, projectQuery]
   })
 }
 
@@ -569,7 +637,8 @@ async function run() {
     { id: "office_holder_facts", fn: evalOfficeHolderFacts },
     { id: "named_event_lookup", fn: evalNamedEventLookup },
     { id: "singular_project_queries", fn: evalSingularProjectQueries },
-    { id: "follow_up_grounding", fn: evalFollowUpGrounding }
+    { id: "follow_up_grounding", fn: evalFollowUpGrounding },
+    { id: "direct_answer_shape_control", fn: evalDirectAnswerShapeControl }
   ]
 
   const categories = []

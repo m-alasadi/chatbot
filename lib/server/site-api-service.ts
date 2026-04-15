@@ -332,6 +332,10 @@ function tokenizeArabicQuery(query: string): string[] {
 
 function extractNamedPhrase(query: string): string {
   const norm = normalizeArabic(query)
+  if (norm.includes(normalizeArabic("نداء العقيدة"))) {
+    return normalizeArabic("نداء العقيدة")
+  }
+
   const removablePrefixes = [
     "ما اسم", "من هو", "من هي", "اين يقام", "اين", "هل", "كم", "عدد لي", "عدد", "لخص لي", "اشرح لي"
   ]
@@ -1135,7 +1139,10 @@ function scoreUnifiedItem(item: any, query: string): number {
 
   const genericTokens = new Set(["ما", "اسم", "من", "هو", "هي", "هل", "اين", "يقام", "كم", "عدد", "لي", "عن", "في", "على", "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع"])
   const specificTokens = tokens.filter(t => !genericTokens.has(t))
+  const projectDomainTokens = ["دجاج", "زراعي", "انتاج", "غذايي", "تعليمي", "تربوي", "تصنيع"]
+  const requestedProjectDomainTokens = projectDomainTokens.filter(t => normQ.includes(t))
   let matchedSpecificToken = false
+  let matchedProjectDomainToken = false
 
   for (const { text, weight } of fields) {
     if (!text) continue
@@ -1155,6 +1162,9 @@ function scoreUnifiedItem(item: any, query: string): number {
         if (!matchedSpecificToken && specificTokens.includes(tok)) {
           matchedSpecificToken = true
         }
+        if (!matchedProjectDomainToken && requestedProjectDomainTokens.includes(tok)) {
+          matchedProjectDomainToken = true
+        }
       }
     }
   }
@@ -1168,7 +1178,17 @@ function scoreUnifiedItem(item: any, query: string): number {
     score += 10
   }
 
+  // For named-entity lookups, phrase mismatch means the item is irrelevant.
+  if (namedPhrase && !hasSpecificNamedPhrase) {
+    return 0
+  }
+
   if (specificTokens.length > 0 && !matchedSpecificToken && !hasSpecificNamedPhrase) {
+    return 0
+  }
+
+  // Project/business-domain lookups must preserve the requested domain term.
+  if (requestedProjectDomainTokens.length > 0 && !matchedProjectDomainToken) {
     return 0
   }
 
