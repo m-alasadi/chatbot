@@ -424,6 +424,12 @@ export function formatGroundedAnswer(
     return clean
   }
 
+  const shortenQuote = (quote: string, max: number = 220): string => {
+    const clean = String(quote || "").replace(/\s+/g, " ").trim()
+    if (clean.length <= max) return clean
+    return `${clean.slice(0, max)}…`
+  }
+
   if (!isProjectStyleQuery && isFactStyleQuery && evidenceList.length > 0) {
     const top = evidenceList[0]
     if (isOfficeHolderQuery) {
@@ -433,7 +439,7 @@ export function formatGroundedAnswer(
         if (directOnlyRequested || wantsNameOnly) return buildDirectResponse(answer)
         const src = top.source_title ? ` المصدر: ${top.source_title}.` : ""
         const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
-        return `${answer}${src}${url} هل تريد تفاصيل أكثر؟`
+        return `${answer}${src}${url}`
       }
     }
 
@@ -442,7 +448,7 @@ export function formatGroundedAnswer(
       if (classification) {
         const answer = `التصنيف الأقرب بحسب النتائج المتاحة: ${classification}.`
         if (directOnlyRequested) return buildDirectResponse(answer)
-        return `${answer} هل تريد تلخيصاً قصيراً؟`
+        return answer
       }
     }
 
@@ -453,7 +459,7 @@ export function formatGroundedAnswer(
         if (directOnlyRequested || wantsLocationOnly) return buildDirectResponse(answer)
         const src = top.source_title ? ` المصدر: ${top.source_title}.` : ""
         const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
-        return `${answer}${src}${url} هل تريد تفاصيل أكثر؟`
+        return `${answer}${src}${url}`
       }
     }
 
@@ -461,7 +467,7 @@ export function formatGroundedAnswer(
     if (directOnlyRequested) return buildDirectResponse(quote)
     const source = top.source_title ? ` المصدر: ${top.source_title}.` : ""
     const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
-    return `بحسب ما ورد في المصادر، ${quote}${source}${url} هل تريد تفاصيل أكثر؟`
+    return `بحسب ما ورد في المصادر، ${quote}${source}${url}`
   }
 
   const lines: string[] = [
@@ -486,17 +492,14 @@ export function formatGroundedAnswer(
       return true
     })
 
-  for (const e of ordered.slice(0, 3)) {
+  for (const e of ordered.slice(0, 2)) {
     lines.push("")
     if (e.source_title) lines.push(`**${e.source_title}**`)
     if (e.source_section) lines.push(`*${e.source_section}*`)
-    lines.push(`«${e.quote}»`)
+    lines.push(`«${shortenQuote(e.quote)}»`)
     if (e.source_url) lines.push(`🔗 [المصدر](${e.source_url})`)
   }
 
-  if (!directOnlyRequested) {
-    lines.push("", "هل تريد تفاصيل أكثر؟")
-  }
   return lines.join("\n")
 }
 

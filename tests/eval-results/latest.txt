@@ -1,7 +1,7 @@
 PR11 Arabic Eval Suite Report
-Run ID: pr11_2026-04-15T11-23-58-582Z
+Run ID: pr11_2026-04-15T15-27-35-537Z
 Base URL: http://localhost:3002
-Timestamp: 2026-04-15T11:23:58.582Z
+Timestamp: 2026-04-15T15:27:35.537Z
 
 Overall: PASS (14/14 categories passed)
 
@@ -73,7 +73,7 @@ Detailed Checks:
   - singular_project_not_unrelated_list_dump: PASS
 * follow_up_grounding
   - follow_up_not_unavailable: PASS
-  - follow_up_has_grounding_overlap: PASS | استلام
+  - follow_up_has_grounding_overlap: PASS | مزارع
   - follow_up_not_retrieval_reset: PASS
 * direct_answer_shape_control
   - direct_shape_office_holder: PASS

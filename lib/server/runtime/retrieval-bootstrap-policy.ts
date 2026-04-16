@@ -60,10 +60,18 @@ export function getPrimaryRetrievalToolForQuery(
     understanding?.operation_intent === "count" ||
     norm.includes(normalizeArabicLight("كم")) ||
     norm.includes(normalizeArabicLight("عدد"))
+  const projectDomainIntents = new Set([
+    "count",
+    "list_items",
+    "latest",
+    "fact_question",
+    "direct_answer",
+    "summarize"
+  ])
+  const isProjectDomainIntent = projectDomainIntents.has(String(understanding?.operation_intent || ""))
 
-  // Project-specific fact/entity queries perform better on multi-source content retrieval.
-  // Keep search_projects for explicit project counting/aggregate intents only.
-  if (isProjectQuery && asksProjectCount) {
+  // Project-domain requests should use the project retrieval surface by default.
+  if (isProjectQuery && (asksProjectCount || isProjectDomainIntent)) {
     return "search_projects"
   }
   return "search_content"

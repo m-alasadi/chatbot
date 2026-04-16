@@ -24,7 +24,7 @@ import {
   finishRuntimeRequestMetrics
 } from "@/lib/server/observability/runtime-metrics"
 import { understandQuery, getQueryClassKey } from "@/lib/server/query-understanding"
-import { ServerRuntime } from "next"
+import type { ServerRuntime } from "next"
 import OpenAI from "openai"
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions.mjs"
 
@@ -480,6 +480,7 @@ export async function POST(request: Request) {
     // معالجة أنواع الأخطاء المختلفة
     let errorMessage = "حدث خطأ غير متوقع"
     let statusCode = 500
+    let fallbackType: "api_error" | "api_quota_exceeded" = "api_error"
 
     if (error.message?.toLowerCase().includes("api key not found")) {
       errorMessage =
@@ -488,6 +489,10 @@ export async function POST(request: Request) {
     } else if (error.message?.toLowerCase().includes("incorrect api key")) {
       errorMessage = "مفتاح OpenAI API غير صحيح. يرجى التواصل مع المسؤول."
       statusCode = 401
+    } else if (error.code === "insufficient_quota" || error.message?.toLowerCase().includes("insufficient_quota") || error.message?.toLowerCase().includes("exceeded your current quota")) {
+      errorMessage = "الخدمة متوقفة مؤقتاً بسبب نفاد حصة مزود الذكاء الاصطناعي."
+      statusCode = 429
+      fallbackType = "api_quota_exceeded"
     } else if (error.message?.toLowerCase().includes("rate limit")) {
       errorMessage = "تم تجاوز الحد المسموح من الطلبات. يرجى المحاولة بعد قليل."
       statusCode = 429
@@ -503,7 +508,7 @@ export async function POST(request: Request) {
     return new Response(
       JSON.stringify({
         error: errorMessage,
-        fallback: getFallbackResponse("api_error")
+        fallback: getFallbackResponse(fallbackType)
       }),
       {
         status: statusCode,

@@ -1,6 +1,6 @@
 {
-  "run_id": "pr11_2026-04-15T11-23-58-582Z",
-  "timestamp": "2026-04-15T11:23:58.582Z",
+  "run_id": "pr11_2026-04-15T15-27-35-537Z",
+  "timestamp": "2026-04-15T15:27:35.537Z",
   "base_url": "http://localhost:3002",
   "overall_passed": true,
   "passed_categories": 14,
@@ -431,7 +431,7 @@
         {
           "id": "follow_up_has_grounding_overlap",
           "passed": true,
-          "value": "استلام"
+          "value": "مزارع"
         },
         {
           "id": "follow_up_not_retrieval_reset",
