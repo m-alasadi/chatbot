@@ -47,8 +47,6 @@ import {
 } from "./runtime/dialog-context-policy"
 import {
   buildAnswerShapeInstruction,
-  buildDeterministicFactFallback,
-  getDeterministicDirectAnswer,
 } from "./runtime/answer-shape-policy"
 import { detectForcedUtilityIntent } from "./runtime/forced-utility-routing-policy"
 import {
@@ -443,6 +441,71 @@ function getTopScoreFromData(data: any): number | null {
   return null
 }
 
+type ToolFailureKind =
+  | "timeout"
+  | "rate_limit"
+  | "upstream_unavailable"
+  | "network"
+  | "empty_results"
+  | "unknown"
+
+function classifyToolFailure(result: APICallResult, emptyResults: boolean): ToolFailureKind {
+  if (emptyResults) return "empty_results"
+
+  const text = String(result?.error || "").toLowerCase()
+  if (!text) return "unknown"
+
+  if (text.includes("request_budget_exhausted") || text.includes("timeout") || text.includes("timed out")) {
+    return "timeout"
+  }
+  if (text.includes("rate limit") || text.includes("too many requests") || text.includes("429")) {
+    return "rate_limit"
+  }
+  if (
+    text.includes("503") ||
+    text.includes("502") ||
+    text.includes("504") ||
+    text.includes("service unavailable") ||
+    text.includes("bad gateway") ||
+    text.includes("gateway")
+  ) {
+    return "upstream_unavailable"
+  }
+  if (
+    text.includes("fetch") ||
+    text.includes("network") ||
+    text.includes("econn") ||
+    text.includes("enotfound") ||
+    text.includes("socket")
+  ) {
+    return "network"
+  }
+
+  return "unknown"
+}
+
+function buildToolFailureMessage(
+  kind: ToolFailureKind,
+  traceId?: string
+): string {
+  const traceSuffix = traceId ? `\n\nرقم التتبع: ${traceId}` : ""
+
+  switch (kind) {
+    case "timeout":
+      return `تعذر إكمال الاستعلام في الوقت المتاح. يمكنك إعادة المحاولة أو تضييق السؤال قليلًا.${traceSuffix}`
+    case "rate_limit":
+      return `الخدمة تتلقى عددًا كبيرًا من الطلبات الآن. حاول بعد قليل.${traceSuffix}`
+    case "upstream_unavailable":
+      return `مصدر الإجابة غير متاح مؤقتًا الآن. حاول بعد قليل.${traceSuffix}`
+    case "network":
+      return `حدثت مشكلة اتصال أثناء جلب البيانات من المصدر.${traceSuffix}`
+    case "empty_results":
+      return `لم أجد نتائج مؤكدة في المصادر المتاحة لهذا السؤال.${traceSuffix}`
+    default:
+      return `تعذر إكمال الإجابة بسبب خلل مؤقت في مسار الاسترجاع.${traceSuffix}`
+  }
+}
+
 /**
  * نتيجة معالجة Function Calling
  */
@@ -578,7 +641,8 @@ async function processToolCall(
 
   if (result.success && isEmptyAPIResponse(result.data)) {
     const fallbackQuery = String(args.query || context.userQuery || "")
-    const deterministicFallback = buildDeterministicFactFallback(fallbackQuery)
+    // Ready-made fallback answers are intentionally disabled.
+    const deterministicFallback = null
     if (deterministicFallback) {
       if (context.traceId) {
         logChatTrace({
@@ -662,7 +726,9 @@ async function processToolCall(
       searchedCategory: category,
       attemptedAction: toolName
     })
-    
+    const failureKind = classifyToolFailure(result, true)
+    const failureMessage = buildToolFailureMessage(failureKind, context.traceId)
+     
     // إرجاع النتيجة مع الاقتراحات
     return {
       tool_call_id: toolCallId,
@@ -670,8 +736,9 @@ async function processToolCall(
       content: JSON.stringify({
         success: false,
         empty_results: true,
+        failure_kind: failureKind,
         retry_attempts: context.retryCounter?.count || 0,
-        message: suggestionsResponse.message,
+        message: `${failureMessage}\n\n${formatSuggestionsForResponse(suggestionsResponse)}`,
         suggestions: suggestionsResponse.suggestions,
         context: suggestionsResponse.context,
         original_query: query
@@ -698,14 +765,17 @@ async function processToolCall(
     }
     
     const errorSuggestions = generateAPIErrorSuggestions()
-    
+    const failureKind = classifyToolFailure(result, false)
+    const failureMessage = buildToolFailureMessage(failureKind, context.traceId)
+     
     return {
       tool_call_id: toolCallId,
       role: "tool",
       content: JSON.stringify({
         success: false,
+        failure_kind: failureKind,
         error: result.error,
-        message: errorSuggestions.message,
+        message: `${failureMessage}\n\n${formatSuggestionsForResponse(errorSuggestions)}`,
         suggestions: errorSuggestions.suggestions,
         context: errorSuggestions.context
       })
@@ -972,6 +1042,10 @@ async function injectKnowledgeAndGuard(
             note: "النتائج التالية من البحث في النصوص الكاملة المفهرسة"
           }
         }) + "\n\n" + kCtx
+        messages.push({
+          role: "system",
+          content: "استخدم السياق المعرفي المستخرج من النصوص الكاملة للإجابة مباشرة إذا كان مرتبطًا بالسؤال. لا تقل إن المعلومات غير متاحة ما دام هذا السياق يحتوي على شواهد ذات صلة."
+        })
       } else {
         // Normal injection: add as supplementary system context
         messages.push({ role: "system", content: kCtx })
@@ -1174,7 +1248,8 @@ export async function resolveToolCalls(
     currentMessages.push({ role: "system", content: answerShapeInstruction })
   }
 
-  const deterministicDirect = getDeterministicDirectAnswer(userQueryForIntent)
+  // Ready-made direct answers are intentionally disabled.
+  const deterministicDirect = null
   if (deterministicDirect) {
     return {
       resolvedMessages: currentMessages,

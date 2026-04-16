@@ -26,6 +26,7 @@ import {
   buildEvidenceSnippet,
   deepTitleSearch,
   expandSearchFromSources,
+  extractNamedPhrase,
   isCategoryIntent,
   looksLikeTitleQuery,
   normalizeArabic,
@@ -37,6 +38,85 @@ import {
 import { understandQuery, deriveRetrievalCapabilitySignals } from "./query-understanding"
 
 export type { APICallResult } from "./site-api-transport"
+
+function decodeHtmlEntities(text: string): string {
+  return String(text || "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&rlm;|&lrm;/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function normalizeOfficialNewsSearchDate(value: string): string {
+  const raw = String(value || "").trim()
+  const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!match) return new Date().toISOString()
+  const [, day, month, year] = match
+  return new Date(`${year}-${month}-${day}T00:00:00.000Z`).toISOString()
+}
+
+async function fetchOfficialNewsSearchResults(query: string, limit: number): Promise<any[]> {
+  const baseUrl = (process.env.SITE_API_BASE_URL || "https://alkafeel.net").replace(/\/+$/, "")
+  const items: any[] = []
+  const blockPattern = /<div id="(\d+)"[\s\S]*?<a[^>]+href="index\?id=(\d+)&lang=ar"[\s\S]*?<div class="ar_title-0[\s\S]*?">([\s\S]*?)<\/div>[\s\S]*?<div class="ar_date-[\s\S]*?">([\s\S]*?)<\/div>/g
+  const maxCandidates = Math.max(limit * 8, 40)
+  const seenIds = new Set<string>()
+  const searchQueries = [query, extractNamedPhrase(query)].filter(Boolean)
+
+  for (const searchQuery of [...new Set(searchQueries)]) {
+    const searchUrl = `${baseUrl}/news/search?search_term=${encodeURIComponent(searchQuery)}&lang=ar`
+    const response = await fetch(searchUrl, {
+      headers: {
+        "Accept-Language": "ar",
+        "User-Agent": "Mozilla/5.0"
+      }
+    })
+
+    if (!response.ok) continue
+
+    const html = await response.text()
+    if (!html || !html.includes("message_box")) continue
+
+    let match: RegExpExecArray | null
+    while ((match = blockPattern.exec(html)) !== null && items.length < maxCandidates) {
+      const [, blockId, articleId, rawTitle, rawDate] = match
+      const title = decodeHtmlEntities(rawTitle)
+      const stableId = String(articleId || blockId)
+      if (!title || seenIds.has(stableId)) continue
+
+      seenIds.add(stableId)
+      items.push({
+        id: stableId,
+        name: title,
+        description: "",
+        image: null,
+        created_at: normalizeOfficialNewsSearchDate(decodeHtmlEntities(rawDate)),
+        address: "",
+        sections: [{ id: "official_news_search", name: "نتائج بحث الأخبار" }],
+        kftags: [],
+        properties: [],
+        url: `${baseUrl}/news/index?id=${encodeURIComponent(stableId)}&lang=ar`,
+        source_type: "articles_latest",
+        source_raw: {
+          query: searchQuery,
+          search_url: searchUrl,
+          official_search: true
+        }
+      })
+    }
+
+    if (items.length >= maxCandidates) break
+  }
+
+  return items
+}
 
 /**
  * جلب جميع المشاريع من API
@@ -452,7 +532,38 @@ export async function siteSearchContent(
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score)
 
-  if (!entityFirstMode && scored.length < safeLimit && source === "auto" && tokenizeArabicQuery(query).length > 0) {
+  const shouldUseOfficialNewsSearch =
+    scored.length === 0 &&
+    tokenizeArabicQuery(query).length > 0 &&
+    (source === "auto" || source === "articles_latest")
+
+  if (shouldUseOfficialNewsSearch) {
+    const officialNewsResults = await fetchOfficialNewsSearchResults(query, safeLimit)
+    for (const item of officialNewsResults) {
+      const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
+      if (!deduped.has(key)) {
+        deduped.set(key, item)
+      }
+    }
+
+    if (officialNewsResults.length > 0) {
+      scored = Array.from(deduped.values())
+        .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+    }
+  }
+
+  const shouldExpandSearch =
+    source === "auto" &&
+    tokenizeArabicQuery(query).length > 0 &&
+    (
+      !entityFirstMode ||
+      scored.length === 0 ||
+      (scored[0]?.score || 0) < 8
+    )
+
+  if (shouldExpandSearch && scored.length < safeLimit) {
     const expandSources = candidates.filter(s => EXPANDABLE_SOURCES.includes(s))
     if (expandSources.length > 0) {
       const extra = await expandSearchFromSources(
@@ -474,7 +585,17 @@ export async function siteSearchContent(
 
   const isTitleQ = looksLikeTitleQuery(query)
   const hasStrongTitleHit = scored.some(s => scoreTitleMatch(s.item, query) >= 50)
-  if (!entityFirstMode && isTitleQ && !hasStrongTitleHit && source === "auto") {
+  const shouldRunDeepTitleScan =
+    isTitleQ &&
+    !hasStrongTitleHit &&
+    source === "auto" &&
+    (
+      !entityFirstMode ||
+      scored.length === 0 ||
+      (scored[0]?.score || 0) < 12
+    )
+
+  if (shouldRunDeepTitleScan) {
     console.log("[siteSearchContent] Title-query detected, launching deep archive scan...")
     const deepSources = candidates.filter(s => EXPANDABLE_SOURCES.includes(s))
     if (deepSources.length > 0) {

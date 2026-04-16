@@ -18,32 +18,33 @@ export function looksLikeSiteContentQuery(text: string): boolean {
   const norm = text.trim().toLowerCase()
 
   // Skip short greetings / trivial chat.
-  const greetings = ["مرحبا", "اهلا", "سلام", "هلا", "hi", "hello", "hey", "شكرا", "thanks"]
+  const greetings = ["Ù…Ø±Ø­Ø¨Ø§", "Ø§Ù‡Ù„Ø§", "Ø³Ù„Ø§Ù…", "Ù‡Ù„Ø§", "hi", "hello", "hey", "Ø´ÙƒØ±Ø§", "thanks"]
   if (greetings.some(g => norm === g || norm === g + "!")) return false
 
   // Positive signals: keywords that suggest site-content retrieval.
   const contentSignals = [
-    "خبر", "اخبار", "مقال", "مقالات", "فيديو", "فديو", "تاريخ",
-    "العتبه", "العباس", "الكفيل", "عتبه", "عباس",
-    "قاموس", "ترجم", "كلم", "مصطلح",
-    "اقسام", "تصنيف", "فئ",
-    "احدث", "اخر", "جديد",
-    "ابحث", "بحث", "اريد", "اعرف", "عايز",
-    "ماهو", "ماهي", "ما هو", "ما هي", "ماذا",
-    "شنو", "شنهو", "شكد",
-    "زيار", "حرم", "صحن", "ضريح", "مرقد",
-    "مشروع", "مشاريع", "المشاريع",
-    "خطبه", "خطب", "جمعه", "وحي", "خطيب", "منبر"
+    "Ø®Ø¨Ø±", "Ø§Ø®Ø¨Ø§Ø±", "Ù…Ù‚Ø§Ù„", "Ù…Ù‚Ø§Ù„Ø§Øª", "ÙÙŠØ¯ÙŠÙˆ", "ÙØ¯ÙŠÙˆ", "ØªØ§Ø±ÙŠØ®",
+    "Ø§Ù„Ø¹ØªØ¨Ù‡", "Ø§Ù„Ø¹Ø¨Ø§Ø³", "Ø§Ù„ÙƒÙÙŠÙ„", "Ø¹ØªØ¨Ù‡", "Ø¹Ø¨Ø§Ø³",
+    "Ù‚Ø§Ù…ÙˆØ³", "ØªØ±Ø¬Ù…", "ÙƒÙ„Ù…", "Ù…ØµØ·Ù„Ø­",
+    "Ø§Ù‚Ø³Ø§Ù…", "ØªØµÙ†ÙŠÙ", "ÙØ¦",
+    "Ø§Ø­Ø¯Ø«", "Ø§Ø®Ø±", "Ø¬Ø¯ÙŠØ¯",
+    "Ø§Ø¨Ø­Ø«", "Ø¨Ø­Ø«", "Ø§Ø±ÙŠØ¯", "Ø§Ø¹Ø±Ù", "Ø¹Ø§ÙŠØ²",
+    "Ù…Ø§Ù‡Ùˆ", "Ù…Ø§Ù‡ÙŠ", "Ù…Ø§ Ù‡Ùˆ", "Ù…Ø§ Ù‡ÙŠ", "Ù…Ø§Ø°Ø§",
+    "Ø´Ù†Ùˆ", "Ø´Ù†Ù‡Ùˆ", "Ø´ÙƒØ¯",
+    "Ø²ÙŠØ§Ø±", "Ø­Ø±Ù…", "ØµØ­Ù†", "Ø¶Ø±ÙŠØ­", "Ù…Ø±Ù‚Ø¯",
+    "Ù…Ø´Ø±ÙˆØ¹", "Ù…Ø´Ø§Ø±ÙŠØ¹", "Ø§Ù„Ù…Ø´Ø§Ø±ÙŠØ¹",
+    "Ø®Ø·Ø¨Ù‡", "Ø®Ø·Ø¨", "Ø¬Ù…Ø¹Ù‡", "ÙˆØ­ÙŠ", "Ø®Ø·ÙŠØ¨", "Ù…Ù†Ø¨Ø±"
   ]
 
   return contentSignals.some(signal => norm.includes(signal))
-    // Long Arabic text without question marks → likely a title paste or direct content query.
     || (text.trim().length >= 25 && !text.includes("?") && !text.includes("\u061F"))
 }
 
 /**
  * Choose the primary retrieval tool for orchestrator bootstrap.
- * Project-style requests should use search_projects only for aggregate count intents.
+ * Aggregate project requests use `search_projects`, but singular factual
+ * questions should stay on the broader content surface because many project
+ * mentions live inside articles and videos rather than the canonical project API.
  */
 export function getPrimaryRetrievalToolForQuery(
   text: string,
@@ -51,29 +52,50 @@ export function getPrimaryRetrievalToolForQuery(
 ): AllowedToolName {
   const norm = normalizeArabicLight(text)
   const projectSignals = [
-    "مشروع", "مشاريع", "المشاريع", "انجاز", "انجازات", "اعمار", "توسعه", "توسعة", "خدمي"
+    "Ù…Ø´Ø±ÙˆØ¹", "Ù…Ø´Ø§Ø±ÙŠØ¹", "Ø§Ù„Ù…Ø´Ø§Ø±ÙŠØ¹", "Ø§Ù†Ø¬Ø§Ø²", "Ø§Ù†Ø¬Ø§Ø²Ø§Øª", "Ø§Ø¹Ù…Ø§Ø±", "ØªÙˆØ³Ø¹Ù‡", "ØªÙˆØ³Ø¹Ø©", "Ø®Ø¯Ù…ÙŠ"
   ]
   const isProjectQuery =
     understanding?.extracted_entities.source_specific.includes("projects_query") ||
     projectSignals.some(signal => norm.includes(signal))
   const asksProjectCount =
     understanding?.operation_intent === "count" ||
-    norm.includes(normalizeArabicLight("كم")) ||
-    norm.includes(normalizeArabicLight("عدد"))
-  const projectDomainIntents = new Set([
+    norm.includes(normalizeArabicLight("ÙƒÙ…")) ||
+    norm.includes(normalizeArabicLight("Ø¹Ø¯Ø¯"))
+  const aggregateProjectIntents = new Set([
     "count",
     "list_items",
     "latest",
-    "fact_question",
-    "direct_answer",
     "summarize"
   ])
-  const isProjectDomainIntent = projectDomainIntents.has(String(understanding?.operation_intent || ""))
+  const singularProjectLookupSignals = [
+    "Ù‡Ù„",
+    "ÙŠÙˆØ¬Ø¯",
+    "Ù…Ø§ Ù‡Ùˆ",
+    "Ù…Ø§ Ù‡ÙŠ",
+    "Ø¯Ø¬Ø§Ø¬",
+    "Ø¯ÙˆØ§Ø¬Ù†",
+    "Ù„Ø­ÙˆÙ…",
+    "Ø§Ù„Ù„Ø­ÙˆÙ…",
+    "ØºØ°Ø§Ø¦ÙŠ",
+    "Ø§Ù†ØªØ§Ø¬",
+    "Ø¥Ù†ØªØ§Ø¬",
+    "Ø²Ø±Ø§Ø¹ÙŠ",
+    "ØªØ±Ø¨ÙŠØ©"
+  ]
+  const isAggregateProjectIntent = aggregateProjectIntents.has(String(understanding?.operation_intent || ""))
+  const isSingularProjectLookup =
+    understanding?.operation_intent === "fact_question" ||
+    understanding?.operation_intent === "direct_answer" ||
+    singularProjectLookupSignals.some(signal => norm.includes(normalizeArabicLight(signal)))
 
-  // Project-domain requests should use the project retrieval surface by default.
-  if (isProjectQuery && (asksProjectCount || isProjectDomainIntent)) {
+  if (isProjectQuery && (asksProjectCount || isAggregateProjectIntent) && !isSingularProjectLookup) {
     return "search_projects"
   }
+
+  if (isProjectQuery && isSingularProjectLookup) {
+    return "search_content"
+  }
+
   return "search_content"
 }
 

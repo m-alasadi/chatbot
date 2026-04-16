@@ -55,6 +55,52 @@ function getSecurityHeadersWithTrace(traceId?: string): HeadersInit {
   }
 }
 
+function classifyRuntimeFailure(error: any): "timeout" | "rate_limit" | "upstream" | "network" | "unknown" {
+  const text = String(error?.message || error || "").toLowerCase()
+  if (!text) return "unknown"
+  if (text.includes("timeout") || text.includes("timed out") || text.includes("request_budget_exhausted")) {
+    return "timeout"
+  }
+  if (text.includes("rate limit") || text.includes("429") || text.includes("too many requests")) {
+    return "rate_limit"
+  }
+  if (
+    text.includes("503") ||
+    text.includes("502") ||
+    text.includes("504") ||
+    text.includes("service unavailable") ||
+    text.includes("bad gateway")
+  ) {
+    return "upstream"
+  }
+  if (
+    text.includes("fetch") ||
+    text.includes("network") ||
+    text.includes("econn") ||
+    text.includes("socket") ||
+    text.includes("enotfound")
+  ) {
+    return "network"
+  }
+  return "unknown"
+}
+
+function buildRuntimeFailureMessage(kind: ReturnType<typeof classifyRuntimeFailure>, traceId: string): string {
+  const traceSuffix = `\n\nرقم التتبع: ${traceId}`
+  switch (kind) {
+    case "timeout":
+      return `تعذر إكمال الإجابة في الوقت المتاح. حاول إعادة السؤال بصياغة أقصر أو بعد قليل.${traceSuffix}`
+    case "rate_limit":
+      return `الخدمة تتلقى عددًا كبيرًا من الطلبات الآن. حاول مرة أخرى بعد قليل.${traceSuffix}`
+    case "upstream":
+      return `مصدر الإجابة غير متاح مؤقتًا الآن. حاول بعد قليل.${traceSuffix}`
+    case "network":
+      return `حدثت مشكلة اتصال أثناء جلب البيانات من المصدر.${traceSuffix}`
+    default:
+      return `تعذر إكمال الإجابة بسبب خلل مؤقت في مسار الاسترجاع.${traceSuffix}`
+  }
+}
+
 /**
  * معالجة OPTIONS request (CORS Preflight)
  */
@@ -71,6 +117,10 @@ interface ChatRequest {
   max_tokens?: number
   use_tools?: boolean // خيار لتفعيل/تعطيل الأدوات
 }
+
+const DEFAULT_CHAT_TEMPERATURE = 0.2
+const DEFAULT_CHAT_MAX_TOKENS = 1200
+const MAX_CONTEXT_MESSAGES = 12
 
 /**
  * Endpoint موحد للشات مع دعم Function Calling - المرحلة 2 + 4
@@ -130,10 +180,18 @@ export async function POST(request: Request) {
     const json = await request.json()
     const {
       messages,
-      temperature = 0.5,
-      max_tokens = 1200,
+      temperature = DEFAULT_CHAT_TEMPERATURE,
+      max_tokens = DEFAULT_CHAT_MAX_TOKENS,
       use_tools = true
     } = json as ChatRequest
+
+    // توحيد السلوك بين الواجهة والاختبارات عبر ضبط حدود المعلمات.
+    const boundedTemperature = Number.isFinite(temperature)
+      ? Math.max(0, Math.min(0.3, temperature))
+      : DEFAULT_CHAT_TEMPERATURE
+    const boundedMaxTokens = Number.isFinite(max_tokens)
+      ? Math.max(256, Math.min(DEFAULT_CHAT_MAX_TOKENS, Math.trunc(max_tokens)))
+      : DEFAULT_CHAT_MAX_TOKENS
 
     // التحقق من وجود رسائل
     if (!messages || messages.length === 0) {
@@ -153,9 +211,19 @@ export async function POST(request: Request) {
     }))
     
     const sanitizedMessages = sanitizeMessages(simpleMessages)
+    const boundedMessages = sanitizedMessages.slice(-MAX_CONTEXT_MESSAGES)
+
+    if (boundedMessages.length === 0) {
+      return new Response(
+        JSON.stringify({
+          error: "الرسائل غير صالحة بعد التنظيف"
+        }),
+        { status: 400, headers: securityHeaders }
+      )
+    }
 
     // التحقق من صحة آخر رسالة (من المستخدم)
-    const lastMessage = sanitizedMessages[sanitizedMessages.length - 1]
+    const lastMessage = boundedMessages[boundedMessages.length - 1]
     const requestUnderstanding = understandQuery(lastMessage?.content || "")
     startRuntimeRequestMetrics({
       traceId,
@@ -168,7 +236,8 @@ export async function POST(request: Request) {
       normalized_query: normalizedQuery,
       details: {
         use_tools,
-        message_count: sanitizedMessages.length,
+        message_count: boundedMessages.length,
+        original_message_count: sanitizedMessages.length,
         model: getOpenAIModel()
       }
     })
@@ -218,7 +287,7 @@ export async function POST(request: Request) {
         role: "system",
         content: systemPrompt
       },
-      ...sanitizedMessages.map(msg => ({
+      ...boundedMessages.map(msg => ({
         role: msg.role as "user" | "assistant" | "system",
         content: msg.content
       }))
@@ -226,7 +295,7 @@ export async function POST(request: Request) {
 
     // ===== Streaming Function Calling =====
     if (use_tools) {
-      console.log(`[Chat API] Streaming FC (${sanitizedMessages.length} msgs)`)
+      console.log(`[Chat API] Streaming FC (${boundedMessages.length} msgs)`)
 
       try {
         logChatTrace({
@@ -408,7 +477,29 @@ export async function POST(request: Request) {
         })
       } catch (fcError: any) {
         console.error("[Chat API] Streaming FC Error:", fcError)
-        console.log("[Chat API] Falling back to standard mode")
+        const failureKind = classifyRuntimeFailure(fcError)
+        const failureMessage = buildRuntimeFailureMessage(failureKind, traceId)
+        logChatTrace({
+          trace_id: traceId,
+          stage: "tool_runtime_degraded",
+          normalized_query: normalizedQuery,
+          answer_mode: "tool_failure_message",
+          unavailable_reason: fcError?.message || String(fcError || "tool_runtime_failed"),
+          details: {
+            failure_kind: failureKind
+          }
+        })
+        finalizeMetrics({
+          answerMode: "tool_failure_message",
+          unavailableReason: fcError?.message || String(fcError || "tool_runtime_failed")
+        })
+        return new Response(failureMessage, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            ...securityHeaders
+          },
+          status: 200
+        })
       }
     }
 
@@ -418,8 +509,8 @@ export async function POST(request: Request) {
     const response = await openai.chat.completions.create({
       model,
       messages: messagesWithSystem,
-      temperature,
-      max_tokens,
+      temperature: boundedTemperature,
+      max_tokens: boundedMaxTokens,
       stream: true
     })
 

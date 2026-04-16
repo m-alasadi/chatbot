@@ -127,6 +127,29 @@ function detectTypeConstraint(normQuery: string): import("./content-types").Cont
   return null
 }
 
+function getSpecificQueryTokens(queryTokens: string[]): string[] {
+  const genericTokens = new Set([
+    "ما", "هو", "هي", "هل", "عن", "في", "على", "من", "الى", "إلى", "او", "أو",
+    "للعتبه", "للعتبة", "العتبه", "العتبة", "العباسيه", "العباسية",
+    "مشروع", "مشاريع", "اسبوع"
+  ].map(t => normalizeArabic(t)))
+
+  return queryTokens.filter(token => !genericTokens.has(token))
+}
+
+function countSpecificTokenMatches(haystacks: string[], specificTokens: string[]): number {
+  if (specificTokens.length === 0) return 0
+  let matched = 0
+
+  for (const token of specificTokens) {
+    if (haystacks.some(text => text.includes(token))) {
+      matched++
+    }
+  }
+
+  return matched
+}
+
 /**
  * Prefix-fuzzy search over Abbas chunks.
  * Bridges Arabic morphological gaps:
@@ -201,6 +224,13 @@ function rerank(
   const normSection = normalizeArabic(chunk.section)
   const normText = normalizeArabic(chunk.chunk_text)
   const normQuery = normalizeArabic(rawQuery)
+  const haystacks = [normTitle, normSection, normText]
+  const specificTokens = getSpecificQueryTokens(queryTokens)
+  const specificMatchCount = countSpecificTokenMatches(haystacks, specificTokens)
+
+  if (specificTokens.length > 0 && specificMatchCount === 0) {
+    return 0
+  }
 
   // Title match: how many query tokens appear in title
   const titleHits = queryTokens.filter(t => normTitle.includes(t)).length
@@ -260,6 +290,15 @@ function rerank(
   const preferredType = detectTypeConstraint(normQuery)
   if (preferredType && chunk.family === preferredType) {
     signals.typeConstraint = 1
+  }
+
+  if (specificTokens.length > 0) {
+    const specificCoverage = specificMatchCount / specificTokens.length
+    signals.textDensity += specificCoverage * 1.5
+
+    if (specificCoverage < 0.5) {
+      signals.typeConstraint -= 0.5
+    }
   }
 
   // Weighted combination

@@ -1,0 +1,576 @@
+
+> alkafeel_chatbot@1.0.0 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 3.4s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 522ms (117 modules)
+ ○ Compiling /[locale] ...
+ ✓ Compiled /[locale] in 2.3s (511 modules)
+ GET /ar 200 in 3524ms
+ GET /ar 200 in 82ms
+ ○ Compiling /api/chat/site ...
+ ✓ Compiled /api/chat/site in 2s (354 modules)
+[ChatTrace] {"trace_id":"trace_mo1b060w_c2ri1r","stage":"request_received","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1b060w_c2ri1r","stage":"tool_resolution_started","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1b060w_c2ri1r","stage":"intent_detected","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","routed_source":"articles_latest","details":{"forced_tool":"get_latest_by_source"}}
+[ChatTrace] {"trace_id":"trace_mo1b060w_c2ri1r","stage":"query_understanding","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","routed_source":"articles_latest","details":{"content_intent":"news","operation_intent":"list_items","route_confidence":0.99,"extracted_entities":{"person":["العباس"],"topic":["اخبار","اعطني آخر الأخبار"],"place":["العتبه","العتبة"],"source_specific":["articles_latest","shrine_history_sections"]}}}
+[Tool Resolution] Forced intent: get_latest_by_source { source: 'articles_latest', limit: 5 }
+[ChatTrace] {"trace_id":"trace_mo1b060w_c2ri1r","stage":"forced_intent_utility","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","routed_source":"articles_latest","details":{"forced_tool":"get_latest_by_source"}}
+[Tool Execution] get_latest_by_source { source: 'articles_latest', limit: 5 }
+[ChatTrace] {"trace_id":"trace_mo1b060w_c2ri1r","stage":"tools_resolved","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo1b060w_c2ri1r","stage":"tool_resolution_finished","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo1b060w_c2ri1r","stage":"direct_answer_returned","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","answer_mode":"direct_grounded","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":null}
+[ChatTrace] {"trace_id":"trace_mo1b060w_c2ri1r","stage":"response_ready","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","answer_mode":"direct_grounded","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":null}
+ POST /api/chat/site 200 in 3332ms
+[ChatTrace] {"trace_id":"trace_mo1b0dvu_sy2qpr","stage":"request_received","normalized_query":"من هو العباس و متي استشهد","details":{"use_tools":true,"message_count":3,"original_message_count":3,"model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo1b0dvu_sy2qpr","stage":"tool_resolution_started","normalized_query":"من هو العباس و متي استشهد","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1b0dvu_sy2qpr","stage":"tools_resolved","normalized_query":"من هو العباس و متي استشهد","routed_source":"deterministic_fallback","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo1b0dvu_sy2qpr","stage":"tool_resolution_finished","normalized_query":"من هو العباس و متي استشهد","routed_source":"deterministic_fallback","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo1b0dvu_sy2qpr","stage":"direct_answer_returned","normalized_query":"من هو العباس و متي استشهد","answer_mode":"direct_grounded","routed_source":"deterministic_fallback","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo1b0dvu_sy2qpr","stage":"response_ready","normalized_query":"من هو العباس و متي استشهد","answer_mode":"direct_grounded","routed_source":"deterministic_fallback","retry_attempts":0}
+ POST /api/chat/site 200 in 76ms
+[ChatTrace] {"trace_id":"trace_mo1b0ohu_sqtrwh","stage":"request_received","normalized_query":"متي استشهد","details":{"use_tools":true,"message_count":5,"original_message_count":5,"model":"gpt-4o"}}
+[Chat API] Streaming FC (5 msgs)
+[ChatTrace] {"trace_id":"trace_mo1b0ohu_sqtrwh","stage":"tool_resolution_started","normalized_query":"متي استشهد","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1b0ohu_sqtrwh","stage":"intent_detected","normalized_query":"متي استشهد","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1b0ohu_sqtrwh","stage":"query_understanding","normalized_query":"متي استشهد","routed_source":"abbas_history_by_id","details":{"content_intent":"biography","operation_intent":"fact_question","route_confidence":0.71,"extracted_entities":{"person":[],"topic":["متى استشهد"],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[ChatTrace] {"trace_id":"trace_mo1b0ohu_sqtrwh","stage":"tools_resolved","normalized_query":"متي استشهد","retry_attempts":0,"details":{"iterations":1,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo1b0ohu_sqtrwh","stage":"tool_resolution_finished","normalized_query":"متي استشهد","retry_attempts":0,"details":{"iterations":1,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo1b0ohu_sqtrwh","stage":"direct_answer_returned","normalized_query":"متي استشهد","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo1b0ohu_sqtrwh","stage":"response_ready","normalized_query":"متي استشهد","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 3093ms
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"request_received","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"use_tools":true,"message_count":7,"original_message_count":7,"model":"gpt-4o"}}
+[Chat API] Streaming FC (7 msgs)
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"tool_resolution_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"intent_detected","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"query_understanding","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["مشاريع","هل للعتبة مشاريع"],"place":[],"source_specific":["projects_query","articles_latest","videos_latest"]}}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"orchestrator_plan_created","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","details":{"tool_name":"search_projects","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_projects","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_projects {
+  query: 'هل للعتبة  مشاريع  دواجن او لحوم',
+  source: 'articles_latest'
+}
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_projects","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":8,"elapsed_ms":9,"budget_remaining_ms":17991}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_projects","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":17989}}
+[Tool Execution] search_projects { query: 'هل للعتبة  مشاريع  دواجن او لحوم', source: 'videos_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_projects","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":610,"elapsed_ms":621,"budget_remaining_ms":17379}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_projects","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":17377}}
+[Tool Execution] search_projects { query: 'هل للعتبة  مشاريع  دواجن او لحوم', source: 'auto' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"tool_name":"search_projects","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":368,"elapsed_ms":991,"budget_remaining_ms":17009}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"orchestrator_runtime_takeover","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[Knowledge Ingestion] Ingesting 7 stale source(s): articles_latest, videos_latest, videos_categories, shrine_history_sections, lang_words_ar, friday_sermons, wahy_friday
+[Knowledge Ingestion] lang_words_ar: 527 items → 528 chunks
+[Knowledge Ingestion] videos_categories: 43 items → 43 chunks
+[Knowledge Ingestion] shrine_history_sections: 5 items → 40 chunks
+[Knowledge Ingestion] wahy_friday: 160 items → 160 chunks
+[Knowledge Ingestion] friday_sermons: 160 items → 160 chunks
+[Knowledge Ingestion] videos_latest: 160 items → 160 chunks
+[Knowledge Ingestion] articles_latest: 160 items → 160 chunks
+[Knowledge Ingestion] Deep-fetching 5 history section(s): عودة الشرعية إلى إدارة العتبات بعد طول غياب, سدنة العتبة العباسية المقدسة (1), الكلدار, تأريخ فك ارتباط إدارتي العتبتين المقدستين, العتبة العباسية المقدسة في ظل الإدارة الجديدة
+[Abbas Local] Loaded 14 tabs (95439 chars)
+[Knowledge Ingestion] Abbas local dataset: 14 tabs → 203 chunks
+[Knowledge] Initial search: 4 chunks (top=3.2)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge Ingestion] Backfill articles_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 4 chunks (top=3.2) [+48]
+[Knowledge Ingestion] Backfill videos_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 4 chunks (top=3.2) [+48]
+[Knowledge] After backfill: 4 chunks (top=3.2) [+96 items]
+[Knowledge] Found 4 chunks (scores: 3.2,3.6,3.6,3.3) [backfilled]
+[Tool Resolution] Iteration 1
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"tools_resolved","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"tool_resolution_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"final_stream_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"grounded_stream_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1b19di_j4spji","stage":"response_ready","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 13464ms
+[ChatTrace] {"trace_id":"trace_mo1b2awv_5mcg93","stage":"request_received","normalized_query":"ما هو اسبوع الامامه","details":{"use_tools":true,"message_count":9,"original_message_count":9,"model":"gpt-4o"}}
+[Chat API] Streaming FC (9 msgs)
+[ChatTrace] {"trace_id":"trace_mo1b2awv_5mcg93","stage":"tool_resolution_started","normalized_query":"ما هو اسبوع الامامه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1b2awv_5mcg93","stage":"tools_resolved","normalized_query":"ما هو اسبوع الامامه","routed_source":"deterministic_fallback","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo1b2awv_5mcg93","stage":"tool_resolution_finished","normalized_query":"ما هو اسبوع الامامه","routed_source":"deterministic_fallback","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo1b2awv_5mcg93","stage":"direct_answer_returned","normalized_query":"ما هو اسبوع الامامه","answer_mode":"direct_grounded","routed_source":"deterministic_fallback","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo1b2awv_5mcg93","stage":"response_ready","normalized_query":"ما هو اسبوع الامامه","answer_mode":"direct_grounded","routed_source":"deterministic_fallback","retry_attempts":0}
+ POST /api/chat/site 200 in 69ms
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"request_received","normalized_query":"اعطني المصادر","details":{"use_tools":true,"message_count":11,"original_message_count":11,"model":"gpt-4o"}}
+[Chat API] Streaming FC (11 msgs)
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"tool_resolution_started","normalized_query":"اعطني المصادر","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"intent_detected","normalized_query":"اعطني المصادر","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"query_understanding","normalized_query":"اعطني المصادر","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["اعطني المصادر"],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_kv3W6CV382VJ2L9WteWJr7Tu
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"orchestrator_plan_created","normalized_query":"اسبوع الامامه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"orchestrator_attempt_started","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'أسبوع الإمامة', source: 'auto', limit: 5 }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"orchestrator_attempt_finished","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":32,"elapsed_ms":33,"budget_remaining_ms":17967}}
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"tool_result","normalized_query":"اسبوع الامامه","routed_source":"auto","result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Empty results detected after retries, generating suggestions
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"empty_results_fallback","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"unavailable_reason":"empty_results_after_retries","details":{"tool_name":"search_content","attempted_action":"search_content"}}
+[Tool Resolution] Iteration 2
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"tools_resolved","normalized_query":"اعطني المصادر","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"tool_resolution_finished","normalized_query":"اعطني المصادر","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"final_stream_started","normalized_query":"اعطني المصادر","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"grounded_stream_started","normalized_query":"اعطني المصادر","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1b2o4n_9kscdb","stage":"response_ready","normalized_query":"اعطني المصادر","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 5729ms
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"request_received","normalized_query":"شرح نهج البلاغه","details":{"use_tools":true,"message_count":12,"original_message_count":13,"model":"gpt-4o"}}
+[Chat API] Streaming FC (12 msgs)
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"tool_resolution_started","normalized_query":"شرح نهج البلاغه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"intent_detected","normalized_query":"شرح نهج البلاغه","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"query_understanding","normalized_query":"شرح نهج البلاغه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"explain","route_confidence":0.66,"extracted_entities":{"person":[],"topic":["شرح نهج البلاغة"],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_w6stqcBQ6e3jkBI81kEb462A
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"orchestrator_plan_created","normalized_query":"شرح نهج البلاغه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"explain","route_confidence":0.66,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"orchestrator_attempt_started","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"first_pass","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'شرح نهج البلاغة', source: 'auto' }
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"orchestrator_attempt_finished","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2616,"elapsed_ms":2617,"budget_remaining_ms":15383}}
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"tool_result","normalized_query":"شرح نهج البلاغه","routed_source":"auto","result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Empty results detected after retries, generating suggestions
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"empty_results_fallback","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"unavailable_reason":"empty_results_after_retries","details":{"tool_name":"search_content","attempted_action":"search_content"}}
+[Tool Resolution] Iteration 2
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"tools_resolved","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"tool_resolution_finished","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"final_stream_started","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"grounded_stream_started","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1b2wo7_r5b54v","stage":"response_ready","normalized_query":"شرح نهج البلاغه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 8395ms
+ ✓ Compiled in 246ms (117 modules)
+ GET /ar 200 in 90ms
+ ○ Compiling /api/chat/site ...
+ ✓ Compiled /api/chat/site in 676ms (354 modules)
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"request_received","normalized_query":"شرح نهج البلاغه","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"tool_resolution_started","normalized_query":"شرح نهج البلاغه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"intent_detected","normalized_query":"شرح نهج البلاغه","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"query_understanding","normalized_query":"شرح نهج البلاغه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"explain","route_confidence":0.66,"extracted_entities":{"person":[],"topic":["شرح نهج البلاغة"],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_AC5dC4Mf4fGrhz6GjcqPMlZS
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"orchestrator_plan_created","normalized_query":"شرح نهج البلاغه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"explain","route_confidence":0.66,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"orchestrator_attempt_started","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"first_pass","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'شرح نهج البلاغة', source: 'auto' }
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"orchestrator_attempt_finished","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":3170,"elapsed_ms":3171,"budget_remaining_ms":14829}}
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"orchestrator_slow_source_path","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"duration_ms":3170,"slow_threshold_ms":3000,"reason":"first_pass"}}
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"tool_result","normalized_query":"شرح نهج البلاغه","routed_source":"auto","result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Empty results detected after retries, generating suggestions
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"empty_results_fallback","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"unavailable_reason":"empty_results_after_retries","details":{"tool_name":"search_content","attempted_action":"search_content"}}
+[Tool Resolution] Iteration 2
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"tools_resolved","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"tool_resolution_finished","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"final_stream_started","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"grounded_stream_started","normalized_query":"شرح نهج البلاغه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bg18g_dxrijy","stage":"response_ready","normalized_query":"شرح نهج البلاغه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 11242ms
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"request_received","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"tool_resolution_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"intent_detected","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"query_understanding","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["مشاريع","هل للعتبة مشاريع"],"place":[],"source_specific":["projects_query","articles_latest","videos_latest"]}}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"orchestrator_plan_created","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","details":{"tool_name":"search_projects","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_projects","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_projects { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'articles_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_projects","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":6,"elapsed_ms":7,"budget_remaining_ms":17993}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_projects","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":17992}}
+[Tool Execution] search_projects { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'videos_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_projects","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":4,"elapsed_ms":12,"budget_remaining_ms":17988}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_projects","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":17986}}
+[Tool Execution] search_projects { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'auto' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"tool_name":"search_projects","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":26,"elapsed_ms":40,"budget_remaining_ms":17960}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"orchestrator_runtime_takeover","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[Knowledge Ingestion] Ingesting 7 stale source(s): articles_latest, videos_latest, videos_categories, shrine_history_sections, lang_words_ar, friday_sermons, wahy_friday
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"request_received","normalized_query":"ما هو اسبوع الامامه","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"tool_resolution_started","normalized_query":"ما هو اسبوع الامامه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"intent_detected","normalized_query":"ما هو اسبوع الامامه","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"query_understanding","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["ما هو اسبوع"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"orchestrator_plan_created","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"orchestrator_attempt_started","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'ما هو اسبوع الامامة', source: 'auto' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"orchestrator_attempt_finished","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":28,"elapsed_ms":29,"budget_remaining_ms":17971}}
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"orchestrator_runtime_takeover","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[Knowledge Ingestion] lang_words_ar: 527 items → 528 chunks
+[Knowledge Ingestion] videos_categories: 43 items → 43 chunks
+[Knowledge Ingestion] shrine_history_sections: 5 items → 40 chunks
+[Knowledge Ingestion] friday_sermons: 160 items → 160 chunks
+[Knowledge Ingestion] wahy_friday: 160 items → 160 chunks
+[Knowledge Ingestion] videos_latest: 160 items → 160 chunks
+[Knowledge Ingestion] articles_latest: 160 items → 160 chunks
+[Knowledge Ingestion] Deep-fetching 5 history section(s): عودة الشرعية إلى إدارة العتبات بعد طول غياب, سدنة العتبة العباسية المقدسة (1), الكلدار, تأريخ فك ارتباط إدارتي العتبتين المقدستين, العتبة العباسية المقدسة في ظل الإدارة الجديدة
+[Abbas Local] Loaded 14 tabs (95439 chars)
+[Knowledge Ingestion] Abbas local dataset: 14 tabs → 203 chunks
+[Knowledge] Initial search: 4 chunks (top=3.6)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge] Initial search: 4 chunks (top=3.9)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge Ingestion] Backfill articles_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 4 chunks (top=3.6) [+48]
+[Knowledge Ingestion] Backfill articles_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 4 chunks (top=3.9) [+48]
+[Knowledge Ingestion] Backfill videos_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 4 chunks (top=3.9) [+48]
+[Knowledge] After backfill: 4 chunks (top=3.9) [+96 items]
+[Knowledge] Found 4 chunks (scores: 3.9,3.3,3.6,2.3) [backfilled]
+[Tool Resolution] Iteration 1
+[Knowledge Ingestion] Backfill videos_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 4 chunks (top=3.6) [+48]
+[Knowledge] After backfill: 4 chunks (top=3.6) [+96 items]
+[Knowledge] Found 4 chunks (scores: 3.6,3.6,3.2,3.3) [backfilled]
+[Tool Resolution] Iteration 1
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"tools_resolved","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"tool_resolution_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"final_stream_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"grounded_stream_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"tools_resolved","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"tool_resolution_finished","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"final_stream_started","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"grounded_stream_started","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bjyea_h8lir8","stage":"response_ready","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[ChatTrace] {"trace_id":"trace_mo1bjygl_3ocyal","stage":"response_ready","normalized_query":"ما هو اسبوع الامامه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 11286ms
+ POST /api/chat/site 200 in 11666ms
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"request_received","normalized_query":"اعطني المصادر","details":{"use_tools":true,"message_count":3,"original_message_count":3,"model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"tool_resolution_started","normalized_query":"اعطني المصادر","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"intent_detected","normalized_query":"اعطني المصادر","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"query_understanding","normalized_query":"اعطني المصادر","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["اعطني المصادر"],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_q2ddPYaKRfjEEcIWRPrdkcVZ
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"orchestrator_plan_created","normalized_query":"اسبوع الامامه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"orchestrator_attempt_started","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'أسبوع الإمامة', source: 'auto' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"orchestrator_attempt_finished","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":31,"elapsed_ms":31,"budget_remaining_ms":17969}}
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"tool_result","normalized_query":"اسبوع الامامه","routed_source":"auto","result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Empty results detected after retries, generating suggestions
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"empty_results_fallback","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"unavailable_reason":"empty_results_after_retries","details":{"tool_name":"search_content","attempted_action":"search_content"}}
+[Tool Resolution] Iteration 2
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"tools_resolved","normalized_query":"اعطني المصادر","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"tool_resolution_finished","normalized_query":"اعطني المصادر","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"final_stream_started","normalized_query":"اعطني المصادر","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"grounded_stream_started","normalized_query":"اعطني المصادر","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bkfq3_hg42cp","stage":"response_ready","normalized_query":"اعطني المصادر","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 3760ms
+ ✓ Compiled in 280ms (117 modules)
+ ✓ Compiled /api/chat/site in 292ms (354 modules)
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"request_received","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"tool_resolution_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"intent_detected","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"query_understanding","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["مشاريع","هل للعتبة مشاريع"],"place":[],"source_specific":["projects_query","articles_latest","videos_latest"]}}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"orchestrator_plan_created","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"request_received","normalized_query":"ما هو اسبوع الامامه","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"tool_resolution_started","normalized_query":"ما هو اسبوع الامامه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"intent_detected","normalized_query":"ما هو اسبوع الامامه","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"query_understanding","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["ما هو اسبوع"],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":689,"elapsed_ms":690,"budget_remaining_ms":17310}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":17308}}
+[Tool Execution] search_content { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'videos_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":445,"elapsed_ms":1137,"budget_remaining_ms":16863}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":16862}}
+[Tool Execution] search_content { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'auto' }
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_Vk3rtFJ2xnsXS5iXKT22ttnJ
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"orchestrator_plan_created","normalized_query":"اسبوع الامامه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"orchestrator_attempt_started","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'اسبوع الامامة', source: 'auto' }
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2511,"elapsed_ms":3649,"budget_remaining_ms":14351}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"orchestrator_runtime_takeover","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[Knowledge Ingestion] Ingesting 7 stale source(s): articles_latest, videos_latest, videos_categories, shrine_history_sections, lang_words_ar, friday_sermons, wahy_friday
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"orchestrator_attempt_finished","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2194,"elapsed_ms":2195,"budget_remaining_ms":15805}}
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"tool_result","normalized_query":"اسبوع الامامه","routed_source":"auto","result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Empty results detected after retries, generating suggestions
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"empty_results_fallback","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"unavailable_reason":"empty_results_after_retries","details":{"tool_name":"search_content","attempted_action":"search_content"}}
+[Tool Resolution] Iteration 2
+[Knowledge Ingestion] lang_words_ar: 527 items → 528 chunks
+[Knowledge Ingestion] videos_categories: 43 items → 43 chunks
+[Knowledge Ingestion] shrine_history_sections: 5 items → 40 chunks
+[Tool Resolution] Tools done, popped answer for streaming
+[Knowledge Ingestion] friday_sermons: 160 items → 160 chunks
+[Knowledge Ingestion] wahy_friday: 160 items → 160 chunks
+[Knowledge Ingestion] videos_latest: 160 items → 160 chunks
+[Knowledge Ingestion] articles_latest: 160 items → 160 chunks
+[Knowledge Ingestion] Deep-fetching 5 history section(s): عودة الشرعية إلى إدارة العتبات بعد طول غياب, سدنة العتبة العباسية المقدسة (1), الكلدار, تأريخ فك ارتباط إدارتي العتبتين المقدستين, العتبة العباسية المقدسة في ظل الإدارة الجديدة
+[Abbas Local] Loaded 14 tabs (95439 chars)
+[Knowledge Ingestion] Abbas local dataset: 14 tabs → 203 chunks
+[Knowledge] Initial search: 4 chunks (top=3.6)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge] Initial search: 4 chunks (top=3.9)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge Ingestion] Backfill articles_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 4 chunks (top=3.9) [+48]
+[Knowledge Ingestion] Backfill articles_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 4 chunks (top=3.6) [+48]
+[Knowledge Ingestion] Backfill videos_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 4 chunks (top=3.9) [+48]
+[Knowledge] After backfill: 4 chunks (top=3.9) [+96 items]
+[Knowledge] Found 4 chunks (scores: 3.9,3.3,3.6,2.3) [backfilled]
+[Knowledge] Tool returned empty — overriding with knowledge context
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"tools_resolved","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"tool_resolution_finished","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"final_stream_started","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"grounded_stream_started","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[Knowledge Ingestion] Backfill videos_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 4 chunks (top=3.6) [+48]
+[Knowledge] After backfill: 4 chunks (top=3.6) [+96 items]
+[Knowledge] Found 4 chunks (scores: 3.6,3.6,3.2,3.3) [backfilled]
+[Tool Resolution] Iteration 1
+[ChatTrace] {"trace_id":"trace_mo1bqlhr_nezhja","stage":"response_ready","normalized_query":"ما هو اسبوع الامامه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 14027ms
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"tools_resolved","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"tool_resolution_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"final_stream_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"grounded_stream_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bqlho_u0bagh","stage":"response_ready","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 16077ms
+ ✓ Compiled in 175ms (117 modules)
+ ✓ Compiled /api/chat/site in 277ms (354 modules)
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"request_received","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"tool_resolution_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"intent_detected","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"query_understanding","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["مشاريع","هل للعتبة مشاريع"],"place":[],"source_specific":["projects_query","articles_latest","videos_latest"]}}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"orchestrator_plan_created","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"request_received","normalized_query":"ما هو اسبوع الامامه","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"tool_resolution_started","normalized_query":"ما هو اسبوع الامامه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"intent_detected","normalized_query":"ما هو اسبوع الامامه","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"query_understanding","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["ما هو اسبوع"],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":707,"elapsed_ms":707,"budget_remaining_ms":17293}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":17292}}
+[Tool Execution] search_content { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'videos_latest' }
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_dPjz7Ev6GIKRg24pRBYaSlQm
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"orchestrator_plan_created","normalized_query":"اسبوع الامامه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"orchestrator_attempt_started","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'اسبوع الامامة', source: 'auto' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":322,"elapsed_ms":1030,"budget_remaining_ms":16970}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":16969}}
+[Tool Execution] search_content { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'auto' }
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":1877,"elapsed_ms":2908,"budget_remaining_ms":15092}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"orchestrator_runtime_takeover","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[Knowledge Ingestion] Ingesting 7 stale source(s): articles_latest, videos_latest, videos_categories, shrine_history_sections, lang_words_ar, friday_sermons, wahy_friday
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"orchestrator_attempt_finished","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2015,"elapsed_ms":2015,"budget_remaining_ms":15985}}
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"tool_result","normalized_query":"اسبوع الامامه","routed_source":"auto","result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Empty results detected after retries, generating suggestions
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"empty_results_fallback","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"unavailable_reason":"empty_results_after_retries","details":{"tool_name":"search_content","attempted_action":"search_content"}}
+[Tool Resolution] Iteration 2
+[Knowledge Ingestion] videos_categories: 43 items → 43 chunks
+[Knowledge Ingestion] lang_words_ar: 527 items → 528 chunks
+[Knowledge Ingestion] shrine_history_sections: 5 items → 40 chunks
+[Tool Resolution] Tools done, popped answer for streaming
+[Knowledge Ingestion] wahy_friday: 160 items → 160 chunks
+[Knowledge Ingestion] friday_sermons: 160 items → 160 chunks
+[Knowledge Ingestion] videos_latest: 160 items → 160 chunks
+[Knowledge Ingestion] articles_latest: 160 items → 160 chunks
+[Knowledge Ingestion] Deep-fetching 5 history section(s): عودة الشرعية إلى إدارة العتبات بعد طول غياب, سدنة العتبة العباسية المقدسة (1), الكلدار, تأريخ فك ارتباط إدارتي العتبتين المقدستين, العتبة العباسية المقدسة في ظل الإدارة الجديدة
+[Abbas Local] Loaded 14 tabs (95439 chars)
+[Knowledge Ingestion] Abbas local dataset: 14 tabs → 203 chunks
+[Knowledge] Initial search: 4 chunks (top=3.6)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge] Initial search: 4 chunks (top=3.9)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge Ingestion] Backfill articles_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 4 chunks (top=3.6) [+48]
+[Knowledge Ingestion] Backfill articles_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 4 chunks (top=3.9) [+48]
+[Knowledge Ingestion] Backfill videos_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 4 chunks (top=3.6) [+48]
+[Knowledge] After backfill: 4 chunks (top=3.6) [+96 items]
+[Knowledge] Found 4 chunks (scores: 3.6,3.6,3.2,3.3) [backfilled]
+[Tool Resolution] Iteration 1
+[Knowledge Ingestion] Backfill videos_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 4 chunks (top=3.9) [+48]
+[Knowledge] After backfill: 4 chunks (top=3.9) [+96 items]
+[Knowledge] Found 4 chunks (scores: 3.9,3.3,3.6,2.3) [backfilled]
+[Knowledge] Tool returned empty — overriding with knowledge context
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"tools_resolved","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"tool_resolution_finished","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"final_stream_started","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"grounded_stream_started","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bst4b_vk27cc","stage":"response_ready","normalized_query":"ما هو اسبوع الامامه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"tools_resolved","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"tool_resolution_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"final_stream_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"grounded_stream_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+ POST /api/chat/site 200 in 13714ms
+[ChatTrace] {"trace_id":"trace_mo1bst47_7h364l","stage":"response_ready","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 15459ms
+ ✓ Compiled in 686ms (117 modules)
+ ○ Compiling /api/chat/site ...
+ ✓ Compiled /api/chat/site in 542ms (354 modules)
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"request_received","normalized_query":"ما هو اسبوع الامامه","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"tool_resolution_started","normalized_query":"ما هو اسبوع الامامه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"intent_detected","normalized_query":"ما هو اسبوع الامامه","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"query_understanding","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["ما هو اسبوع"],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_vlOZ6swwD1f1DR9s8tgrXmSN
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"orchestrator_plan_created","normalized_query":"اسبوع الامامه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"orchestrator_attempt_started","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'اسبوع الامامة', source: 'auto' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"orchestrator_attempt_finished","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":5,"top_score":138,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":1735,"elapsed_ms":1736,"budget_remaining_ms":16264}}
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"tool_result","normalized_query":"اسبوع الامامه","routed_source":"auto","result_counts":5,"top_score":138,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Result: Success
+[Tool Resolution] Iteration 2
+[Tool Resolution] Tools done, popped answer for streaming
+[Evidence] 3 items, top confidence: 58%
+[Grounded Answer] Returning direct answer from loop-iteration evidence
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"tools_resolved","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":5,"top_score":138,"details":{"iterations":2,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"tool_resolution_finished","normalized_query":"ما هو اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":5,"top_score":138,"details":{"iterations":2,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"direct_answer_returned","normalized_query":"ما هو اسبوع الامامه","answer_mode":"direct_grounded","routed_source":"auto","retry_attempts":0,"result_counts":5,"top_score":138}
+[ChatTrace] {"trace_id":"trace_mo1cdi74_6a4mji","stage":"response_ready","normalized_query":"ما هو اسبوع الامامه","answer_mode":"direct_grounded","routed_source":"auto","retry_attempts":0,"result_counts":5,"top_score":138}
+ POST /api/chat/site 200 in 8544ms
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"request_received","normalized_query":"اسبوع الامامه","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"tool_resolution_started","normalized_query":"اسبوع الامامه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"intent_detected","normalized_query":"اسبوع الامامه","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"query_understanding","normalized_query":"اسبوع الامامه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["أسبوع الإمامة"],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"request_received","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"use_tools":true,"message_count":1,"original_message_count":1,"model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"tool_resolution_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"intent_detected","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"query_understanding","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["مشاريع","هل للعتبة مشاريع"],"place":[],"source_specific":["projects_query","articles_latest","videos_latest"]}}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_plan_created","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'articles_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":1126,"elapsed_ms":1127,"budget_remaining_ms":16873}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":16869}}
+[Tool Execution] search_content { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'videos_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":4,"elapsed_ms":1135,"budget_remaining_ms":16865}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":16863}}
+[Tool Execution] search_content { query: 'هل للعتبة مشاريع دواجن او لحوم', source: 'auto' }
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_16OnHvCt5ZnbDZOvmUpKUKUL
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"orchestrator_plan_created","normalized_query":"اسبوع الامامه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"orchestrator_attempt_started","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'أسبوع الإمامة', source: 'auto' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"orchestrator_attempt_finished","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":5,"top_score":138,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":849,"elapsed_ms":850,"budget_remaining_ms":17150}}
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"tool_result","normalized_query":"اسبوع الامامه","routed_source":"auto","result_counts":5,"top_score":138,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Result: Success
+[Tool Resolution] Iteration 2
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":3026,"elapsed_ms":4163,"budget_remaining_ms":13837}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_slow_source_path","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"duration_ms":3026,"slow_threshold_ms":3000,"reason":"broaden_search"}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"orchestrator_runtime_takeover","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[Knowledge Ingestion] Ingesting 7 stale source(s): articles_latest, videos_latest, videos_categories, shrine_history_sections, lang_words_ar, friday_sermons, wahy_friday
+[Knowledge Ingestion] videos_categories: 43 items → 43 chunks
+[Knowledge Ingestion] lang_words_ar: 527 items → 528 chunks
+[Knowledge Ingestion] shrine_history_sections: 5 items → 40 chunks
+[Knowledge Ingestion] friday_sermons: 160 items → 160 chunks
+[Knowledge Ingestion] wahy_friday: 160 items → 160 chunks
+[Knowledge Ingestion] videos_latest: 160 items → 160 chunks
+[Tool Resolution] Tools done, popped answer for streaming
+[Evidence] 3 items, top confidence: 80%
+[Grounded Answer] Returning direct answer from loop-iteration evidence
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"tools_resolved","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":5,"top_score":138,"details":{"iterations":2,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"tool_resolution_finished","normalized_query":"اسبوع الامامه","routed_source":"auto","retry_attempts":0,"result_counts":5,"top_score":138,"details":{"iterations":2,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"direct_answer_returned","normalized_query":"اسبوع الامامه","answer_mode":"direct_grounded","routed_source":"auto","retry_attempts":0,"result_counts":5,"top_score":138}
+[ChatTrace] {"trace_id":"trace_mo1cej14_74y32d","stage":"response_ready","normalized_query":"اسبوع الامامه","answer_mode":"direct_grounded","routed_source":"auto","retry_attempts":0,"result_counts":5,"top_score":138}
+ POST /api/chat/site 200 in 7413ms
+[Knowledge Ingestion] articles_latest: 160 items → 160 chunks
+[Knowledge Ingestion] Deep-fetching 5 history section(s): عودة الشرعية إلى إدارة العتبات بعد طول غياب, سدنة العتبة العباسية المقدسة (1), الكلدار, تأريخ فك ارتباط إدارتي العتبتين المقدستين, العتبة العباسية المقدسة في ظل الإدارة الجديدة
+[Abbas Local] Loaded 14 tabs (95439 chars)
+[Knowledge Ingestion] Abbas local dataset: 14 tabs → 203 chunks
+[Knowledge] Initial search: 0 chunks (top=–)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge Ingestion] Backfill articles_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 0 chunks (top=–) [+48]
+[Knowledge Ingestion] Backfill videos_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 0 chunks (top=–) [+48]
+[Knowledge] After backfill: 0 chunks (top=–) [+96 items]
+[Knowledge] No chunks for: "هل للعتبة مشاريع دواجن او لحوم" (after backfill)
+[Tool Resolution] Iteration 1
+[Tool Resolution] Tools done, popped answer for streaming
+[Knowledge] Initial search: 0 chunks (top=–)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge Ingestion] Backfill articles_latest: pages 14–16 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 0 chunks (top=–) [+48]
+[Knowledge Ingestion] Backfill videos_latest: pages 14–16 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 0 chunks (top=–) [+48]
+[Knowledge] After backfill: 0 chunks (top=–) [+96 items]
+[Knowledge] No chunks for: "هل للعتبة مشاريع دواجن او لحوم" (after backfill)
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"tools_resolved","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"tool_resolution_finished","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"final_stream_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"grounded_stream_started","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo1cej2k_vm4uuc","stage":"response_ready","normalized_query":"هل للعتبه مشاريع دواجن او لحوم","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 18026ms

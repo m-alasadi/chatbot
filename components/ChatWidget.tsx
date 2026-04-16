@@ -55,8 +55,8 @@ export default function ChatWidget({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: newMessages,
-          temperature: 0.7,
-          max_tokens: 2000,
+          temperature: 0.2,
+          max_tokens: 1200,
           use_tools: true
         })
       })
