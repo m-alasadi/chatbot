@@ -6,7 +6,7 @@ export interface ChatTraceEvent {
   retry_attempts?: number
   result_counts?: number
   top_score?: number | null
-  answer_mode?: "direct_grounded" | "llm_stream" | "fallback_stream" | "error"
+  answer_mode?: "direct_grounded" | "llm_stream" | "fallback_stream" | "tool_failure_message" | "error"
   unavailable_reason?: string
   details?: Record<string, any>
 }

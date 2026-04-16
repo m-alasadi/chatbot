@@ -67,6 +67,155 @@ function normalizeArabicLight(text: string): string {
     .trim()
 }
 
+function extractSpecificQueryTokens(text: string): string[] {
+  const norm = normalizeArabicLight(text)
+  const genericTokens = new Set([
+    "ما", "هو", "هي", "هل", "من", "عن", "في", "على", "الى", "او",
+    "هن", "له", "لها", "لهم",
+    "لي", "حول", "باختصار", "مختصر", "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني",
+    "ابحث", "خبر", "قديم", "يتحدث", "اعطني", "اعرض", "عليه", "السلام",
+    "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع"
+  ])
+
+  return norm
+    .split(/\s+/)
+    .filter(token => token.length >= 2)
+    .filter(token => !genericTokens.has(token))
+}
+
+function isOfficeHolderQuery(text: string): boolean {
+  const norm = normalizeArabicLight(text)
+  return norm.includes(normalizeArabicLight("المتولي الشرعي")) ||
+    (norm.includes(normalizeArabicLight("المتولي")) && norm.includes(normalizeArabicLight("الشرعي")))
+}
+
+function isKnowledgePriorityQuery(
+  text: string,
+  understanding?: QueryUnderstandingResult
+): boolean {
+  const norm = normalizeArabicLight(text)
+  if (isAbbasBiographyQuery(text)) return true
+  if (isOfficeHolderQuery(text)) return true
+  if (
+    norm.includes(normalizeArabicLight("سدنة")) ||
+    norm.includes(normalizeArabicLight("سدانة")) ||
+    norm.includes(normalizeArabicLight("كلدار")) ||
+    norm.includes(normalizeArabicLight("الحرم"))
+  ) {
+    return true
+  }
+  if (understanding?.content_intent === "history") return true
+  if (
+    understanding?.extracted_entities.person?.length ||
+    understanding?.extracted_entities.topic?.some(topic =>
+      normalizeArabicLight(topic).includes(normalizeArabicLight("سدنة")) ||
+      normalizeArabicLight(topic).includes(normalizeArabicLight("اخوات"))
+    )
+  ) {
+    return true
+  }
+  return false
+}
+
+function evidenceContainsLikelyPersonName(evidence: Evidence[]): boolean {
+  const pool = evidence
+    .slice(0, 5)
+    .map(item => `${item.source_title} ${item.quote}`)
+    .join(" ")
+  return /(السيد|الشيخ|سماحة|العلامة)\s+[\u0621-\u064A]{2,}(?:\s+[\u0621-\u064A]{2,}){1,3}/u.test(pool)
+}
+
+function evidenceCoversSpecificTokens(query: string, evidence: Evidence[]): boolean {
+  const specificTokens = extractSpecificQueryTokens(query)
+  if (specificTokens.length === 0) return true
+
+  const pool = normalizeArabicLight(
+    evidence
+      .slice(0, 4)
+      .map(item => `${item.source_title} ${item.quote} ${item.source_section}`)
+      .join(" ")
+  )
+  const matched = specificTokens.filter(token => pool.includes(token)).length
+  const minimumMatches = Math.min(2, specificTokens.length)
+  return matched >= minimumMatches
+}
+
+function splitCompoundFactQuery(text: string): string[] {
+  const raw = String(text || "")
+    .replace(/[؟?]+/g, " | ")
+    .replace(/،/g, " ، ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  if (!raw) return []
+
+  const questionLead = "(?:من|ما|متى|اين|أين|هل|كم|كيف|لماذا)"
+  const segmented = raw
+    .replace(new RegExp(`\\s+و(?=${questionLead}\\s)`, "gu"), " | ")
+    .replace(new RegExp(`\\s+ثم\\s+(?=${questionLead}\\s)`, "gu"), " | ")
+    .replace(new RegExp(`،\\s*(?=${questionLead}\\s)`, "gu"), " | ")
+
+  const parts = segmented
+    .split("|")
+    .map(part => part.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+
+  return [...new Set(parts)].slice(0, 3)
+}
+
+function isCompoundFactQuery(text: string): boolean {
+  return splitCompoundFactQuery(text).length > 1
+}
+
+function extractCompoundQueryAnchor(
+  query: string,
+  understanding?: QueryUnderstandingResult
+): string {
+  const candidates = [
+    understanding?.extracted_entities.person?.[0],
+    understanding?.extracted_entities.topic?.find(topic => topic.split(/\s+/).length >= 2),
+    understanding?.extracted_entities.place?.[0]
+  ].filter(Boolean) as string[]
+
+  if (candidates.length > 0) return candidates[0]
+
+  const norm = normalizeArabicLight(query)
+  if (norm.includes(normalizeArabicLight("ابي الفضل")) || norm.includes(normalizeArabicLight("أبي الفضل"))) {
+    return "أبي الفضل العباس"
+  }
+  const hasStandaloneAbbas = norm.split(/\s+/).includes(normalizeArabicLight("العباس"))
+  const institutionalAbbasContext =
+    norm.includes(normalizeArabicLight("العتبة العباسية")) ||
+    norm.includes(normalizeArabicLight("العتبه العباسيه")) ||
+    norm.split(/\s+/).includes(normalizeArabicLight("العباسية")) ||
+    norm.split(/\s+/).includes(normalizeArabicLight("العباسيه"))
+  if (hasStandaloneAbbas && !institutionalAbbasContext) {
+    return "العباس"
+  }
+  if (norm.includes(normalizeArabicLight("العتبة العباسية")) || norm.includes(normalizeArabicLight("العتبه العباسيه"))) {
+    return "العتبة العباسية"
+  }
+
+  return ""
+}
+
+function buildCompoundCoverageInstruction(text: string): string | null {
+  const parts = splitCompoundFactQuery(text)
+  if (parts.length < 2) return null
+
+  return `تعليمات تغطية الإجابة: السؤال الحالي مركب ويتضمن ${parts.length} مطالب. أجب عن كل مطلب بترتيبه الوارد صراحةً، ولا تكتفِ بالإجابة عن أول جزء فقط. إذا كانت معلومة أحد الأجزاء غير متاحة فاذكر ذلك لهذا الجزء وحده.`
+}
+
+function enrichCompoundQueryPart(part: string, anchor: string): string {
+  if (!anchor) return part
+
+  const normPart = normalizeArabicLight(part)
+  const normAnchor = normalizeArabicLight(anchor)
+  if (normPart.includes(normAnchor)) return part
+
+  return `${part} ${anchor}`.trim()
+}
+
 
 /**
  * Detect user intents that require a deterministic tool call
@@ -96,8 +245,8 @@ function isAbbasBiographyQuery(text: string): boolean {
     "لقب", "القاب", "كنيه", "كنية", "صفه", "صفات", "صفة",
     "من هو", "من هي", "ما هو", "ما هي", "سيره", "سيرة", "حياه", "حياة",
     "نشاه", "نشأة", "ولاده", "ولادة", "مولد",
-    "ام ", "امه", "أمه", "ابيه", "ابوه", "اخوه", "اخواته", "اخت",
-    "زوجه", "زوجة", "زوجات", "زواج", "ولد", "ابناء", "اولاد",
+    "ام ", "امه", "أمه", "ابيه", "ابوه", "اخوه", "اخواته", "اخوات", "اخت",
+    "زوجه", "زوجته", "زوجة", "زوجات", "زواج", "ولد", "ابناء", "اولاد",
     "اعمام", "عمه", "عمته",
     "استشهاد", "شهاده", "شهادة", "مقتل", "متي استشهد",
     "موقفه", "قمر بني هاشم", "سقايه", "سقاية", "عمر سنه",
@@ -639,36 +788,6 @@ async function processToolCall(
     }
   }
 
-  if (result.success && isEmptyAPIResponse(result.data)) {
-    const fallbackQuery = String(args.query || context.userQuery || "")
-    // Ready-made fallback answers are intentionally disabled.
-    const deterministicFallback = null
-    if (deterministicFallback) {
-      if (context.traceId) {
-        logChatTrace({
-          trace_id: context.traceId,
-          stage: "deterministic_fallback_applied",
-          normalized_query: normalizeQueryForTrace(fallbackQuery),
-          routed_source: "deterministic_fallback",
-          unavailable_reason: "empty_results",
-          details: {
-            fallback_id: deterministicFallback.id,
-            reason: "empty_results_after_retrieval"
-          }
-        })
-      }
-      result = {
-        success: true,
-        data: {
-          results: [deterministicFallback],
-          total: 1,
-          query: fallbackQuery,
-          source_used: "deterministic_fallback"
-        }
-      }
-    }
-  }
-
   const traceQuery = args.query || context.userQuery || ""
 
   if (context.traceId) {
@@ -936,25 +1055,79 @@ function formatKnowledgeResults(
  * Search knowledge index and return compact formatted context, or null.
  * Single entry point for all knowledge injection — avoids duplication.
  */
-async function getKnowledgeContext(query: string): Promise<{ context: string; topScore: number } | null> {
+async function getKnowledgeContext(
+  query: string,
+  understanding?: QueryUnderstandingResult
+): Promise<{ context: string; topScore: number; evidence: Evidence[] } | null> {
   try {
     const norm = normalizeArabicLight(query)
     const isAbbasAttributeQuery =
       isAbbasBiographyQuery(query) &&
       ["ابناء", "أبناء", "زوجات", "القاب", "كنيه", "كنية"].some(t => norm.includes(normalizeArabicLight(t)))
+    const compoundParts = splitCompoundFactQuery(query)
+    const compoundAnchor = extractCompoundQueryAnchor(query, understanding)
+    const searchPlans = compoundParts.length > 1
+      ? compoundParts.map(part => ({
+          label: part,
+          searchQuery: enrichCompoundQueryPart(part, compoundAnchor)
+        }))
+      : [{ label: query, searchQuery: query }]
 
     await ensureKnowledgeReady()
-    const response = await searchKnowledgeWithBackfill(query, {
-      limit: isAbbasAttributeQuery ? 6 : 4,
-      minScore: isAbbasAttributeQuery ? 0.6 : 1.5
-    })
-    if (response.chunks.length === 0) {
-      console.log(`[Knowledge] No chunks for: "${query}"${response.backfilled ? " (after backfill)" : ""}`)
+    const contexts: string[] = []
+    const evidencePool: Evidence[] = []
+    let topScore = 0
+
+    for (const plan of searchPlans) {
+      const response = await searchKnowledgeWithBackfill(plan.searchQuery, {
+        limit: isAbbasAttributeQuery ? 6 : 4,
+        minScore: isAbbasAttributeQuery ? 0.6 : 1.5
+      })
+      if (response.chunks.length === 0) continue
+
+      topScore = Math.max(topScore, response.chunks[0].score)
+      const formatted = formatKnowledgeResults(response.chunks)
+      evidencePool.push(...extractBestEvidence(response.chunks as any, plan.searchQuery, searchPlans.length > 1 ? 2 : 3))
+      contexts.push(
+        searchPlans.length > 1
+          ? `[جزء مطلوب: ${plan.label}]\n${formatted}`
+          : formatted
+      )
+    }
+
+    if (contexts.length === 0 && searchPlans.length > 1) {
+      const fallback = await searchKnowledgeWithBackfill(query, {
+        limit: isAbbasAttributeQuery ? 6 : 4,
+        minScore: isAbbasAttributeQuery ? 0.6 : 1.5
+      })
+      if (fallback.chunks.length > 0) {
+        topScore = Math.max(topScore, fallback.chunks[0].score)
+        evidencePool.push(...extractBestEvidence(fallback.chunks as any, query, searchPlans.length > 1 ? 2 : 3))
+        contexts.push(formatKnowledgeResults(fallback.chunks))
+      }
+    }
+
+    if (contexts.length === 0) {
+      console.log(`[Knowledge] No chunks for: "${query}"`)
       return null
     }
-    const topScore = response.chunks[0].score
-    console.log(`[Knowledge] Found ${response.chunks.length} chunks (scores: ${response.chunks.map(c => c.score.toFixed(1)).join(",")})${response.backfilled ? " [backfilled]" : ""}` )
-    return { context: formatKnowledgeResults(response.chunks), topScore }
+
+    console.log(`[Knowledge] Found ${contexts.length} context block(s) for: "${query}"`)
+    const uniqueEvidence = evidencePool
+      .filter(item => item?.quote)
+      .filter((item, index, arr) =>
+        arr.findIndex(other =>
+          other.quote === item.quote &&
+          other.source_title === item.source_title &&
+          other.source_url === item.source_url
+        ) === index
+      )
+      .sort((a, b) => b.confidence - a.confidence)
+    return {
+      context: contexts.join("\n\n"),
+      topScore,
+      evidence: uniqueEvidence.slice(0, 4)
+    }
   } catch (e) {
     console.warn("[Knowledge] Search failed:", (e as Error).message)
     return null
@@ -966,30 +1139,38 @@ async function getKnowledgeContext(query: string): Promise<{ context: string; to
  * Uses mandatory instruction when confidence is high, soft suggestion otherwise.
  * Returns the evidence list for use in the pipeline (direct-answer check).
  */
-function injectToolResultEvidence(
+function extractToolResultEvidence(
   messages: ChatCompletionMessageParam[],
   userQuery: string
 ): Evidence[] {
   const allItems = collectToolResultItems(messages as any[])
   if (allItems.length === 0) return []
 
-  const evidence = extractEvidenceFromToolResults(allItems, userQuery, 3)
-  if (evidence.length === 0) return []
+  const compoundQuery = isCompoundFactQuery(userQuery)
+  const limit = isOfficeHolderQuery(userQuery) ? 5 : compoundQuery ? 5 : 3
+  return extractEvidenceFromToolResults(allItems, userQuery, limit)
+}
 
+function injectToolEvidenceBlock(
+  messages: ChatCompletionMessageParam[],
+  userQuery: string,
+  evidence: Evidence[]
+): void {
+  if (evidence.length === 0) return
+
+  const compoundQuery = isCompoundFactQuery(userQuery)
   const topConfidence = evidence[0]?.confidence ?? 0
   console.log(`[Evidence] ${evidence.length} items, top confidence: ${topConfidence}%`)
 
-  // High confidence (≥40%) → mandatory quote instruction, forces model to cite
-  // Low confidence → soft suggestion only
-  const block = topConfidence >= 40
-    ? buildMandatoryInstruction(evidence)
-    : formatEvidenceForModel(evidence)
+  const block = compoundQuery
+    ? formatEvidenceForModel(evidence)
+    : topConfidence >= 40
+      ? buildMandatoryInstruction(evidence)
+      : formatEvidenceForModel(evidence)
 
   if (block) {
     messages.push({ role: "system", content: block })
   }
-
-  return evidence
 }
 
 /**
@@ -1001,23 +1182,30 @@ async function injectKnowledgeAndGuard(
   userQuery: string,
   understanding?: QueryUnderstandingResult
 ): Promise<Evidence[]> {
-  const extractedEvidence = injectToolResultEvidence(messages, userQuery)
+  const extractedEvidence = extractToolResultEvidence(messages, userQuery)
   const topEvidenceConfidence = extractedEvidence[0]?.confidence ?? 0
   const hasKnowledgeContextAlready = messages.some(
     m => m.role === "system" && typeof m.content === "string" && m.content.includes("[سياق معرفي إضافي من النصوص الكاملة]")
   )
+  const knowledgePriority = isKnowledgePriorityQuery(userQuery, understanding)
+  let knowledgeTopScore = 0
 
   // Only use knowledge layer for qualifying queries
   let abbasKnowledgeInjected = false
+  let knowledgeInjected = false
+  let knowledgeEvidence: Evidence[] = []
   const shouldRunKnowledgeLayer =
     !hasKnowledgeContextAlready &&
-    topEvidenceConfidence < 55 &&
-    shouldUseKnowledgeLayer(userQuery, understanding)
+    shouldUseKnowledgeLayer(userQuery, understanding) &&
+    (knowledgePriority || topEvidenceConfidence < 55)
 
   if (shouldRunKnowledgeLayer) {
-    const kResult = await getKnowledgeContext(userQuery)
+    const kResult = await getKnowledgeContext(userQuery, understanding)
     if (kResult) {
-      const { context: kCtx, topScore } = kResult
+      const { context: kCtx, topScore, evidence } = kResult
+      knowledgeInjected = true
+      knowledgeTopScore = topScore
+      knowledgeEvidence = evidence
       // Detect if Abbas knowledge content was returned WITH a strong relevance score.
       // A low top-score (< 7.0) means the knowledge base only has tangentially related
       // content — don't suppress tool results in that case.
@@ -1065,6 +1253,31 @@ async function injectKnowledgeAndGuard(
     }
   }
 
+  const weakToolEntityCoverage =
+    extractedEvidence.length > 0 &&
+    !evidenceCoversSpecificTokens(userQuery, extractedEvidence)
+  const officeHolderWithoutName =
+    isOfficeHolderQuery(userQuery) &&
+    extractedEvidence.length > 0 &&
+    !evidenceContainsLikelyPersonName(extractedEvidence)
+  const shouldPreferKnowledgeContext =
+    knowledgeInjected &&
+    knowledgePriority &&
+    (
+      weakToolEntityCoverage ||
+      officeHolderWithoutName ||
+      extractedEvidence.length === 0 ||
+      topEvidenceConfidence < 70
+    ) &&
+    knowledgeTopScore >= 4.5
+
+  if (shouldPreferKnowledgeContext) {
+    messages.push({
+      role: "system",
+      content: "📚 استخدم [سياق معرفي إضافي من النصوص الكاملة] كمصدر أول لهذا السؤال التاريخي/الاسمي. إذا كانت نتائج الأدوات مجرد تطابقات لفظية عامة أو أخبار غير مباشرة، فلا تبنِ الإجابة عليها."
+    })
+  }
+
   // Evidence guard: skip when Abbas local knowledge was injected —
   // the Abbas dataset IS the authoritative source for biographical facts.
   // Do NOT extract tool-result evidence here — news articles mentioning
@@ -1093,7 +1306,7 @@ async function injectKnowledgeAndGuard(
           role: "system",
           content: "ℹ️ السياق المعرفي المحلي لا يتضمن معلومات عن هذا الجانب تحديداً. أجب من معرفتك التاريخية الموثوقة عن الإمام أبي الفضل العباس (عليه السلام). تجاهل نتائج الأدوات المرتبطة بأخبار الضريح — هي غير ذات صلة."
         })
-        return []
+        return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
       }
 
       console.log(`[Evidence Guard] Abbas biography query — suppressing tool-result evidence`)
@@ -1101,10 +1314,11 @@ async function injectKnowledgeAndGuard(
         role: "system",
         content: "📚 تعليمات: أجب عن هذا السؤال البيوغرافي من المعلومات الواردة في [سياق معرفي إضافي من النصوص الكاملة] أعلاه. تجاهل نتائج الأدوات المرتبطة بأخبار الضريح أو الأنشطة — هي غير ذات صلة بهذا السؤال."
       })
-      return []
+      return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
     }
     // Non-biographical query (shrine activities, expansion, etc.) — inject tool evidence normally
     console.log(`[Evidence Guard] Abbas shrine/activity query — tool-result evidence allowed`)
+    injectToolEvidenceBlock(messages, userQuery, extractedEvidence)
     return extractedEvidence
   }
 
@@ -1122,6 +1336,11 @@ async function injectKnowledgeAndGuard(
     }
   }
 
+  if (shouldPreferKnowledgeContext) {
+    return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
+  }
+
+  injectToolEvidenceBlock(messages, userQuery, extractedEvidence)
   return extractedEvidence
 }
 
@@ -1138,6 +1357,7 @@ async function injectKnowledgeAndGuard(
  */
 function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | null {
   if (!evidence || evidence.length === 0) return null
+  if (isCompoundFactQuery(query)) return null
 
   const understanding = understandQuery(query)
   const isFactIntent = understanding.operation_intent === "fact_question"
@@ -1145,6 +1365,7 @@ function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | 
   if (isFactIntent) {
     const generatedFact = generateDirectAnswer(query, evidence)
     if (!generatedFact) return null
+    if (!directAnswerSatisfiesSensitiveQuery(query, generatedFact)) return null
     return generatedFact
       .replace(/\s*\n+\s*/g, " ")
       .replace(/\s{2,}/g, " ")
@@ -1161,7 +1382,23 @@ function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | 
 
   const generated = generateDirectAnswer(query, evidence)
   if (!generated) return null
+  if (!directAnswerSatisfiesSensitiveQuery(query, generated)) return null
   return generated
+}
+
+function directAnswerSatisfiesSensitiveQuery(query: string, answer: string): boolean {
+  if (!answer) return false
+
+  if (isOfficeHolderQuery(query)) {
+    return /(السيد|الشيخ|سماحه|سماحة|العلامه|العلامة)\s+[\u0621-\u064A]{2,}(?:\s+[\u0621-\u064A]{2,}){1,3}/u.test(answer)
+  }
+
+  const normAnswer = normalizeArabicLight(answer)
+  const specificTokens = extractSpecificQueryTokens(query)
+  if (specificTokens.length < 2) return true
+
+  const matched = specificTokens.filter(token => normAnswer.includes(token)).length
+  return matched >= Math.min(2, specificTokens.length)
 }
 
 /**
@@ -1247,21 +1484,9 @@ export async function resolveToolCalls(
   if (answerShapeInstruction) {
     currentMessages.push({ role: "system", content: answerShapeInstruction })
   }
-
-  // Ready-made direct answers are intentionally disabled.
-  const deterministicDirect = null
-  if (deterministicDirect) {
-    return {
-      resolvedMessages: currentMessages,
-      needsFinalCall: false,
-      iterations: 0,
-      directAnswer: deterministicDirect,
-      trace: {
-        ...traceSummary,
-        retry_attempts: retryCounter.count,
-        routed_source: "deterministic_fallback"
-      }
-    }
+  const compoundCoverageInstruction = buildCompoundCoverageInstruction(userQueryForIntent)
+  if (compoundCoverageInstruction) {
+    currentMessages.push({ role: "system", content: compoundCoverageInstruction })
   }
 
   const isContextualFollowUp =

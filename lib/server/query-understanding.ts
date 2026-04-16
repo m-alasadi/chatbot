@@ -50,6 +50,15 @@ function uniq(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))]
 }
 
+function containsNormalizedPhrase(norm: string, phrase: string): boolean {
+  return norm.includes(normalizeQueryForTrace(phrase))
+}
+
+function containsStandaloneNormalizedToken(norm: string, token: string): boolean {
+  const normalizedToken = normalizeQueryForTrace(token)
+  return norm.split(/\s+/).includes(normalizedToken)
+}
+
 function detectContentIntent(norm: string): QueryContentIntent {
   const videoHints = ["فيديو", "فديو", "محاضره", "محاضرات", "مرئي", "مقطع", "يوتيوب"]
   const newsHints = ["خبر", "اخبار", "مقال", "مقالات", "بيان"]
@@ -110,15 +119,36 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
   const place: string[] = []
   const sourceSpecific: string[] = []
 
-  const personPatterns = ["العباس", "ابي الفضل", "أبي الفضل", "ابو الفضل", "أبو الفضل", "الشيخ زمان الحسناوي", "زمان الحسناوي"]
-  for (const p of personPatterns) {
-    const np = normalizeQueryForTrace(p)
-    if (norm.includes(np)) person.push(p)
+  const institutionalAbbasContext =
+    containsNormalizedPhrase(norm, "العتبة العباسية") ||
+    containsNormalizedPhrase(norm, "العتبه العباسيه") ||
+    containsStandaloneNormalizedToken(norm, "العباسية") ||
+    containsStandaloneNormalizedToken(norm, "العباسيه")
+
+  const personPatterns = [
+    { value: "الشيخ زمان الحسناوي", standalone: false },
+    { value: "زمان الحسناوي", standalone: false },
+    { value: "ابي الفضل", standalone: false },
+    { value: "أبي الفضل", standalone: false },
+    { value: "ابو الفضل", standalone: false },
+    { value: "أبو الفضل", standalone: false },
+    { value: "العباس", standalone: true },
+  ]
+
+  for (const pattern of personPatterns) {
+    const matched = pattern.standalone
+      ? containsStandaloneNormalizedToken(norm, pattern.value)
+      : containsNormalizedPhrase(norm, pattern.value)
+    if (!matched) continue
+    if (pattern.value === "العباس" && institutionalAbbasContext) continue
+    person.push(pattern.value)
   }
 
   const topicPatterns = [
-    "توسعه", "توسعة", "مشاريع", "المشاريع", "مشروع", "محاضرات", "فيديوهات", "اخبار", "خطب", "وحي الجمعة",
-    "نداء العقيدة", "المتولي الشرعي", "زوجات", "ابناء", "القاب", "تعليمي", "زراعي", "انتاجي"
+    "توسعه", "توسعة", "إعمار", "اعمار", "ترميم", "صيانة", "تشييد", "بناء",
+    "مشاريع", "المشاريع", "مشروع", "محاضرات", "فيديوهات", "اخبار", "خطب", "وحي الجمعة",
+    "نداء العقيدة", "المتولي الشرعي", "سدنة الحرم", "سدنة", "السدانة",
+    "زوجات", "ابناء", "القاب", "اخوات", "تعليمي", "زراعي", "انتاجي", "مساعدات"
   ]
   for (const t of topicPatterns) {
     const nt = normalizeQueryForTrace(t)
@@ -135,7 +165,15 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
   if (norm.includes(normalizeQueryForTrace("خطب")) || norm.includes(normalizeQueryForTrace("جمعه"))) sourceSpecific.push("friday_sermons")
   if (norm.includes(normalizeQueryForTrace("فيديو")) || norm.includes(normalizeQueryForTrace("محاضرات"))) sourceSpecific.push("videos_latest")
   if (norm.includes(normalizeQueryForTrace("اخبار")) || norm.includes(normalizeQueryForTrace("خبر"))) sourceSpecific.push("articles_latest")
-  if (norm.includes(normalizeQueryForTrace("تاريخ")) || norm.includes(normalizeQueryForTrace("العتبة"))) sourceSpecific.push("shrine_history_sections")
+  if (
+    norm.includes(normalizeQueryForTrace("تاريخ")) ||
+    norm.includes(normalizeQueryForTrace("العتبة")) ||
+    norm.includes(normalizeQueryForTrace("سدنة")) ||
+    norm.includes(normalizeQueryForTrace("كلدار")) ||
+    norm.includes(normalizeQueryForTrace("الحرم"))
+  ) {
+    sourceSpecific.push("shrine_history_sections")
+  }
   if (norm.includes(normalizeQueryForTrace("المتولي")) || norm.includes(normalizeQueryForTrace("الشرعي"))) {
     sourceSpecific.push("articles_latest")
     sourceSpecific.push("friday_sermons")
@@ -156,6 +194,10 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
     norm.includes(normalizeQueryForTrace("مشاريع")) ||
     norm.includes(normalizeQueryForTrace("مشروع")) ||
     norm.includes(normalizeQueryForTrace("توسعة")) ||
+    norm.includes(normalizeQueryForTrace("اعمار")) ||
+    norm.includes(normalizeQueryForTrace("إعمار")) ||
+    norm.includes(normalizeQueryForTrace("ترميم")) ||
+    norm.includes(normalizeQueryForTrace("صيانة")) ||
     norm.includes(normalizeQueryForTrace("تعليمي")) ||
     norm.includes(normalizeQueryForTrace("زراعي")) ||
     norm.includes(normalizeQueryForTrace("انتاج")) ||
@@ -167,8 +209,20 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
   }
 
   if (rawQuery.match(/[\u0621-\u064A]{3,}\s+[\u0621-\u064A]{3,}/)) {
-    // Heuristic for Arabic named entities / multi-word phrases.
-    topic.push(rawQuery.trim().split(/\s+/).slice(0, 3).join(" "))
+    const genericTopicTokens = new Set([
+      "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني", "ابحث", "اعطني", "اعرض",
+      "لي", "عن", "حول", "باختصار", "خبر", "قديم", "يتحدث", "ما", "من", "هل"
+    ].map(token => normalizeQueryForTrace(token)))
+    const candidateTopicTokens = rawQuery
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter(token => !genericTopicTokens.has(normalizeQueryForTrace(token)))
+
+    if (candidateTopicTokens.length >= 2) {
+      // Heuristic for Arabic named entities / multi-word phrases after stripping prompt fillers.
+      topic.push(candidateTopicTokens.slice(0, 3).join(" "))
+    }
   }
 
   return {
@@ -264,7 +318,10 @@ export function deriveRetrievalCapabilitySignals(
   const officeHolderSignals = ["المتولي", "الشرعي", "الامين العام", "أمين عام"]
   const namedEventSignals = ["نداء العقيدة", "مهرجان", "فعالية", "برنامج", "مبادرة", "حملة"]
   const personAttributeSignals = ["زوج", "زوجات", "ابناء", "أبناء", "اولاد", "أولاد", "القاب", "كنيه", "كنية", "عمر", "تاريخ"]
-  const singularProjectSignals = ["مشروع", "دجاج", "انتاج", "إنتاج", "زراعي", "تعليمي", "تربوي"]
+  const singularProjectSignals = [
+    "مشروع", "دجاج", "انتاج", "إنتاج", "زراعي", "تعليمي", "تربوي",
+    "اعمار", "إعمار", "ترميم", "صيانة", "تشييد", "بناء"
+  ]
 
   const officeHolderFact = officeHolderSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
   const namedEventOrProgram = namedEventSignals.some(s => norm.includes(normalizeQueryForTrace(s)))

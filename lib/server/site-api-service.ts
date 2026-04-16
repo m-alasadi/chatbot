@@ -39,6 +39,10 @@ import { understandQuery, deriveRetrievalCapabilitySignals } from "./query-under
 
 export type { APICallResult } from "./site-api-transport"
 
+const OFFICIAL_NEWS_SEARCH_TIMEOUT_MS = Number(process.env.OFFICIAL_NEWS_SEARCH_TIMEOUT_MS || 12000)
+const OFFICIAL_NEWS_SEARCH_CACHE_MS = Number(process.env.OFFICIAL_NEWS_SEARCH_CACHE_MS || 10 * 60 * 1000)
+const officialNewsSearchCache = new Map<string, { items: any[]; cachedAt: number }>()
+
 function decodeHtmlEntities(text: string): string {
   return String(text || "")
     .replace(/&nbsp;/g, " ")
@@ -62,26 +66,109 @@ function normalizeOfficialNewsSearchDate(value: string): string {
   return new Date(`${year}-${month}-${day}T00:00:00.000Z`).toISOString()
 }
 
-async function fetchOfficialNewsSearchResults(query: string, limit: number): Promise<any[]> {
-  const baseUrl = (process.env.SITE_API_BASE_URL || "https://alkafeel.net").replace(/\/+$/, "")
-  const items: any[] = []
-  const blockPattern = /<div id="(\d+)"[\s\S]*?<a[^>]+href="index\?id=(\d+)&lang=ar"[\s\S]*?<div class="ar_title-0[\s\S]*?">([\s\S]*?)<\/div>[\s\S]*?<div class="ar_date-[\s\S]*?">([\s\S]*?)<\/div>/g
-  const maxCandidates = Math.max(limit * 8, 40)
-  const seenIds = new Set<string>()
-  const searchQueries = [query, extractNamedPhrase(query)].filter(Boolean)
+async function fetchTextWithTimeout(
+  url: string,
+  timeoutMs: number
+): Promise<string | null> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
-  for (const searchQuery of [...new Set(searchQueries)]) {
-    const searchUrl = `${baseUrl}/news/search?search_term=${encodeURIComponent(searchQuery)}&lang=ar`
-    const response = await fetch(searchUrl, {
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
       headers: {
         "Accept-Language": "ar",
         "User-Agent": "Mozilla/5.0"
       }
     })
 
-    if (!response.ok) continue
+    if (!response.ok) return null
+    return await response.text()
+  } catch (error) {
+    console.warn("[OfficialNewsSearch] Request failed:", (error as Error)?.message || error)
+    return null
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 
-    const html = await response.text()
+function buildOfficialNewsSearchQueries(query: string): string[] {
+  const original = String(query || "").trim()
+  const namedPhrase = extractNamedPhrase(original)
+  const normOriginal = normalizeArabic(original)
+  const stopTokens = new Set([
+    "ما", "هو", "هي", "هل", "من", "عن", "في", "على", "الى", "إلى", "او", "أو",
+    "للعتبه", "للعتبة", "العتبه", "العتبة", "العباسيه", "العباسية",
+    "مشروع", "مشاريع", "المشروع", "المشاريع",
+    "ابحث", "بحث", "خبر", "اخبار", "قديم", "قديمة", "يتحدث", "حول", "تكلم", "اشرح",
+    "لي", "باختصار", "مختصر", "حدثني", "اخبرني", "عرفني", "اعطني", "اعرض", "عليه", "السلام"
+  ].map(token => normalizeArabic(token)))
+  const specificTokens = tokenizeArabicQuery(original).filter(token => !stopTokens.has(token))
+  const queries = new Set<string>()
+  const constructionTokens = specificTokens.filter(token =>
+    ["اعمار", "ترميم", "صيانه", "توسعه", "توسعة", "بناء", "تشييد"].includes(token)
+  )
+
+  if (original) queries.add(original)
+  if (namedPhrase) queries.add(namedPhrase)
+  if (specificTokens.length > 0) queries.add(specificTokens.slice(0, 5).join(" "))
+
+  if (specificTokens.length > 0) {
+    queries.add(specificTokens.slice(0, 4).join(" "))
+    queries.add(specificTokens.slice(0, 2).join(" "))
+  }
+
+  const asksProjectLookup = /(?:^|\s)(?:مشروع|مشاريع)(?:\s|$)/u.test(normalizeArabic(original))
+  if (asksProjectLookup) {
+    for (const token of specificTokens.slice(0, 2)) {
+      queries.add(`مشروع ${token}`)
+    }
+  }
+
+  if (constructionTokens.length > 0) {
+    queries.add(constructionTokens.slice(0, 2).join(" "))
+    for (const token of constructionTokens.slice(0, 2)) {
+      queries.add(`مشروع ${token}`)
+      queries.add(token)
+    }
+  }
+
+  const asksOfficeHolder = normOriginal.includes(normalizeArabic("المتولي الشرعي"))
+  if (asksOfficeHolder) {
+    queries.add("المتولي الشرعي")
+    queries.add("اسم المتولي الشرعي")
+  }
+
+  if (specificTokens.length > 0 && specificTokens.length <= 3) {
+    for (const token of specificTokens) {
+      queries.add(token)
+    }
+  }
+
+  return [...queries]
+    .map(value => value.trim())
+    .filter(Boolean)
+    .slice(0, 6)
+}
+
+async function fetchOfficialNewsSearchResults(query: string, limit: number): Promise<any[]> {
+  const cacheKey = `${query}::${limit}`
+  const cached = officialNewsSearchCache.get(cacheKey)
+  const now = Date.now()
+  if (cached && now - cached.cachedAt < OFFICIAL_NEWS_SEARCH_CACHE_MS) {
+    return cached.items.slice(0, Math.max(limit * 8, 40))
+  }
+
+  const baseUrl = (process.env.SITE_API_BASE_URL || "https://alkafeel.net").replace(/\/+$/, "")
+  const items: any[] = []
+  const blockPattern = /<div id="(\d+)"[\s\S]*?<a[^>]+href="index\?id=(\d+)&lang=ar"[\s\S]*?<div class="ar_title-0[\s\S]*?">([\s\S]*?)<\/div>[\s\S]*?<div class="ar_date-[\s\S]*?">([\s\S]*?)<\/div>/g
+  const maxCandidates = Math.max(limit * 8, 40)
+  const seenIds = new Set<string>()
+  const searchQueries = buildOfficialNewsSearchQueries(query)
+
+  for (const searchQuery of searchQueries) {
+    const searchUrl = `${baseUrl}/news/search?search_term=${encodeURIComponent(searchQuery)}&lang=ar`
+    const html = await fetchTextWithTimeout(searchUrl, OFFICIAL_NEWS_SEARCH_TIMEOUT_MS)
     if (!html || !html.includes("message_box")) continue
 
     let match: RegExpExecArray | null
@@ -113,6 +200,13 @@ async function fetchOfficialNewsSearchResults(query: string, limit: number): Pro
     }
 
     if (items.length >= maxCandidates) break
+  }
+
+  if (items.length > 0) {
+    officialNewsSearchCache.set(cacheKey, {
+      items: [...items],
+      cachedAt: now
+    })
   }
 
   return items
@@ -532,13 +626,22 @@ export async function siteSearchContent(
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score)
 
+  const topScore = scored[0]?.score || 0
   const shouldUseOfficialNewsSearch =
-    scored.length === 0 &&
     tokenizeArabicQuery(query).length > 0 &&
-    (source === "auto" || source === "articles_latest")
+    (source === "auto" || source === "articles_latest") &&
+    (
+      scored.length === 0 ||
+      topScore < 8 ||
+      capability.named_event_or_program ||
+      capability.singular_project_lookup ||
+      looksLikeTitleQuery(query)
+    )
 
   if (shouldUseOfficialNewsSearch) {
+    console.log(`[siteSearchContent] Official news search fallback for query="${query}"`)
     const officialNewsResults = await fetchOfficialNewsSearchResults(query, safeLimit)
+    console.log(`[siteSearchContent] Official news search returned ${officialNewsResults.length} candidate(s)`)
     for (const item of officialNewsResults) {
       const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
       if (!deduped.has(key)) {

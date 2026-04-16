@@ -12,6 +12,10 @@ function normalizeArabicLight(text: string): string {
     .trim()
 }
 
+function includesAny(norm: string, values: string[]): boolean {
+  return values.some(value => norm.includes(normalizeArabicLight(value)))
+}
+
 export function getLastUserMessage(messages: ChatCompletionMessageParam[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
@@ -57,11 +61,26 @@ export function isContextualFollowUpQuery(
 ): boolean {
   const norm = normalizeArabicLight(text)
   const operation = understanding?.operation_intent
-  const refersToPriorResult = [
-    "اول نتيجه", "أول نتيجة", "النتيجه التي ذكرتها", "الخبر الذي ذكرته", "التي ذكرتها", "الذي ذكرته",
-    "هذا الخبر", "هذه النتيجه", "هذا العنصر", "فصل لي", "زيدني",
-    "لخصه", "لخصها", "اشرحه", "اشرحها", "ما موضوعه", "ما موضوعها", "وضح لي هذا الخبر"
-  ].some(p => norm.includes(normalizeArabicLight(p)))
+  const refersToPriorResult = includesAny(norm, [
+    "اول نتيجة",
+    "أول نتيجة",
+    "النتيجة التي ذكرتها",
+    "الخبر الذي ذكرته",
+    "التي ذكرتها",
+    "الذي ذكرته",
+    "هذا الخبر",
+    "هذه النتيجة",
+    "هذا العنصر",
+    "فصل لي",
+    "زيدني",
+    "لخصه",
+    "لخصها",
+    "اشرحه",
+    "اشرحها",
+    "ما موضوعه",
+    "ما موضوعها",
+    "وضح لي هذا الخبر"
+  ])
 
   const isFollowUpOperation =
     operation === "summarize" ||
@@ -69,5 +88,68 @@ export function isContextualFollowUpQuery(
     operation === "direct_answer" ||
     norm.includes(normalizeArabicLight("لخص")) ||
     norm.includes(normalizeArabicLight("اشرح"))
+
   return isFollowUpOperation && refersToPriorResult
+}
+
+export function requiresPriorConversationContext(
+  text: string,
+  understanding?: QueryUnderstandingResult
+): boolean {
+  if (isContextualFollowUpQuery(text, understanding)) return true
+
+  const norm = normalizeArabicLight(text)
+
+  if (includesAny(norm, [
+    "اعطني المصادر",
+    "أعطني المصادر",
+    "اعطني المصدر",
+    "أعطني المصدر",
+    "هات المصادر",
+    "هات المصدر",
+    "ما المصادر",
+    "وين المصادر",
+    "اعطني الروابط",
+    "أعطني الروابط",
+    "هات الروابط",
+    "الرابط",
+    "الروابط",
+    "المصدر",
+    "المصادر"
+  ])) {
+    return true
+  }
+
+  return includesAny(norm, [
+    "ومن هي",
+    "ومن هو",
+    "ومتى",
+    "واين",
+    "وأين",
+    "وما",
+    "وكم",
+    "وهل",
+    "وماذا عن",
+    "وماذا",
+    "زوجته",
+    "زوجها",
+    "اولاده",
+    "أولاده",
+    "ابناؤه",
+    "أبناؤه",
+    "القابه",
+    "ألقابه",
+    "كنيته",
+    "مولده",
+    "وفاته",
+    "عمره",
+    "مكانه",
+    "اسمه",
+    "اسمها",
+    "رابطه",
+    "مصدره",
+    "مصادره",
+    "تفاصيله",
+    "تفاصيلها"
+  ])
 }

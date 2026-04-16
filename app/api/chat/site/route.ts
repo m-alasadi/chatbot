@@ -24,6 +24,7 @@ import {
   finishRuntimeRequestMetrics
 } from "@/lib/server/observability/runtime-metrics"
 import { understandQuery, getQueryClassKey } from "@/lib/server/query-understanding"
+import { requiresPriorConversationContext } from "@/lib/server/runtime/dialog-context-policy"
 import type { ServerRuntime } from "next"
 import OpenAI from "openai"
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions.mjs"
@@ -225,6 +226,12 @@ export async function POST(request: Request) {
     // التحقق من صحة آخر رسالة (من المستخدم)
     const lastMessage = boundedMessages[boundedMessages.length - 1]
     const requestUnderstanding = understandQuery(lastMessage?.content || "")
+    const keepConversationContext =
+      lastMessage?.role === "user" &&
+      requiresPriorConversationContext(lastMessage.content || "", requestUnderstanding)
+    const effectiveMessages = keepConversationContext
+      ? boundedMessages
+      : boundedMessages.slice(-1)
     startRuntimeRequestMetrics({
       traceId,
       queryClass: getQueryClassKey(requestUnderstanding)
@@ -236,8 +243,9 @@ export async function POST(request: Request) {
       normalized_query: normalizedQuery,
       details: {
         use_tools,
-        message_count: boundedMessages.length,
+        message_count: effectiveMessages.length,
         original_message_count: sanitizedMessages.length,
+        conversation_context_mode: keepConversationContext ? "preserved" : "isolated_latest_turn",
         model: getOpenAIModel()
       }
     })
@@ -287,7 +295,7 @@ export async function POST(request: Request) {
         role: "system",
         content: systemPrompt
       },
-      ...boundedMessages.map(msg => ({
+      ...effectiveMessages.map(msg => ({
         role: msg.role as "user" | "assistant" | "system",
         content: msg.content
       }))
@@ -295,7 +303,7 @@ export async function POST(request: Request) {
 
     // ===== Streaming Function Calling =====
     if (use_tools) {
-      console.log(`[Chat API] Streaming FC (${boundedMessages.length} msgs)`)
+      console.log(`[Chat API] Streaming FC (${effectiveMessages.length} msgs)`)
 
       try {
         logChatTrace({

@@ -29,7 +29,10 @@ export function extractNamedPhrase(query: string): string {
   }
 
   const removablePrefixes = [
-    "ما اسم", "من هو", "من هي", "اين يقام", "اين", "هل", "كم", "عدد لي", "عدد", "لخص لي", "اشرح لي"
+    "ما اسم", "من هو", "من هي", "اين يقام", "اين", "هل", "كم", "عدد لي", "عدد", "لخص لي",
+    "اشرح لي باختصار حول", "اشرح لي حول", "اشرح لي عن", "اشرح لي", "اشرح",
+    "تكلم لي عن", "تكلم عن", "تكلم لي", "حدثني عن", "اخبرني عن", "عرفني على",
+    "ابحث عن خبر قديم يتحدث عن", "ابحث عن خبر يتحدث عن", "ابحث عن خبر قديم", "ابحث عن خبر", "ابحث عن"
   ]
 
   let cleaned = norm
@@ -40,7 +43,12 @@ export function extractNamedPhrase(query: string): string {
     }
   }
 
-  const removableFillers = ["لعتبه", "للعتبه", "العتبه", "العباسيه", "العباسية", "من", "عن", "في", "على", "هل", "يوجد"]
+  const removableFillers = [
+    "لعتبه", "للعتبه", "العتبه", "العباسيه", "العباسية",
+    "من", "عن", "في", "على", "هل", "يوجد", "لي", "حول", "باختصار", "مختصر",
+    "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني", "ابحث", "خبر", "قديم", "يتحدث",
+    "عليه", "السلام", "عليها"
+  ]
   const tokens = cleaned
     .split(/\s+/)
     .filter(Boolean)
@@ -180,17 +188,72 @@ export function scoreUnifiedItem(item: any, query: string): number {
 
   const tokens = tokenizeArabicQuery(query)
   const namedPhrase = extractNamedPhrase(query)
+  const normTitle = normalizeArabic(item?.name || "")
+  const itemSections = Array.isArray(item?.sections)
+    ? item.sections.map((section: any) => normalizeArabic(section?.name || ""))
+    : []
   const fields = getItemSearchFields(item)
+  const isOfficialSearchHit = item?.source_raw?.official_search === true
+  const officialSearchQuery = normalizeArabic(String(item?.source_raw?.query || ""))
+  const isHistorySource =
+    item?.source_type === "shrine_history_by_section" ||
+    item?.source_type === "shrine_history_sections" ||
+    item?.source_type === "abbas_history_by_id" ||
+    itemSections.some(section => section.includes(normalizeArabic("تاريخ")))
+  const explicitShrineHistoryQuery =
+    (
+      normQ.includes(normalizeArabic("تاريخ العتبة")) ||
+      normQ.includes(normalizeArabic("تاريخ العتبه")) ||
+      (
+        normQ.includes(normalizeArabic("تاريخ")) &&
+        (
+          normQ.includes(normalizeArabic("العتبة")) ||
+          normQ.includes(normalizeArabic("العتبه")) ||
+          normQ.includes(normalizeArabic("السدانة")) ||
+          normQ.includes(normalizeArabic("سدنة")) ||
+          normQ.includes(normalizeArabic("الحرم"))
+        )
+      )
+    ) &&
+    !normQ.includes(normalizeArabic("خبر"))
   let score = 0
   let matchedTokenCount = 0
   let hasSpecificNamedPhrase = false
 
-  const genericTokens = new Set(["ما", "اسم", "من", "هو", "هي", "هل", "اين", "يقام", "كم", "عدد", "لي", "عن", "في", "على", "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع"])
+  const genericTokens = new Set([
+    "ما", "اسم", "من", "هو", "هي", "هل", "اين", "يقام", "كم", "عدد", "لي", "عن", "في", "على",
+    "هن", "له", "لها", "لهم", "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع", "خبر", "قديم", "يتحدث",
+    "تكلم", "اشرح", "حدثني", "اخبرني", "حول", "باختصار", "اعطني", "اعرض", "عليه", "السلام"
+  ])
   const specificTokens = tokens.filter(t => !genericTokens.has(t))
-  const projectDomainTokens = ["دجاج", "زراعي", "انتاج", "غذايي", "تعليمي", "تربوي", "تصنيع"]
+  const projectDomainTokens = [
+    "دجاج", "زراعي", "انتاج", "غذايي", "تعليمي", "تربوي", "تصنيع",
+    "اعمار", "ترميم", "صيانه", "تشييد", "بناء", "توسعه", "توسعة"
+  ]
   const requestedProjectDomainTokens = projectDomainTokens.filter(t => normQ.includes(t))
   let matchedSpecificToken = false
   let matchedProjectDomainToken = false
+  let matchedSpecificTokenCount = 0
+
+  const titleSpecificMatchCount = specificTokens.filter(tok => normTitle.includes(tok)).length
+  const namedPhraseTokens = namedPhrase ? tokenizeArabicQuery(namedPhrase) : []
+  const isOfficeHolderQuery =
+    normQ.includes(normalizeArabic("المتولي الشرعي")) ||
+    (normQ.includes(normalizeArabic("المتولي")) && normQ.includes(normalizeArabic("الشرعي")))
+  const isNamedPersonQuery =
+    specificTokens.length >= 2 &&
+    [
+      "الشيخ", "السيد", "الامام", "الإمام", "سماحه", "سماحة", "العلامه", "العلامة"
+    ].some(token => normQ.includes(normalizeArabic(token)))
+  const isNamedHistoryEntityQuery =
+    (specificTokens.length >= 2 && ["سدنه", "السدنه", "كلدار", "اخوات", "اخوه", "زوجته", "زوجات"].some(token => normQ.includes(normalizeArabic(token)))) ||
+    (namedPhraseTokens.length >= 2 && ["سدنه", "كلدار", "اخوات"].some(token => namedPhrase.includes(normalizeArabic(token))))
+  const requiresStrictSpecificCoverage =
+    specificTokens.length >= 2 || isNamedPersonQuery || isNamedHistoryEntityQuery || isOfficeHolderQuery
+
+  if (explicitShrineHistoryQuery && !isHistorySource) {
+    return 0
+  }
 
   for (const { text, weight } of fields) {
     if (!text) continue
@@ -210,10 +273,23 @@ export function scoreUnifiedItem(item: any, query: string): number {
         if (!matchedSpecificToken && specificTokens.includes(tok)) {
           matchedSpecificToken = true
         }
+        if (specificTokens.includes(tok)) {
+          matchedSpecificTokenCount++
+        }
         if (!matchedProjectDomainToken && requestedProjectDomainTokens.includes(tok)) {
           matchedProjectDomainToken = true
         }
       }
+    }
+  }
+
+  if (isOfficialSearchHit) {
+    score += 8
+    if (officialSearchQuery && (normQ.includes(officialSearchQuery) || officialSearchQuery.includes(normQ))) {
+      score += 4
+    }
+    if (specificTokens.length > 0 && specificTokens.some(token => officialSearchQuery.includes(token))) {
+      score += 2
     }
   }
 
@@ -226,13 +302,26 @@ export function scoreUnifiedItem(item: any, query: string): number {
     score += 10
   }
 
+  if (explicitShrineHistoryQuery && isHistorySource) {
+    score += 14
+  } else if (normQ.includes(normalizeArabic("تاريخ")) && isHistorySource) {
+    score += 6
+  }
+
   // For named-entity lookups, phrase mismatch means the item is irrelevant.
-  if (namedPhrase && !hasSpecificNamedPhrase) {
+  if (namedPhrase && !hasSpecificNamedPhrase && (!isOfficialSearchHit || namedPhraseTokens.length >= 2)) {
     return 0
   }
 
-  if (specificTokens.length > 0 && !matchedSpecificToken && !hasSpecificNamedPhrase) {
+  if (specificTokens.length > 0 && !matchedSpecificToken && !hasSpecificNamedPhrase && !isOfficialSearchHit) {
     return 0
+  }
+
+  if (requiresStrictSpecificCoverage) {
+    const minimumSpecificMatches = Math.min(2, specificTokens.length)
+    if (matchedSpecificTokenCount < minimumSpecificMatches && titleSpecificMatchCount < minimumSpecificMatches && !hasSpecificNamedPhrase) {
+      return 0
+    }
   }
 
   // Project/business-domain lookups must preserve the requested domain term.
