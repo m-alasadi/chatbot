@@ -67,7 +67,7 @@ function detectContentIntent(norm: string): QueryContentIntent {
     "زوج", "زوجة", "زوجات", "ابناء", "اولاد", "عمر", "تاريخ وفاه", "تاريخ وفاة", "تاريخ استشهاد", "متي استشهد"
   ]
   const officeHolderHints = ["المتولي", "المتولي الشرعي", "الامين العام", "أمين عام", "رئيس القسم", "مسؤول"]
-  const namedProgramHints = ["نداء العقيدة", "مبادرة", "برنامج", "حملة", "مهرجان", "ملتقى"]
+  const namedProgramHints = ["نداء العقيدة", "أسبوع الإمامة", "اسبوع الامامة", "مبادرة", "برنامج", "حملة", "مهرجان", "ملتقى"]
   const historyHints = ["تاريخ", "العتبه", "العتبة", "مرقد", "ضريح", "صحن", "رواق"]
   const wahyHints = ["وحي الجمعه", "وحي الجمعة", "من وحي"]
   const sermonHints = ["خطبه", "خطبة", "خطب", "جمعه", "جمعة", "خطيب", "منبر"]
@@ -90,7 +90,7 @@ function detectOperationIntent(norm: string): QueryOperationIntent {
   const latestHints = ["احدث", "أحدث", "اخر", "آخر", "الجديد"]
   const listHints = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
   const summarizeHints = ["لخص", "تلخيص", "خلاصه", "خلاصة", "ملخص", "اختصر"]
-  const explainHints = ["اشرح", "شرح", "فسر", "تفسير", "وضح", "توضيح"]
+  const explainHints = ["اشرح", "شرح", "فسر", "تفسير", "وضح", "توضيح", "كيف", "صف", "وصف", "تكلم", "حدثني", "عرفني"]
   const classifyHints = ["فعاليه ام", "فعالية ام", "برنامج ام", "خبر ام", "صنف", "تصنيف", "هل هو"]
   const directShapeHints = ["الجواب المباشر", "جواب مباشر", "فقط", "في سطرين", "ما اسمه", "اين يقع", "دون عناوين", "دون روابط"]
   const browseHints = ["تصفح", "صفحه", "صفحة", "الصفحه", "الصفحة", "اقدم", "اول", "oldest", "first"]
@@ -147,8 +147,9 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
   const topicPatterns = [
     "توسعه", "توسعة", "إعمار", "اعمار", "ترميم", "صيانة", "تشييد", "بناء",
     "مشاريع", "المشاريع", "مشروع", "محاضرات", "فيديوهات", "اخبار", "خطب", "وحي الجمعة",
-    "نداء العقيدة", "المتولي الشرعي", "سدنة الحرم", "سدنة", "السدانة",
-    "زوجات", "ابناء", "القاب", "اخوات", "تعليمي", "زراعي", "انتاجي", "مساعدات"
+    "نداء العقيدة", "أسبوع الإمامة", "اسبوع الامامة", "المتولي الشرعي", "سدنة الحرم", "سدنة", "السدانة",
+    "زوجات", "ابناء", "القاب", "اخوات", "تعليمي", "زراعي", "انتاجي", "مساعدات",
+    "الزيارة بالنيابة", "خدمة الزيارة بالنيابة", "الخدمات الإلكترونية", "الخدمات الالكترونية", "الزيارات المليونية"
   ]
   for (const t of topicPatterns) {
     const nt = normalizeQueryForTrace(t)
@@ -165,6 +166,13 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
   if (norm.includes(normalizeQueryForTrace("خطب")) || norm.includes(normalizeQueryForTrace("جمعه"))) sourceSpecific.push("friday_sermons")
   if (norm.includes(normalizeQueryForTrace("فيديو")) || norm.includes(normalizeQueryForTrace("محاضرات"))) sourceSpecific.push("videos_latest")
   if (norm.includes(normalizeQueryForTrace("اخبار")) || norm.includes(normalizeQueryForTrace("خبر"))) sourceSpecific.push("articles_latest")
+  if (
+    norm.includes(normalizeQueryForTrace("أسبوع الإمامة")) ||
+    norm.includes(normalizeQueryForTrace("اسبوع الامامة"))
+  ) {
+    sourceSpecific.push("articles_latest")
+    sourceSpecific.push("videos_latest")
+  }
   if (
     norm.includes(normalizeQueryForTrace("تاريخ")) ||
     norm.includes(normalizeQueryForTrace("العتبة")) ||
@@ -208,9 +216,20 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
     sourceSpecific.push("videos_latest")
   }
 
+  if (
+    norm.includes(normalizeQueryForTrace("الزيارة بالنيابة")) ||
+    norm.includes(normalizeQueryForTrace("خدمة الزيارة بالنيابة")) ||
+    norm.includes(normalizeQueryForTrace("الخدمات الإلكترونية")) ||
+    norm.includes(normalizeQueryForTrace("الخدمات الالكترونية")) ||
+    norm.includes(normalizeQueryForTrace("الزيارات المليونية"))
+  ) {
+    sourceSpecific.push("articles_latest")
+    sourceSpecific.push("videos_latest")
+  }
+
   if (rawQuery.match(/[\u0621-\u064A]{3,}\s+[\u0621-\u064A]{3,}/)) {
     const genericTopicTokens = new Set([
-      "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني", "ابحث", "اعطني", "اعرض",
+      "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني", "ابحث", "اعطني", "اعرض", "كيف", "صف", "وصف",
       "لي", "عن", "حول", "باختصار", "خبر", "قديم", "يتحدث", "ما", "من", "هل"
     ].map(token => normalizeQueryForTrace(token)))
     const candidateTopicTokens = rawQuery
@@ -316,7 +335,7 @@ export function deriveRetrievalCapabilitySignals(
     : understanding.normalized_query
 
   const officeHolderSignals = ["المتولي", "الشرعي", "الامين العام", "أمين عام"]
-  const namedEventSignals = ["نداء العقيدة", "مهرجان", "فعالية", "برنامج", "مبادرة", "حملة"]
+  const namedEventSignals = ["نداء العقيدة", "أسبوع الإمامة", "اسبوع الامامة", "مهرجان", "فعالية", "فعاليات", "برنامج", "مبادرة", "حملة"]
   const personAttributeSignals = ["زوج", "زوجات", "ابناء", "أبناء", "اولاد", "أولاد", "القاب", "كنيه", "كنية", "عمر", "تاريخ"]
   const singularProjectSignals = [
     "مشروع", "دجاج", "انتاج", "إنتاج", "زراعي", "تعليمي", "تربوي",
@@ -331,9 +350,20 @@ export function deriveRetrievalCapabilitySignals(
   const singularProjectLookup =
     singularProjectSignals.some(s => norm.includes(normalizeQueryForTrace(s))) &&
     !norm.includes(normalizeQueryForTrace("مشاريع"))
+  const broadCapabilityOverview =
+    understanding.operation_intent === "explain" ||
+    norm.includes(normalizeQueryForTrace("كيف")) ||
+    norm.includes(normalizeQueryForTrace("خطوة")) ||
+    norm.includes(normalizeQueryForTrace("صف")) ||
+    norm.includes(normalizeQueryForTrace("وصف")) ||
+    norm.includes(normalizeQueryForTrace("الخدمات")) ||
+    norm.includes(normalizeQueryForTrace("للزائر")) ||
+    norm.includes(normalizeQueryForTrace("الزيارة بالنيابة")) ||
+    norm.includes(normalizeQueryForTrace("الزيارات المليونية"))
 
   let entityFirstReason = "general"
-  if (officeHolderFact) entityFirstReason = "office_holder_fact"
+  if (broadCapabilityOverview) entityFirstReason = "general"
+  else if (officeHolderFact) entityFirstReason = "office_holder_fact"
   else if (namedEventOrProgram) entityFirstReason = "named_event_or_program"
   else if (personAttributeFact) entityFirstReason = "person_attribute_fact"
   else if (singularProjectLookup || understanding.extracted_entities.source_specific.includes("projects_query")) {

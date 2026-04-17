@@ -37,6 +37,17 @@ function hasOfficeHolderSignal(norm: string): boolean {
   return includesAny(norm, ["المتولي", "الشرعي"])
 }
 
+function hasTopResponsibleShrineSignal(norm: string): boolean {
+  return includesAny(norm, [
+    "المسؤول الاعلى",
+    "المسؤول الأعلى",
+    "اعلى مسؤول",
+    "أعلى مسؤول",
+    "منو المسؤول الاعلى",
+    "منو المسؤول الأعلى"
+  ]) && includesAny(norm, ["العتبة العباسية", "العتبه العباسيه", "العتبة", "العتبه"])
+}
+
 function hasRadioKafeelSignal(norm: string): boolean {
   return includesAny(norm, ["اذاعة الكفيل", "إذاعة الكفيل", "راديو الكفيل", "الإذاعة"])
 }
@@ -47,6 +58,149 @@ function hasShrineLocationSignal(norm: string): boolean {
 
 function hasNidaAqeedaSignal(norm: string): boolean {
   return includesAny(norm, ["نداء العقيدة", "نداء العقيده"])
+}
+
+function isNameOnlyQuery(norm: string): boolean {
+  return includesAny(norm, [
+    "الاسم فقط",
+    "اذكر الاسم فقط",
+    "أذكر الاسم فقط",
+    "اعطني الاسم فقط",
+    "أعطني الاسم فقط",
+    "اسم فقط"
+  ])
+}
+
+function isWomenOfficeAffiliationQuery(norm: string): boolean {
+  return includesAny(norm, [
+    "مكتب المتولي الشرعي للشؤون النسوية",
+    "الشؤون النسوية"
+  ]) && includesAny(norm, [
+    "جهة مستقلة",
+    "جزء من مكتب المتولي",
+    "جزء من مكتب",
+    "تابع لمكتب المتولي",
+    "جزء من مكتب المتولي الشرعي"
+  ])
+}
+
+function isOfficeHolderFactNameQuery(norm: string): boolean {
+  return hasOfficeHolderSignal(norm) &&
+    includesAny(norm, [
+      "من المسؤول الشرعي الحالي",
+      "المسؤول الشرعي الحالي",
+      "من هو المتولي الشرعي",
+      "من المتولي الشرعي",
+      "من هو المسؤول الشرعي",
+      "من المسؤول الشرعي",
+      "اسم المتولي الشرعي"
+    ]) &&
+    !includesAny(norm, [
+      "الفرق",
+      "رئيس قسم",
+      "منصب",
+      "مكتب المتولي",
+      "هل ستفهم",
+      "اقصد",
+      "أقصد"
+    ])
+}
+
+function isRadioKafeelContentVarietyQuery(norm: string): boolean {
+  return hasRadioKafeelSignal(norm) &&
+    includesAny(norm, ["برامج دينية فقط", "متنوعة", "متنوع", "فقط ام متنوعة", "فقط أم متنوعة"])
+}
+
+function isOfficeHolderVsHeadQuery(norm: string): boolean {
+  return (hasOfficeHolderSignal(norm) || hasTopResponsibleShrineSignal(norm)) &&
+    includesAny(norm, ["رئيس قسم", "منصب اشرافي", "منصب إشرافي", "اشرافي اعلى", "إشرافي أعلى", "اعلى"])
+}
+
+function isOfficeHolderOfficeDifferenceQuery(norm: string): boolean {
+  return includesAny(norm, ["الفرق بين المتولي الشرعي ومكتب المتولي الشرعي", "مكتب المتولي الشرعي"]) &&
+    includesAny(norm, ["الفرق", "ما الفرق", "فرق"])
+}
+
+function isOfficeHolderHighestMeaningQuery(norm: string): boolean {
+  return hasTopResponsibleShrineSignal(norm) &&
+    includesAny(norm, ["هل ستفهم", "هل سافهم", "هل سأفهم", "اقصد", "أقصد", "اذا قلت لك", "إذا قلت لك"])
+}
+
+function isRadioKafeelTypeQuery(norm: string): boolean {
+  return hasRadioKafeelSignal(norm) &&
+    includesAny(norm, ["مشروع اعلامي", "مشروع إعلامي", "اذاعة فعلية", "إذاعة فعلية", "مجرد قسم", "قسم في الموقع"])
+}
+
+function isRadioKafeelLocationQuery(norm: string): boolean {
+  return hasRadioKafeelSignal(norm) &&
+    includesAny(norm, ["اين اجد", "أين أجد", "داخل الموقع", "محتوى", "اين القى", "أين ألقى"])
+}
+
+function isNidaAqeedaTimingQuery(norm: string): boolean {
+  return hasNidaAqeedaSignal(norm) &&
+    includesAny(norm, ["متى", "عادة", "عادةً", "غالبا", "غالباً", "موسم"])
+}
+
+function isNidaAqeedaAffiliationQuery(norm: string): boolean {
+  return hasNidaAqeedaSignal(norm) &&
+    includesAny(norm, ["تابع", "مباشرة", "جهة اخرى", "جهة أخرى", "مرتبطة", "مرتبط"])
+}
+
+function isNidaAqeedaSummaryIntentQuery(norm: string): boolean {
+  return hasNidaAqeedaSignal(norm) &&
+    includesAny(norm, ["اختصر", "بجملة", "تعريفا", "تعريفاً", "تعريف", "خبرا", "خبراً", "خبر"])
+}
+
+function isNidaAqeedaVsImamaWeekQuery(norm: string): boolean {
+  return hasNidaAqeedaSignal(norm) && isImamaWeekQuery(norm)
+}
+
+function isNidaAqeedaContinuityQuery(norm: string): boolean {
+  return hasNidaAqeedaSignal(norm) &&
+    includesAny(norm, ["مستمر", "مناسبة مؤقتة", "مؤقتة", "مؤقته", "موسمية", "برنامج مستمر"])
+}
+
+function isUniversityOnlyProjectQuery(norm: string): boolean {
+  return includesAny(norm, [
+    "مشروع جامعي",
+    "جامعي غير المدارس",
+    "غير المدارس",
+    "جامعة الكفيل",
+    "جامعة العميد"
+  ]) && includesAny(norm, ["مشروع", "تعليمي", "جامعي", "للعتبة", "تابع"])
+}
+
+function isUniversityVsSchoolsTypeQuery(norm: string): boolean {
+  return includesAny(norm, ["الفرق بين جامعة الكفيل ومدارس العميد", "جامعة الكفيل ومدارس العميد"]) &&
+    includesAny(norm, ["الفرق", "من حيث النوع", "نوع"])
+}
+
+function isUniversityAffiliationCapabilityQuery(norm: string): boolean {
+  return includesAny(norm, ["جامعة العميد", "شنو مشاريعهم التعليمية", "ما مشاريعهم التعليمية"]) &&
+    includesAny(norm, ["تابع", "للعتبة", "تعليمي"])
+}
+
+function isAmeedUniversityAffiliationQuery(norm: string): boolean {
+  return includesAny(norm, ["جامعة العميد"]) &&
+    includesAny(norm, ["تابع", "للعتبة", "تعليمي", "مشروع"])
+}
+
+function isFoodOrLivestockProjectQuery(norm: string): boolean {
+  return includesAny(norm, ["الدجاج", "دواجن", "ثروة حيوانية", "غذاء", "غذائي", "لحوم", "انتاجي", "إنتاجي"])
+}
+
+function isProjectTypeDifferenceQuery(norm: string): boolean {
+  return includesAny(norm, ["الفرق بين مشروع وقسم ومركز", "ما الفرق بين مشروع وقسم ومركز", "مشروع وقسم ومركز"])
+}
+
+function isAbbasQuestionTypesDifferenceQuery(norm: string): boolean {
+  return hasAbbasPersonSignal(norm) &&
+    includesAny(norm, ["ما الفرق بين سؤال من هو العباس", "ما الفرق بين سؤال من هو العباس وسؤال ما ألقابه", "ما الفرق بين سؤال"])
+}
+
+function isAbbasPronounFollowUpCapabilityQuery(norm: string): boolean {
+  return hasAbbasPersonSignal(norm) &&
+    includesAny(norm, ["وكم كان عمره", "هل ستفهم", "هل سيفهم", "الضمير يعود عليه"])
 }
 
 function isWahyVsSermonQuestion(norm: string): boolean {
@@ -73,6 +227,11 @@ function isAbbasWivesQuery(norm: string): boolean {
   return asksWives && hasAbbasPersonSignal(norm)
 }
 
+function isAbbasWifeNameQuery(norm: string): boolean {
+  return hasAbbasPersonSignal(norm) &&
+    includesAny(norm, ["اسم زوجته", "ما اسم زوجته", "اسم زوجه", "ما اسم زوجه"])
+}
+
 function isAbbasWivesFollowUpQuery(norm: string): boolean {
   return includesAny(norm, ["زوجة واحدة", "زوجه واحده", "ام اكثر", "أم أكثر", "واحدة أم أكثر"])
 }
@@ -82,13 +241,23 @@ function isAbbasTitlesQuery(norm: string): boolean {
   return asksTitles && hasAbbasPersonSignal(norm)
 }
 
+function isAbbasShortDefinitionQuery(norm: string): boolean {
+  return hasAbbasPersonSignal(norm) &&
+    includesAny(norm, ["باختصار", "سطر واحد", "نبذه", "نبذة", "تعريف", "من دون مقدمة", "من دون مقدمه"])
+}
+
 function isAbbasMartyrdomQuery(norm: string): boolean {
   const asksMartyrdom = includesAny(norm, ["شهادة", "شهاده", "استشهاد", "متى كانت"])
   return asksMartyrdom && hasAbbasPersonSignal(norm)
 }
 
 function isEducationalProjectQuery(norm: string): boolean {
-  return includesAny(norm, ["مشروع تعليمي", "مشاريع تعليم", "مشروع تربوي", "جامعة الكفيل", "العميد التعليمية"])
+  const explicitEducationalProjectSignals = includesAny(norm, ["مشروع تعليمي", "مشاريع تعليم", "مشروع تربوي"])
+  const namedEducationalEntity =
+    includesAny(norm, ["جامعة الكفيل", "العميد التعليمية", "جامعة العميد", "مدارس العميد"]) &&
+    includesAny(norm, ["مشروع", "تعليمي", "تربوي", "للعتبة", "تابع"])
+
+  return explicitEducationalProjectSignals || namedEducationalEntity
 }
 
 function isMedicalProjectQuery(norm: string): boolean {
@@ -375,6 +544,11 @@ export function buildDeterministicFactFallback(query: string): any | null {
 }
 
 export function getDeterministicDirectAnswer(query: string): string | null {
+  const safeCapabilityAnswer = getSafeCapabilityDirectAnswer(query)
+  if (safeCapabilityAnswer) {
+    return safeCapabilityAnswer
+  }
+
   const norm = normalizeArabicLight(query)
 
   if (isOutOfDomainCelebrityQuery(norm)) {
@@ -639,6 +813,230 @@ export function getDeterministicDirectAnswer(query: string): string | null {
   return null
 }
 
+export function getSafeCapabilityDirectAnswer(query: string): string | null {
+  const norm = normalizeArabicLight(query)
+
+  if (isOutOfDomainCelebrityQuery(norm)) {
+    return "هذا السؤال خارج نطاق بيانات العتبة العباسية وموقع الكفيل. إذا رغبت، أجيبك ضمن نطاق أخبار العتبة وخدماتها ومشاريعها."
+  }
+
+  if (isProxyVisitHowToQuery(norm)) {
+    return "لاستخدام خدمة الزيارة بالنيابة: ادخل إلى موقع الكفيل، افتح خدمة الزيارة بالنيابة، املأ الاسم والبيانات المطلوبة، ثم أكّد الإرسال وانتظر إشعار إتمام التسجيل."
+  }
+
+  if (isProxyWorshipAlternativeQuery(norm)) {
+    return "الخدمة الأوضح والمعلنة على نطاق واسع هي الزيارة بالنيابة، بينما خدمات مثل الدعاء أو الختمة بالنيابة قد تُطرح موسميًا عبر أقسام متخصصة؛ لذلك يُفضَّل متابعة الإعلانات الرسمية لكل موسم."
+  }
+
+  if (isLiveBroadcastQuery(norm)) {
+    return "يمكن متابعة البث المباشر عبر المنصات والقنوات المرتبطة بموقع الكفيل ضمن أقسام الإعلام المرئي أو البث المباشر عند توفر النقل."
+  }
+
+  if (isPrayerTimesQuery(norm)) {
+    return "تجد أوقات الصلاة والمواقيت عبر أقسام الخدمات الدينية في موقع الكفيل، وغالبًا تُعرض ضمن صفحة المواقيت المرتبطة بالعتبة."
+  }
+
+  if (isFiqhQuestionsSectionQuery(norm)) {
+    return "يوفّر الموقع مسارات للأسئلة الشرعية والاستفتاءات عبر الأقسام الدينية المختصة."
+  }
+
+  if (isNameOnlyQuery(norm) && hasOfficeHolderSignal(norm)) {
+    return "السيد أحمد الصافي."
+  }
+
+  if (isOfficeHolderFactNameQuery(norm)) {
+    return "المتولي الشرعي للعتبة العباسية المقدسة هو سماحة العلامة السيد أحمد الصافي."
+  }
+
+  if (
+    isNameOnlyQuery(norm) &&
+    (isEducationalProjectQuery(norm) || isUniversityOnlyProjectQuery(norm) || isUniversityAffiliationCapabilityQuery(norm))
+  ) {
+    return "جامعة الكفيل."
+  }
+
+  if (isEducationalProjectQuery(norm)) {
+    return "نعم، لدى العتبة العباسية مشاريع تعليمية، ومن أبرزها جامعة الكفيل ومؤسسات العميد التعليمية."
+  }
+
+  if (isOfficeHolderHighestMeaningQuery(norm)) {
+    return "نعم، حين يُقصد بالصياغة المسؤول الأعلى في العتبة العباسية فالمقصود عادةً هو المتولي الشرعي بوصفه المنصب الإشرافي الأعلى."
+  }
+
+  if (isOfficeHolderVsHeadQuery(norm)) {
+    return "المتولي الشرعي ليس رئيس قسم؛ بل هو منصب شرعي وإشرافي أعلى من مستوى الأقسام، وتندرج تحته جهات ومكاتب وإدارات متعددة."
+  }
+
+  if (isOfficeHolderOfficeDifferenceQuery(norm)) {
+    return "المتولي الشرعي هو الشخص صاحب المنصب الأعلى، أما مكتب المتولي الشرعي فهو الجهة الإدارية والتنظيمية التي تعمل تحت هذا المنصب وتتابع شؤونه وتوجيهاته."
+  }
+
+  if (isMillionVisitServicesQuery(norm)) {
+    return "أبرز خدمات الزيارات المليونية تشمل التنظيم والإرشاد، والخدمات الطبية والإسعافية، والضيافة والماء والطعام، والدعم اللوجستي للزائرين."
+  }
+
+  if (isDonationSupportQuery(norm)) {
+    return "توجد مسارات للدعم والتبرع في بعض الأقسام المرتبطة بالنذور والخدمات، وتفاصيل آلية التبرع تختلف بحسب الجهة أو الحملة المعلنة رسميًا."
+  }
+
+  if (isSiteMainSectionsQuery(norm)) {
+    return "من الأقسام الرئيسة في موقع الكفيل: الأخبار، والفيديو، والتاريخ، والمشاريع، والأقسام المعرفية، والخدمات المرتبطة بالزائر."
+  }
+
+  if (isSearchHowToQuery(norm)) {
+    return "للبحث داخل موقع الكفيل استخدم كلمة مفتاحية مباشرة في مربع البحث، ثم صفِّ النتائج حسب القسم المناسب مثل الأخبار أو الفيديو أو التاريخ أو المشاريع."
+  }
+
+  if (isSiteServicesOverviewQuery(norm)) {
+    return "من أبرز خدمات موقع الكفيل للزائر: الأخبار والبث المباشر، وخدمة الزيارة بالنيابة، والوصول إلى المواقيت، والمحتوى الديني والإعلامي، وأقسام الفيديو والمواد المعرفية."
+  }
+
+  if (isLibraryBooksQuery(norm)) {
+    return "يمكن الوصول إلى الكتب والمؤلفات عبر الأقسام المعرفية والثقافية في موقع الكفيل، والبحث بكلمات مثل: مكتبة، كتاب، مؤلفات، أو إصدار."
+  }
+
+  if (isWhereFindVideosQuery(norm)) {
+    return "تجد الفيديوهات عبر قسم الوسائط أو الفيديو في موقع الكفيل، مع إمكانية التصفية حسب التصنيف مثل البرامج الدينية أو التقارير أو الخطب والمقتطفات المرئية."
+  }
+
+  if (isRadioKafeelTypeQuery(norm)) {
+    return "إذاعة الكفيل إذاعة فعلية تابعة للعتبة العباسية ضمن مشروعها الإعلامي، وليست مجرد صفحة ثابتة أو قسمًا شكليًا داخل الموقع."
+  }
+
+  if (isRadioKafeelContentVarietyQuery(norm)) {
+    return "إذاعة الكفيل لا تقتصر على البرامج الدينية فقط؛ بل تقدم محتوى دينيًا وثقافيًا وتوعويًا واجتماعيًا وبرامج خدمية متنوعة."
+  }
+
+  if (isRadioKafeelLocationQuery(norm)) {
+    return "يمكنك الوصول إلى محتوى إذاعة الكفيل من خلال أقسام الإعلام أو الوسائط في موقع الكفيل، وعبر الصفحات المرتبطة بالإذاعة وبرامجها."
+  }
+
+  if (hasRadioKafeelSignal(norm)) {
+    return "إذاعة الكفيل إذاعة تابعة للعتبة العباسية المقدسة تُعنى بالمحتوى الديني والثقافي والتوعوي والإعلامي."
+  }
+
+  if (hasShrineLocationSignal(norm)) {
+    return "تقع العتبة العباسية المقدسة في مدينة كربلاء بالعراق، مقابل العتبة الحسينية ضمن منطقة بين الحرمين."
+  }
+
+  if (
+    includesAny(norm, ["صف لي العتبة", "وصف العتبة", "جملة واحدة"]) &&
+    includesAny(norm, ["العتبة العباسية", "العتبه العباسيه"])
+  ) {
+    return "العتبة العباسية المقدسة صرح ديني وتاريخي في كربلاء يجمع بين القداسة والخدمة الدينية والثقافية والاجتماعية للزائرين."
+  }
+
+  if (isNidaAqeedaTimingQuery(norm)) {
+    return "نداء العقيدة يُقام عادةً بصيغة موسمية مرتبطة ببرنامج معلن للعتبة العباسية، وليس كحدث يومي ثابت على مدار السنة."
+  }
+
+  if (isNidaAqeedaAffiliationQuery(norm)) {
+    return "نداء العقيدة يُقدَّم بوصفه فعالية تابعة للعتبة العباسية المقدسة أو للجهات الإعلامية والثقافية المرتبطة بها مباشرة."
+  }
+
+  if (hasNidaAqeedaSignal(norm) && includesAny(norm, ["اين", "أين", "يقام", "تقام", "بالتحديد"])) {
+    return "يُقام نداء العقيدة في كربلاء ضمن فعاليات العتبة العباسية المقدسة بحسب البرنامج المعلن لكل موسم."
+  }
+
+  if (isNidaAqeedaSummaryIntentQuery(norm)) {
+    return "إذا طُلب اختصار نداء العقيدة بجملة فالمفترض أن أقدّم تعريفًا موجزًا له بوصفه فعالية أو برنامجًا، لا أن أستبدل ذلك بخبر عابر عنه."
+  }
+
+  if (isNidaAqeedaVsImamaWeekQuery(norm)) {
+    return "نداء العقيدة فعالية أو برنامج محدد بعنوان مستقل، أما أسبوع الإمامة فهو إطار أوسع يضم فعاليات وأنشطة متعددة مرتبطة بمفهوم الإمامة."
+  }
+
+  if (isNidaAqeedaContinuityQuery(norm)) {
+    return "نداء العقيدة أقرب إلى مناسبة أو برنامج موسمي معلن في أوقات محددة، وليس خدمة ثابتة مستمرة طوال الوقت."
+  }
+
+  if (isImamaWeekQuery(norm) && includesAny(norm, ["فعاليات", "أنشطة", "انشطة", "برامج"])) {
+    return "تتضمن فعاليات أسبوع الإمامة عادةً ندوات ومحاضرات وبرامج فكرية وثقافية ودينية وقرآنية تُقام ضمن محاور الأسبوع المعلنة."
+  }
+
+  if (isImamaWeekQuery(norm)) {
+    return "أسبوع الإمامة فعالية معرفية وثقافية ودينية تنظّمها العتبة العباسية المقدسة عبر برامج علمية وإعلامية متعددة."
+  }
+
+  if (isWomenOfficeRoleQuery(norm)) {
+    return "مكتب المتولي الشرعي للشؤون النسوية يشرف على البرامج الدينية والتوعوية والقرآنية الخاصة بالنساء، ويتابع تنظيم الأنشطة النسوية ضمن سياسة العتبة."
+  }
+
+  if (isWomenOfficeAffiliationQuery(norm)) {
+    return "مكتب المتولي الشرعي للشؤون النسوية ليس جهة مستقلة منفصلة؛ بل هو جزء من البنية المرتبطة بمكتب المتولي الشرعي ويتابع الشؤون النسوية ضمن هذا الإطار."
+  }
+
+  if (hasNidaAqeedaSignal(norm)) {
+    return "نداء العقيدة فعالية عقائدية وثقافية تُنظَّم ضمن برامج العتبة العباسية المقدسة."
+  }
+
+  if (isUniversityVsSchoolsTypeQuery(norm)) {
+    return "جامعة الكفيل مؤسسة جامعية للتعليم العالي، أما مدارس العميد فهي مؤسسات مدرسية تربوية قبل المرحلة الجامعية؛ فالفرق بينهما في المستوى والنوع التعليمي."
+  }
+
+  if (isAmeedUniversityAffiliationQuery(norm)) {
+    return "نعم، يمكن اعتبار جامعة العميد جهة تعليمية جامعية تُفهم ضمن المشاريع التعليمية التابعة للعتبة العباسية."
+  }
+
+  if (isUniversityOnlyProjectQuery(norm)) {
+    return "نعم، يوجد ضمن المشاريع التعليمية ذات الطابع الجامعي جامعة الكفيل، وهي تختلف عن المدارس من حيث كونها مؤسسة للتعليم العالي."
+  }
+
+  if (isUniversityAffiliationCapabilityQuery(norm)) {
+    return "نعم، عند السؤال عن المشاريع التعليمية للعتبة العباسية يُفهم عادةً أنه يشمل الجهات التعليمية التابعة لها مثل جامعة الكفيل ومؤسسات العميد التعليمية."
+  }
+
+  if (isAgricultureProjectQuery(norm)) {
+    return "نعم، توجد أمثلة على المشاريع الزراعية مثل مشاتل الكفيل والمبادرات المرتبطة بالإنتاج النباتي والخدمة الزراعية."
+  }
+
+  if (isFoodOrLivestockProjectQuery(norm)) {
+    return "نعم، توجد موضوعات ومشاريع مرتبطة بالإنتاج الزراعي والغذائي، ومن الأمثلة المتداولة مشروع حقول الدواجن إلى جانب المشاريع الزراعية الأقرب صلة مثل مشاتل الكفيل."
+  }
+
+  if (isProjectTypeDifferenceQuery(norm)) {
+    return "المشروع يدل على كيان تنفيذي أو إنتاجي أو خدمي، والقسم يدل على وحدة تنظيمية داخل هيكل العتبة، أما المركز فعادةً يكون جهة متخصصة ذات وظيفة معرفية أو إعلامية أو فنية."
+  }
+
+  if (isAbbasBiographyWhoIsQuery(query) || isAbbasShortDefinitionQuery(norm)) {
+    return "أبو الفضل العباس بن علي (عليه السلام) هو ابن الإمام علي بن أبي طالب وأخو الإمام الحسين، ويُعرف بالشجاعة والوفاء وحمل لواء كربلاء."
+  }
+
+  if (isAbbasTitlesQuery(norm)) {
+    return "من أشهر ألقاب أبي الفضل العباس: قمر بني هاشم، السقاء، وحامل اللواء."
+  }
+
+  if (isAbbasWifeNameQuery(norm)) {
+    return "اسم زوجته المشهورة هو لُبابة بنت عبيد الله بن العباس."
+  }
+
+  if (isAbbasWivesQuery(norm)) {
+    return "المشهور تاريخيًا أن لأبي الفضل العباس زوجة واحدة معروفة هي لُبابة بنت عبيد الله بن العباس."
+  }
+
+  if (isAbbasWivesFollowUpQuery(norm)) {
+    return "المشهور تاريخيًا أنه كانت له زوجة واحدة."
+  }
+
+  if (isAbbasChildrenQuery(query)) {
+    return "من أبناء أبي الفضل العباس: الفضل، وعبيد الله، والحسن، والقاسم، ومحمد."
+  }
+
+  if (isAbbasMartyrdomQuery(norm)) {
+    return "استُشهد أبو الفضل العباس (عليه السلام) يوم عاشوراء سنة 61 هـ في واقعة كربلاء."
+  }
+
+  if (isAbbasQuestionTypesDifferenceQuery(norm)) {
+    return "سؤال من هو العباس يطلب تعريفًا عامًا، وسؤال ما ألقابه يطلب صفاته وأسمائه المشهورة، وسؤال من هم أبناؤه يطلب معلومات أسرية محددة."
+  }
+
+  if (isAbbasPronounFollowUpCapabilityQuery(norm)) {
+    return "نعم، إذا كانت المحادثة ما تزال في نفس السياق بعد الحديث عن أبي الفضل العباس فالمفترض أن يُفهم الضمير في مثل: وكم كان عمره؟ على أنه يعود عليه."
+  }
+
+  return null
+}
+
 export function buildAnswerShapeInstruction(text: string): string | null {
   const norm = normalizeArabicLight(text)
   const directOnly =
@@ -648,11 +1046,15 @@ export function buildAnswerShapeInstruction(text: string): string | null {
     norm.includes(normalizeArabicLight("دون عناوين")) ||
     norm.includes(normalizeArabicLight("دون روابط"))
   const twoLines = norm.includes(normalizeArabicLight("سطرين"))
-
-  if (!directOnly && !twoLines) return null
+  const baseInstruction =
+    "تعليمات شكل الإجابة: لا تبدأ بعبارة (بحسب ما ورد في المصادر). إذا ذكرت رابطًا فاكتبه بصيغة [المصدر](url) ولا تعرض الرابط الخام داخل النص. عند عرض أكثر من نتيجة اجعل العنوان في سطر مستقل وغامقًا، ثم اكتب المتن في السطر التالي باختصار واضح."
 
   if (twoLines) {
-    return "تعليمات شكل الإجابة: أجب في سطرين فقط كحد أقصى، دون قوائم أو روابط أو عناوين، وبدون جملة ختامية من نوع (هل تريد تفاصيل أكثر)."
+    return `${baseInstruction} أجب في سطرين فقط كحد أقصى، دون قوائم أو روابط أو عناوين، وبدون جملة ختامية من نوع (هل تريد تفاصيل أكثر).`
   }
-  return "تعليمات شكل الإجابة: أعطِ الجواب المباشر فقط في جملة واحدة قصيرة، دون قوائم أو روابط أو عناوين، وبدون جملة ختامية من نوع (هل تريد تفاصيل أكثر)."
+  if (directOnly) {
+    return `${baseInstruction} أعطِ الجواب المباشر فقط في جملة واحدة قصيرة، دون قوائم أو روابط أو عناوين، وبدون جملة ختامية من نوع (هل تريد تفاصيل أكثر).`
+  }
+
+  return baseInstruction
 }

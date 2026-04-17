@@ -102,6 +102,55 @@ function buildRuntimeFailureMessage(kind: ReturnType<typeof classifyRuntimeFailu
   }
 }
 
+function normalizeArabicLight(text: string): string {
+  return (text || "")
+    .replace(/[\u0610-\u061A\u064B-\u065F\u0670]/g, "")
+    .replace(/\u0640/g, "")
+    .replace(/[\u0622\u0623\u0625\u0627]/g, "\u0627")
+    .replace(/\u0649/g, "\u064A")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function includesAny(norm: string, values: string[]): boolean {
+  return values.some(value => norm.includes(normalizeArabicLight(value)))
+}
+
+function isStandaloneReferentialQuestion(text: string): boolean {
+  const norm = normalizeArabicLight(text)
+  const referentialSignals = [
+    "ألقابه",
+    "القابه",
+    "أبناؤه",
+    "ابناؤه",
+    "أولاده",
+    "اولاده",
+    "زوجته",
+    "زوجاته",
+    "اسم زوجته",
+    "شهادته",
+    "استشهاده"
+  ]
+  const explicitSubjectSignals = [
+    "العباس",
+    "أبي الفضل",
+    "ابي الفضل",
+    "أبو الفضل",
+    "ابو الفضل",
+    "المتولي الشرعي",
+    "إذاعة الكفيل",
+    "اذاعة الكفيل",
+    "نداء العقيدة",
+    "أسبوع الإمامة",
+    "اسبوع الامامة",
+    "جامعة الكفيل",
+    "الشؤون النسوية"
+  ]
+
+  return includesAny(norm, referentialSignals) && !includesAny(norm, explicitSubjectSignals)
+}
+
 /**
  * معالجة OPTIONS request (CORS Preflight)
  */
@@ -232,6 +281,23 @@ export async function POST(request: Request) {
     const effectiveMessages = keepConversationContext
       ? boundedMessages
       : boundedMessages.slice(-1)
+
+    if (
+      lastMessage?.role === "user" &&
+      keepConversationContext &&
+      !boundedMessages.some(message => message.role === "assistant") &&
+      isStandaloneReferentialQuestion(lastMessage.content || "")
+    ) {
+      const clarification = "هذا السؤال يعتمد على السياق السابق. اذكر الاسم أو الموضوع المقصود أولاً ثم سأجيبك بدقة."
+      return new Response(clarification, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          ...securityHeaders
+        },
+        status: 200
+      })
+    }
+
     startRuntimeRequestMetrics({
       traceId,
       queryClass: getQueryClassKey(requestUnderstanding)
@@ -304,6 +370,7 @@ export async function POST(request: Request) {
     // ===== Streaming Function Calling =====
     if (use_tools) {
       console.log(`[Chat API] Streaming FC (${effectiveMessages.length} msgs)`)
+      let toolResult: Awaited<ReturnType<typeof resolveToolCalls>> | null = null
 
       try {
         logChatTrace({
@@ -317,7 +384,7 @@ export async function POST(request: Request) {
         })
 
         // الخطوة 1: حل جميع tool calls (بدون stream)
-        const toolResult = await resolveToolCalls(
+        toolResult = await resolveToolCalls(
           openai,
           model,
           messagesWithSystem,
@@ -364,6 +431,7 @@ export async function POST(request: Request) {
 
         // إذا كان هناك إجابة مباشرة (من evidence عالي الثقة) → أرجعها فوراً
         if (toolResult.directAnswer) {
+          const directAnswerText = toolResult.directAnswer
           console.log(`[Chat API] Returning direct grounded answer (bypassing final LLM call)`)
           logChatTrace({
             trace_id: traceId,
@@ -387,7 +455,7 @@ export async function POST(request: Request) {
           })
           const directStream = new ReadableStream({
             start(controller) {
-              controller.enqueue(new TextEncoder().encode(toolResult.directAnswer!))
+              controller.enqueue(new TextEncoder().encode(directAnswerText))
               controller.close()
             }
           })
@@ -485,6 +553,30 @@ export async function POST(request: Request) {
         })
       } catch (fcError: any) {
         console.error("[Chat API] Streaming FC Error:", fcError)
+        if (toolResult?.fallbackAnswer) {
+          logChatTrace({
+            trace_id: traceId,
+            stage: "tool_runtime_grounded_fallback",
+            normalized_query: normalizedQuery,
+            answer_mode: "direct_grounded",
+            routed_source: toolResult.trace?.routed_source,
+            retry_attempts: toolResult.trace?.retry_attempts || 0,
+            unavailable_reason: fcError?.message || String(fcError || "tool_runtime_failed")
+          })
+          finalizeMetrics({
+            answerMode: "direct_grounded",
+            unavailableReason: fcError?.message || String(fcError || "tool_runtime_failed"),
+            routedSource: toolResult.trace?.routed_source
+          })
+          return new Response(toolResult.fallbackAnswer, {
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              ...securityHeaders
+            },
+            status: 200
+          })
+        }
+
         const failureKind = classifyRuntimeFailure(fcError)
         const failureMessage = buildRuntimeFailureMessage(failureKind, traceId)
         logChatTrace({

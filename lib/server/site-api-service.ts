@@ -109,8 +109,8 @@ function buildOfficialNewsSearchQueries(query: string): string[] {
     ["اعمار", "ترميم", "صيانه", "توسعه", "توسعة", "بناء", "تشييد"].includes(token)
   )
 
-  if (original) queries.add(original)
   if (namedPhrase) queries.add(namedPhrase)
+  if (original) queries.add(original)
   if (specificTokens.length > 0) queries.add(specificTokens.slice(0, 5).join(" "))
 
   if (specificTokens.length > 0) {
@@ -137,6 +137,22 @@ function buildOfficialNewsSearchQueries(query: string): string[] {
   if (asksOfficeHolder) {
     queries.add("المتولي الشرعي")
     queries.add("اسم المتولي الشرعي")
+  }
+
+  const asksImamaWeek =
+    normOriginal.includes(normalizeArabic("أسبوع الإمامة")) ||
+    normOriginal.includes(normalizeArabic("اسبوع الامامة"))
+  if (asksImamaWeek) {
+    queries.add("أسبوع الإمامة")
+    queries.add("فعاليات أسبوع الإمامة")
+  }
+
+  const asksProxyVisit =
+    normOriginal.includes(normalizeArabic("الزيارة بالنيابة")) ||
+    normOriginal.includes(normalizeArabic("زياره بالنيابه"))
+  if (asksProxyVisit) {
+    queries.add("الزيارة بالنيابة")
+    queries.add("خدمة الزيارة بالنيابة")
   }
 
   if (specificTokens.length > 0 && specificTokens.length <= 3) {
@@ -1012,11 +1028,7 @@ export async function executeToolByName(
   try {
     switch (toolName) {
       case "search_projects":
-        return await siteSearchContent(args.query, args.source || "auto", args.limit, {
-          category_id: args.category_id,
-          section_id: args.section_id,
-          id: args.id
-        })
+        return await siteSearch(args.query, args.section, args.limit)
 
       case "search_content":
         return await siteSearchContent(args.query, args.source || "auto", args.limit, {

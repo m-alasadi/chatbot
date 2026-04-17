@@ -1,0 +1,190 @@
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../typescript/lib/typescript' in c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build for build dependencies doesn't lead to expected result 'C:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js', but to 'c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../typescript/lib/typescript (expected C:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js)
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack-config.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../typescript/lib/typescript' in c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build for build dependencies doesn't lead to expected result 'C:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js', but to 'c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../typescript/lib/typescript (expected C:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js)
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack-config.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../typescript/lib/typescript' in c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build for build dependencies doesn't lead to expected result 'C:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js', but to 'c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../typescript/lib/typescript (expected C:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js)
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack-config.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../typescript/lib/typescript' in c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build for build dependencies doesn't lead to expected result 'C:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js', but to 'c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../typescript/lib/typescript (expected C:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\typescript\lib\typescript.js)
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack-config.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\handle-externals.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\handle-externals.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\swc\index.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\swc\index.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\analysis\parse-module.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\analysis\parse-module.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\analysis\get-page-static-info.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\analysis\get-page-static-info.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-flight-loader\index.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-flight-loader\index.js
+<w>  at resolve commonjs c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-flight-loader\index.js
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+ ⨯ Error: Cannot find module './276.js'
+Require stack:
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\webpack-runtime.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\app\_not-found\page.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\load-components.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\utils.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\dev\hot-middleware.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\dev\hot-reloader-webpack.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\lib\router-server.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\lib\start-server.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1448:15)
+    at c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1234:25)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1548:12)
+    at mod.require (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at __webpack_require__.f.require (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\webpack-runtime.js:198:28)
+    at c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\webpack-runtime.js:111:40
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\webpack-runtime.js:110:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\webpack-runtime.js:162:22)
+    at c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\app\[locale]\page.js:1:14741
+    at Object.<anonymous> (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\app\[locale]\page.js:1:14786)
+    at Module._compile (node:internal/modules/cjs/loader:1804:14)
+    at Object..js (node:internal/modules/cjs/loader:1936:10)
+    at Module.load (node:internal/modules/cjs/loader:1525:32)
+    at Module._load (node:internal/modules/cjs/loader:1327:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1548:12)
+    at mod.require (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at requirePage (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require.js:109:84)
+    at c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\load-components.js:103:84
+    at async loadComponentsImpl (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\load-components.js:103:26)
+    at async DevServer.findPageComponentsImpl (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\next-server.js:714:36)
+    at async DevServer.findPageComponents (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\dev\next-dev-server.js:577:20)
+    at async DevServer.renderPageComponent (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\base-server.js:1910:24)
+    at async DevServer.renderToResponseImpl (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\base-server.js:818:17)
+    at async c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\lib\start-server.js:141:13) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\.next\\server\\webpack-runtime.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\.next\\server\\app\\_not-found\\page.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\server\\require.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\server\\load-components.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\build\\utils.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\server\\dev\\hot-middleware.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\server\\dev\\hot-reloader-webpack.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\server\\lib\\router-utils\\setup-dev-bundler.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\server\\lib\\router-server.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\server\\lib\\start-server.js'
+  ],
+  page: '/ar'
+}
+ ⨯ Failed to generate static paths for /[locale]:
+Error: Cannot find module './vendor-chunks/@opentelemetry.js'
+Require stack:
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\webpack-runtime.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\app\[locale]\page.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\load-components.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\utils.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\dev\static-paths-worker.js
+- c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\compiled\jest-worker\processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1448:15)
+    at c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1234:25)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1548:12)
+    at mod.require (c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\.next\\server\\webpack-runtime.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\.next\\server\\app\\[locale]\\page.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\server\\require.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\server\\load-components.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\build\\utils.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\server\\dev\\static-paths-worker.js',
+    'c:\\Users\\alasa\\OneDrive\\Documents\\GitHub\\chatbot\\node_modules\\next\\dist\\compiled\\jest-worker\\processChild.js'
+  ]
+}
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\vendor-chunks\styled-jsx.js'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/styled-jsx' in c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server for build dependencies doesn't lead to expected result 'c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\vendor-chunks\styled-jsx.js', but to 'Error: Can't resolve './vendor-chunks/styled-jsx' in 'c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/styled-jsx (expected c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\vendor-chunks\styled-jsx.js)
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\webpack-runtime.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\webpack-runtime.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\app\_not-found\page.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\app\_not-found\page.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\load-components.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\utils.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\utils.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/@opentelemetry' in c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server for build dependencies doesn't lead to expected result 'c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\vendor-chunks\@opentelemetry.js', but to 'Error: Can't resolve './vendor-chunks/@opentelemetry' in 'c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/@opentelemetry (expected c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\vendor-chunks\@opentelemetry.js)
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\webpack-runtime.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\webpack-runtime.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\app\_not-found\page.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\.next\server\app\_not-found\page.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\require.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\load-components.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\utils.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\utils.js
+<w>  at file dependencies c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs c:\Users\alasa\OneDrive\Documents\GitHub\chatbot\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js

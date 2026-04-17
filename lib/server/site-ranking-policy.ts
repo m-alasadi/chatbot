@@ -27,9 +27,15 @@ export function extractNamedPhrase(query: string): string {
   if (norm.includes(normalizeArabic("نداء العقيدة"))) {
     return normalizeArabic("نداء العقيدة")
   }
+  if (norm.includes(normalizeArabic("أسبوع الإمامة")) || norm.includes(normalizeArabic("اسبوع الامامة"))) {
+    return normalizeArabic("أسبوع الإمامة")
+  }
+  if (norm.includes(normalizeArabic("الزيارة بالنيابة"))) {
+    return normalizeArabic("الزيارة بالنيابة")
+  }
 
   const removablePrefixes = [
-    "ما اسم", "من هو", "من هي", "اين يقام", "اين", "هل", "كم", "عدد لي", "عدد", "لخص لي",
+    "ما هي", "ما هو", "ما اسم", "من هو", "من هي", "كيف أستخدم", "كيف استخدم", "كيف", "صف لي", "صف", "وصف", "اين يقام", "اين", "هل", "كم", "عدد لي", "عدد", "لخص لي",
     "اشرح لي باختصار حول", "اشرح لي حول", "اشرح لي عن", "اشرح لي", "اشرح",
     "تكلم لي عن", "تكلم عن", "تكلم لي", "حدثني عن", "اخبرني عن", "عرفني على",
     "ابحث عن خبر قديم يتحدث عن", "ابحث عن خبر يتحدث عن", "ابحث عن خبر قديم", "ابحث عن خبر", "ابحث عن"
@@ -45,8 +51,8 @@ export function extractNamedPhrase(query: string): string {
 
   const removableFillers = [
     "لعتبه", "للعتبه", "العتبه", "العباسيه", "العباسية",
-    "من", "عن", "في", "على", "هل", "يوجد", "لي", "حول", "باختصار", "مختصر",
-    "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني", "ابحث", "خبر", "قديم", "يتحدث",
+    "ما", "هو", "هي", "من", "عن", "في", "على", "هل", "يوجد", "لي", "حول", "باختصار", "مختصر",
+    "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني", "ابحث", "خبر", "قديم", "يتحدث", "كيف", "استخدم", "أستخدم", "صف", "وصف",
     "عليه", "السلام", "عليها"
   ]
   const tokens = cleaned
@@ -199,7 +205,26 @@ export function scoreUnifiedItem(item: any, query: string): number {
     item?.source_type === "shrine_history_by_section" ||
     item?.source_type === "shrine_history_sections" ||
     item?.source_type === "abbas_history_by_id" ||
-    itemSections.some(section => section.includes(normalizeArabic("تاريخ")))
+    itemSections.some((section: string) => section.includes(normalizeArabic("تاريخ")))
+  const explicitShrineDescriptionQuery =
+    !normQ.includes(normalizeArabic("خبر")) &&
+    !normQ.includes(normalizeArabic("اخبار")) &&
+    (
+      normQ.includes(normalizeArabic("صف")) ||
+      normQ.includes(normalizeArabic("وصف")) ||
+      normQ.includes(normalizeArabic("نبذه")) ||
+      normQ.includes(normalizeArabic("نبذة")) ||
+      normQ.includes(normalizeArabic("ملخص")) ||
+      normQ.includes(normalizeArabic("مختصر"))
+    ) &&
+    (
+      normQ.includes(normalizeArabic("العتبة العباسية")) ||
+      normQ.includes(normalizeArabic("العتبه العباسيه")) ||
+      (
+        normQ.includes(normalizeArabic("العتبة")) &&
+        normQ.includes(normalizeArabic("العباسية"))
+      )
+    )
   const explicitShrineHistoryQuery =
     (
       normQ.includes(normalizeArabic("تاريخ العتبة")) ||
@@ -251,7 +276,7 @@ export function scoreUnifiedItem(item: any, query: string): number {
   const requiresStrictSpecificCoverage =
     specificTokens.length >= 2 || isNamedPersonQuery || isNamedHistoryEntityQuery || isOfficeHolderQuery
 
-  if (explicitShrineHistoryQuery && !isHistorySource) {
+  if ((explicitShrineHistoryQuery || explicitShrineDescriptionQuery) && !isHistorySource) {
     return 0
   }
 
@@ -302,7 +327,9 @@ export function scoreUnifiedItem(item: any, query: string): number {
     score += 10
   }
 
-  if (explicitShrineHistoryQuery && isHistorySource) {
+  if (explicitShrineDescriptionQuery && isHistorySource) {
+    score += 16
+  } else if (explicitShrineHistoryQuery && isHistorySource) {
     score += 14
   } else if (normQ.includes(normalizeArabic("تاريخ")) && isHistorySource) {
     score += 6

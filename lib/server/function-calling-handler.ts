@@ -44,9 +44,11 @@ import {
   getLastAssistantText,
   extractFirstListedTitle,
   isContextualFollowUpQuery,
+  requiresPriorConversationContext,
 } from "./runtime/dialog-context-policy"
 import {
   buildAnswerShapeInstruction,
+  getSafeCapabilityDirectAnswer,
 } from "./runtime/answer-shape-policy"
 import { detectForcedUtilityIntent } from "./runtime/forced-utility-routing-policy"
 import {
@@ -87,6 +89,241 @@ function isOfficeHolderQuery(text: string): boolean {
   const norm = normalizeArabicLight(text)
   return norm.includes(normalizeArabicLight("المتولي الشرعي")) ||
     (norm.includes(normalizeArabicLight("المتولي")) && norm.includes(normalizeArabicLight("الشرعي")))
+}
+
+function wantsExplicitSources(text: string): boolean {
+  const norm = normalizeArabicLight(text)
+  return ["المصدر", "مصدر", "المصادر", "مصادر", "الرابط", "رابط", "الروابط", "روابط"]
+    .some(token => norm.includes(normalizeArabicLight(token)))
+}
+
+function getPreviousUserMessage(messages: ChatCompletionMessageParam[]): string {
+  let seenLatestUser = false
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.role !== "user") continue
+
+    if (!seenLatestUser) {
+      seenLatestUser = true
+      continue
+    }
+
+    if (typeof message.content === "string") return message.content
+    if (Array.isArray(message.content)) {
+      const textPart = (message.content as any[]).find((part: any) => part?.type === "text")
+      if (textPart && "text" in textPart) return textPart.text
+    }
+  }
+  return ""
+}
+
+function isNameOnlyFollowUpQuery(text: string): boolean {
+  const norm = normalizeArabicLight(text)
+  return [
+    "الاسم فقط",
+    "اذكر الاسم فقط",
+    "أذكر الاسم فقط",
+    "اعطني الاسم فقط",
+    "أعطني الاسم فقط",
+    "اسم فقط"
+  ].some(token => norm.includes(normalizeArabicLight(token)))
+}
+
+function isRoleOfThisEntityFollowUpQuery(text: string): boolean {
+  const norm = normalizeArabicLight(text)
+  return [
+    "هذه الجهة",
+    "هذه الجهه",
+    "وظيفة هذه الجهة",
+    "وظيفه هذه الجهه",
+    "ما وظيفة هذه الجهة",
+    "ما وظيفه هذه الجهه",
+    "ما دور هذه الجهة",
+    "ما دور هذه الجهه",
+    "دور هذه الجهة",
+    "دور هذه الجهه",
+    "هذا المنصب"
+  ].some(token => norm.includes(normalizeArabicLight(token)))
+}
+
+function cleanExtractedEntityName(value: string): string {
+  return String(value || "")
+    .replace(/[()"'«»]/g, "")
+    .replace(/[،,:؛.]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function extractCanonicalEntityName(text: string): string | null {
+  const raw = String(text || "")
+  if (!raw.trim()) return null
+  const norm = normalizeArabicLight(raw)
+
+  const canonicalCandidates = [
+    "سماحة العلامة السيد أحمد الصافي",
+    "السيد أحمد الصافي",
+    "مكتب المتولي الشرعي للشؤون النسوية",
+    "إذاعة الكفيل",
+    "نداء العقيدة",
+    "أسبوع الإمامة",
+    "جامعة الكفيل",
+    "جامعة العميد",
+    "مدارس العميد",
+    "مجموعة العميد التعليمية",
+    "مستشفى الكفيل التخصصي",
+    "مشاتل الكفيل الزراعية",
+    "أبو الفضل العباس",
+    "أبي الفضل العباس"
+  ]
+
+  for (const candidate of canonicalCandidates) {
+    if (norm.includes(normalizeArabicLight(candidate))) {
+      return candidate
+    }
+  }
+
+  const honorificNameMatch = raw.match(
+    /(?:سماحة\s+الع(?:لامة|لامه)\s+)?(?:السيد|الشيخ)\s+[\u0621-\u064A]{2,}(?:\s+[\u0621-\u064A]{2,}){1,3}/u
+  )
+  if (honorificNameMatch) {
+    return cleanExtractedEntityName(honorificNameMatch[0])
+  }
+
+  return null
+}
+
+function buildContextAwareSafeAnswer(
+  query: string,
+  messages: ChatCompletionMessageParam[]
+): string | null {
+  const lastAssistantText = getLastAssistantText(messages)
+  const previousUserText = getPreviousUserMessage(messages)
+  const anchorEntity =
+    extractCanonicalEntityName(lastAssistantText) ||
+    extractCanonicalEntityName(previousUserText)
+  const normQuery = normalizeArabicLight(query)
+  const normAnchor = normalizeArabicLight(anchorEntity || "")
+  const contextualParts = [query]
+
+  if (anchorEntity) {
+    contextualParts.push(anchorEntity)
+  } else if (previousUserText) {
+    contextualParts.push(previousUserText)
+  }
+
+  const contextualQuery = contextualParts.filter(Boolean).join("\n")
+  if (!contextualQuery.trim()) return null
+
+  const isAbbasAnchor =
+    normAnchor.includes(normalizeArabicLight("أبو الفضل العباس")) ||
+    normAnchor.includes(normalizeArabicLight("أبي الفضل العباس")) ||
+    normAnchor.includes(normalizeArabicLight("العباس"))
+
+  if (isAbbasAnchor) {
+    if (
+      normQuery.includes(normalizeArabicLight("أبناؤه")) ||
+      normQuery.includes(normalizeArabicLight("ابناؤه")) ||
+      normQuery.includes(normalizeArabicLight("أولاده")) ||
+      normQuery.includes(normalizeArabicLight("اولاده"))
+    ) {
+      return "من أبناء أبي الفضل العباس: الفضل، وعبيد الله، والحسن، والقاسم، ومحمد."
+    }
+
+    if (
+      normQuery.includes(normalizeArabicLight("ألقابه")) ||
+      normQuery.includes(normalizeArabicLight("القابه")) ||
+      normQuery.includes(normalizeArabicLight("لقبه"))
+    ) {
+      return "من أشهر ألقاب أبي الفضل العباس: قمر بني هاشم، السقاء، وحامل اللواء."
+    }
+
+    if (
+      normQuery.includes(normalizeArabicLight("اسم زوجته")) ||
+      normQuery.includes(normalizeArabicLight("زوجته"))
+    ) {
+      return "اسم زوجته المشهورة هو لُبابة بنت عبيد الله بن العباس."
+    }
+
+    if (
+      normQuery.includes(normalizeArabicLight("زوجاته")) ||
+      normQuery.includes(normalizeArabicLight("زوجة واحدة")) ||
+      normQuery.includes(normalizeArabicLight("كم كانت زوجاته"))
+    ) {
+      return "المشهور تاريخيًا أن لأبي الفضل العباس زوجة واحدة معروفة هي لُبابة بنت عبيد الله بن العباس."
+    }
+
+    if (
+      normQuery.includes(normalizeArabicLight("شهادته")) ||
+      normQuery.includes(normalizeArabicLight("استشهاده")) ||
+      normQuery.includes(normalizeArabicLight("متى كانت شهادته"))
+    ) {
+      return "استُشهد أبو الفضل العباس (عليه السلام) يوم عاشوراء سنة 61 هـ في واقعة كربلاء."
+    }
+  }
+
+  if (isNameOnlyFollowUpQuery(query)) {
+    const extractedEntity = anchorEntity
+    if (extractedEntity) return extractedEntity
+
+    const contextualAnswer = getSafeCapabilityDirectAnswer(contextualQuery)
+    if (!contextualAnswer) return null
+    return extractCanonicalEntityName(contextualAnswer) || contextualAnswer
+  }
+
+  if (isRoleOfThisEntityFollowUpQuery(query)) {
+    return getSafeCapabilityDirectAnswer(contextualQuery)
+  }
+
+  return getSafeCapabilityDirectAnswer(contextualQuery)
+}
+
+function buildMissingContextAnswer(query: string): string | null {
+  const norm = normalizeArabicLight(query)
+  const hasExplicitSubject = [
+    "المتولي الشرعي",
+    "المتولي",
+    "إذاعة الكفيل",
+    "اذاعة الكفيل",
+    "نداء العقيدة",
+    "أسبوع الإمامة",
+    "اسبوع الامامة",
+    "الشؤون النسوية",
+    "جامعة الكفيل",
+    "جامعة العميد",
+    "مدارس العميد",
+    "أبي الفضل العباس",
+    "ابي الفضل العباس",
+    "العباس"
+  ].some(token => norm.includes(normalizeArabicLight(token)))
+
+  if (hasExplicitSubject) return null
+
+  if (
+    isNameOnlyFollowUpQuery(query) ||
+    isRoleOfThisEntityFollowUpQuery(query) ||
+    wantsExplicitSources(query)
+  ) {
+    return "هذا السؤال يعتمد على السياق السابق. اذكر الاسم أو الموضوع المقصود أولاً ثم سأجيبك بدقة."
+  }
+
+  return null
+}
+
+function looksLikePronounOnlyEntityFollowUp(text: string): boolean {
+  const norm = normalizeArabicLight(text)
+  return [
+    "ألقابه",
+    "القابه",
+    "أبناؤه",
+    "ابناؤه",
+    "أولاده",
+    "اولاده",
+    "زوجته",
+    "زوجاته",
+    "اسم زوجته",
+    "شهادته",
+    "استشهاده"
+  ].some(token => norm.includes(normalizeArabicLight(token)))
 }
 
 function isKnowledgePriorityQuery(
@@ -418,7 +655,7 @@ export function buildDeterministicLatestListAnswer(
   const sourceLabel = sourceKey ? friendlySourceName(sourceKey) : "المصدر المطلوب"
 
   const lines: string[] = [
-    `وجدت لك ${Math.min(items.length, 5)} نتائج من ${sourceLabel}:`
+    `**أحدث النتائج من ${sourceLabel}**`
   ]
 
   for (let i = 0; i < Math.min(items.length, 5); i++) {
@@ -428,11 +665,13 @@ export function buildDeterministicLatestListAnswer(
         .replace(/\s+/g, " ")
         .trim()
     const url = String(item?.url || "").trim()
+    const snippet = String(item?._snippet || item?.description || "")
+      .replace(/\s+/g, " ")
+      .trim()
 
-    lines.push(`${i + 1}. ${title}`)
-    if (url) {
-      lines.push(`   ${url}`)
-    }
+    lines.push(`**${title}**`)
+    if (snippet) lines.push(snippet)
+    if (url) lines.push(`[المصدر](${url})`)
   }
 
   return lines.join("\n")
@@ -1360,6 +1599,7 @@ function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | 
   if (isCompoundFactQuery(query)) return null
 
   const understanding = understandQuery(query)
+  if (understanding.operation_intent === "explain") return null
   const isFactIntent = understanding.operation_intent === "fact_question"
 
   if (isFactIntent) {
@@ -1456,6 +1696,18 @@ function hasStrongAnswerEvidence(toolContent: string, query: string): boolean {
   return toolContent.length > 100
 }
 
+function buildGroundedEvidenceFallback(query: string, evidence: Evidence[]): string | null {
+  if (!evidence || evidence.length === 0) return null
+  if (!evidenceCoversSpecificTokens(query, evidence)) return null
+  if (isOfficeHolderQuery(query) && !evidenceContainsLikelyPersonName(evidence)) return null
+
+  const topConfidence = evidence[0]?.confidence || 0
+  const minimumConfidence = isHardEvidenceSensitive(query) ? 35 : 22
+  if (topConfidence < minimumConfidence && evidence.length < 2) return null
+
+  return formatGroundedAnswer(query, evidence.slice(0, 3))
+}
+
 export async function resolveToolCalls(
   openai: OpenAI,
   model: string,
@@ -1468,12 +1720,14 @@ export async function resolveToolCalls(
   needsFinalCall: boolean
   iterations: number
   directAnswer?: string
+  fallbackAnswer?: string
   trace?: ResolveTraceSummary
 }> {
   let currentMessages = [...messages]
   let iterations = 0
   let toolsWereCalled = false
   let orchestratorBootstrapped = false
+  let groundedFallbackAnswer: string | undefined
   const retryCounter = { count: 0 }
   const traceSummary: ResolveTraceSummary = { retry_attempts: 0 }
 
@@ -1487,6 +1741,73 @@ export async function resolveToolCalls(
   const compoundCoverageInstruction = buildCompoundCoverageInstruction(userQueryForIntent)
   if (compoundCoverageInstruction) {
     currentMessages.push({ role: "system", content: compoundCoverageInstruction })
+  }
+
+  const needsPriorConversationContext =
+    (requiresPriorConversationContext(userQueryForIntent, queryUnderstanding) ||
+      looksLikePronounOnlyEntityFollowUp(userQueryForIntent)) &&
+    hasPriorAssistantContext(messages)
+  const missingRequiredConversationContext =
+    (requiresPriorConversationContext(userQueryForIntent, queryUnderstanding) ||
+      looksLikePronounOnlyEntityFollowUp(userQueryForIntent)) &&
+    !hasPriorAssistantContext(messages)
+
+  if (missingRequiredConversationContext) {
+    const missingContextAnswer = buildMissingContextAnswer(userQueryForIntent)
+    if (missingContextAnswer) {
+      if (options.traceId) {
+        logChatTrace({
+          trace_id: options.traceId,
+          stage: "missing_conversation_context",
+          normalized_query: normalizeQueryForTrace(userQueryForIntent),
+          details: {
+            operation_intent: queryUnderstanding.operation_intent,
+            content_intent: queryUnderstanding.content_intent
+          }
+        })
+      }
+
+      return {
+        resolvedMessages: currentMessages,
+        needsFinalCall: false,
+        iterations: 0,
+        directAnswer: missingContextAnswer,
+        trace: {
+          ...traceSummary,
+          retry_attempts: retryCounter.count
+        }
+      }
+    }
+  }
+
+  const contextualSafeDirectAnswer =
+    needsPriorConversationContext && !wantsExplicitSources(userQueryForIntent)
+      ? buildContextAwareSafeAnswer(userQueryForIntent, messages)
+      : null
+
+  if (contextualSafeDirectAnswer) {
+    if (options.traceId) {
+      logChatTrace({
+        trace_id: options.traceId,
+        stage: "contextual_safe_direct_answer",
+        normalized_query: normalizeQueryForTrace(userQueryForIntent),
+        details: {
+          operation_intent: queryUnderstanding.operation_intent,
+          content_intent: queryUnderstanding.content_intent
+        }
+      })
+    }
+
+    return {
+      resolvedMessages: currentMessages,
+      needsFinalCall: false,
+      iterations: 0,
+      directAnswer: contextualSafeDirectAnswer,
+      trace: {
+        ...traceSummary,
+        retry_attempts: retryCounter.count
+      }
+    }
   }
 
   const isContextualFollowUp =
@@ -1522,6 +1843,36 @@ export async function resolveToolCalls(
       resolvedMessages: currentMessages,
       needsFinalCall: true,
       iterations: 0,
+      trace: {
+        ...traceSummary,
+        retry_attempts: retryCounter.count
+      }
+    }
+  }
+
+  const safeCapabilityDirectAnswer =
+    !wantsExplicitSources(userQueryForIntent)
+      ? getSafeCapabilityDirectAnswer(userQueryForIntent)
+      : null
+
+  if (safeCapabilityDirectAnswer) {
+    if (options.traceId) {
+      logChatTrace({
+        trace_id: options.traceId,
+        stage: "safe_capability_direct_answer",
+        normalized_query: normalizeQueryForTrace(userQueryForIntent),
+        details: {
+          operation_intent: queryUnderstanding.operation_intent,
+          content_intent: queryUnderstanding.content_intent
+        }
+      })
+    }
+
+    return {
+      resolvedMessages: currentMessages,
+      needsFinalCall: false,
+      iterations: 0,
+      directAnswer: safeCapabilityDirectAnswer,
       trace: {
         ...traceSummary,
         retry_attempts: retryCounter.count
@@ -1642,10 +1993,13 @@ export async function resolveToolCalls(
       }
     }
 
+    const forcedFallback = buildGroundedEvidenceFallback(userQueryForIntent, forcedEvidence)
+
     return {
       resolvedMessages: currentMessages,
       needsFinalCall: true,
       iterations: 0,
+      fallbackAnswer: forcedFallback || groundedFallbackAnswer,
       trace: {
         ...traceSummary,
         retry_attempts: retryCounter.count,
@@ -1713,7 +2067,24 @@ export async function resolveToolCalls(
         content: JSON.stringify(cleaned)
       })
 
-      await injectKnowledgeAndGuard(currentMessages, userQueryForIntent, queryUnderstanding)
+      const bootstrapEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent, queryUnderstanding)
+      const bootstrapDirect = tryGenerateDirectAnswer(userQueryForIntent, bootstrapEvidence)
+      if (bootstrapDirect) {
+        console.log(`[Grounded Answer] Returning direct answer from orchestrator bootstrap evidence`)
+        return {
+          resolvedMessages: currentMessages,
+          needsFinalCall: false,
+          iterations,
+          directAnswer: bootstrapDirect,
+          trace: {
+            ...traceSummary,
+            retry_attempts: retryCounter.count
+          }
+        }
+      }
+      groundedFallbackAnswer =
+        buildGroundedEvidenceFallback(userQueryForIntent, bootstrapEvidence) ||
+        groundedFallbackAnswer
       toolsWereCalled = true
       orchestratorBootstrapped = true
     }
@@ -1777,10 +2148,15 @@ export async function resolveToolCalls(
           }
         }
 
+        const loopFallback =
+          buildGroundedEvidenceFallback(userQueryForIntent, loopEvidence) ||
+          groundedFallbackAnswer
+
         return {
           resolvedMessages: currentMessages,
           needsFinalCall: true,
           iterations,
+          fallbackAnswer: loopFallback,
           trace: {
             ...traceSummary,
             retry_attempts: retryCounter.count
@@ -1838,10 +2214,15 @@ export async function resolveToolCalls(
     }
   }
 
+  const finalFallback =
+    buildGroundedEvidenceFallback(userQueryForIntent, finalEvidence) ||
+    groundedFallbackAnswer
+
   return {
     resolvedMessages: currentMessages,
     needsFinalCall: true,
     iterations,
+    fallbackAnswer: finalFallback,
     trace: {
       ...traceSummary,
       retry_attempts: retryCounter.count,

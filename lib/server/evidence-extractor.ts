@@ -363,6 +363,19 @@ export function formatGroundedAnswer(
     return `${clean.slice(0, max)}…`
   }
 
+  const formatSourceLink = (evidence: Evidence): string =>
+    evidence.source_url ? `[المصدر](${evidence.source_url})` : ""
+
+  const buildEvidenceCard = (evidence: Evidence): string => {
+    const lines: string[] = []
+    if (evidence.source_title) lines.push(`**${evidence.source_title}**`)
+    if (evidence.source_section) lines.push(`*${evidence.source_section}*`)
+    lines.push(`«${shortenQuote(evidence.quote)}»`)
+    const sourceLink = formatSourceLink(evidence)
+    if (sourceLink) lines.push(sourceLink)
+    return lines.join("\n")
+  }
+
   const seen = new Set<string>()
   const ordered = evidenceList
     .slice()
@@ -433,8 +446,8 @@ export function formatGroundedAnswer(
   const buildProjectYesNoAnswer = (): string => {
     const focusLabel = extractProjectFocusLabel()
     const intro = focusLabel
-      ? `نعم، توجد مشاريع للعتبة العباسية ${focusLabel} بحسب ما ظهر في المصادر المتاحة.`
-      : "نعم، توجد مشاريع ذات صلة للعتبة العباسية بحسب ما ظهر في المصادر المتاحة."
+      ? `نعم، توجد مشاريع للعتبة العباسية ${focusLabel}.`
+      : "نعم، توجد مشاريع ذات صلة للعتبة العباسية."
     const titles = ordered
       .slice(0, 2)
       .map(evidence => evidence.source_title)
@@ -443,15 +456,10 @@ export function formatGroundedAnswer(
 
     if (directOnlyRequested) return buildDirectResponse(`${intro}${examples}`)
 
-    const lines = [buildDirectResponse(`${intro}${examples}`)]
+    const lines = ["**الخلاصة**", buildDirectResponse(`${intro}${examples}`)]
     for (const evidence of ordered.slice(0, 2)) {
-      if (evidence.source_title && evidence.source_url) {
-        lines.push(`- [${evidence.source_title}](${evidence.source_url})`)
-      } else if (evidence.source_title) {
-        lines.push(`- ${evidence.source_title}`)
-      } else if (evidence.source_url) {
-        lines.push(`- ${evidence.source_url}`)
-      }
+      lines.push("")
+      lines.push(buildEvidenceCard(evidence))
     }
     return lines.join("\n")
   }
@@ -464,9 +472,11 @@ export function formatGroundedAnswer(
       if (holder) {
         const answer = `اسم المتولي الشرعي للعتبة العباسية هو ${holder}.`
         if (directOnlyRequested || wantsNameOnly) return buildDirectResponse(answer)
-        const source = top.source_title ? ` المصدر: ${top.source_title}.` : ""
-        const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
-        return `${answer}${source}${url}`
+        const lines = [answer]
+        if (top.source_title) lines.push(`**${top.source_title}**`)
+        const sourceLink = formatSourceLink(top)
+        if (sourceLink) lines.push(sourceLink)
+        return lines.join("\n")
       }
     }
 
@@ -484,17 +494,21 @@ export function formatGroundedAnswer(
       if (location) {
         const answer = `المكان: ${location}.`
         if (directOnlyRequested || wantsLocationOnly) return buildDirectResponse(answer)
-        const source = top.source_title ? ` المصدر: ${top.source_title}.` : ""
-        const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
-        return `${answer}${source}${url}`
+        const lines = [answer]
+        if (top.source_title) lines.push(`**${top.source_title}**`)
+        const sourceLink = formatSourceLink(top)
+        if (sourceLink) lines.push(sourceLink)
+        return lines.join("\n")
       }
     }
 
     const quote = String(top.quote || "").replace(/\s+/g, " ").trim()
     if (directOnlyRequested) return buildDirectResponse(quote)
-    const source = top.source_title ? ` المصدر: ${top.source_title}.` : ""
-    const url = top.source_url ? ` الرابط: ${top.source_url}.` : ""
-    return `بحسب ما ورد في المصادر، ${quote}${source}${url}`
+    const lines = ["**الجواب**", quote]
+    if (top.source_title) lines.push(`**${top.source_title}**`)
+    const sourceLink = formatSourceLink(top)
+    if (sourceLink) lines.push(sourceLink)
+    return lines.join("\n")
   }
 
   if (isYesNoProjectQuery && ordered.length > 0) {
@@ -503,18 +517,15 @@ export function formatGroundedAnswer(
 
   const lines: string[] = [
     isExpansionProjectQuery
-      ? "بحسب ما ورد في المصادر، هذه أبرز مشاريع التوسعة ذات الصلة:"
+      ? "**أبرز مشاريع التوسعة ذات الصلة**"
       : isProjectStyleQuery
-        ? "بحسب ما ورد في المصادر، هذه أبرز المشاريع ذات الصلة:"
-        : "بحسب ما ورد في المصادر:"
+        ? "**أبرز المشاريع ذات الصلة**"
+        : "**النتائج الأقرب**"
   ]
 
   for (const evidence of ordered.slice(0, 2)) {
     lines.push("")
-    if (evidence.source_title) lines.push(`**${evidence.source_title}**`)
-    if (evidence.source_section) lines.push(`*${evidence.source_section}*`)
-    lines.push(`«${shortenQuote(evidence.quote)}»`)
-    if (evidence.source_url) lines.push(`المصدر: ${evidence.source_url}`)
+    lines.push(buildEvidenceCard(evidence))
   }
 
   return lines.join("\n")

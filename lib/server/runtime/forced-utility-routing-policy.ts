@@ -17,6 +17,14 @@ export interface ForcedUtilityIntent {
   args: Record<string, any>
 }
 
+function includesAnyLatestSingle(norm: string): boolean {
+  const leadWords = ["اعطني", "أعطني", "هات", "ما هو", "ما هي", "شنو"]
+  const singularLatestPhrases = ["احدث خبر", "أحدث خبر", "اخر خبر", "آخر خبر"]
+
+  return singularLatestPhrases.some(phrase => norm.includes(normalizeArabicLight(phrase))) &&
+    leadWords.some(word => norm.includes(normalizeArabicLight(word)))
+}
+
 export function detectForcedUtilityIntent(
   userText: string,
   understanding: QueryUnderstandingResult | undefined,
@@ -83,6 +91,13 @@ export function detectForcedUtilityIntent(
   const isExplicitLatestListing =
     (isLatestIntent || latestKeywords.some(k => norm.includes(normalizeArabicLight(k)))) &&
     (isListIntent || explicitListingWords.some(k => norm.includes(normalizeArabicLight(k))))
+  const isExplicitSingleLatestNewsRequest =
+    (isNews || understoodNews || norm.includes(normalizeArabicLight("العتبة العباسية"))) &&
+    includesAnyLatestSingle(norm)
+
+  if (isExplicitSingleLatestNewsRequest) {
+    return { tool: "get_latest_by_source", args: { source: "articles_latest", limit: 1 } }
+  }
 
   if (isExplicitLatestListing) {
     if (isWahyFriday || understoodWahy) return { tool: "get_latest_by_source", args: { source: "wahy_friday", limit: 5 } }
