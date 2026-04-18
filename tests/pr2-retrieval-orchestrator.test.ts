@@ -17,6 +17,7 @@ async function runTests() {
   await testRoutedSourceFidelityOnFirstPassSuccess()
   await testSearchProjectsOrchestration()
   await testSearchProjectsUsesRetryPolicy()
+  await testVideoSermonHybridPrefersFridaySources()
   console.log("PR2 orchestrator tests passed")
 }
 
@@ -210,6 +211,29 @@ async function testSearchProjectsUsesRetryPolicy() {
   assert.equal(calls[0].toolName, "search_projects")
   assert.equal(calls[0].args.source, "articles_latest")
   assert.equal(calls[1].args.source, "auto")
+}
+
+async function testVideoSermonHybridPrefersFridaySources() {
+  const calls: ExecCall[] = []
+  const exec = async (toolName: AllowedToolName, args: Record<string, any>): Promise<APICallResult> => {
+    calls.push({ toolName, args })
+    return makeResult({
+      results: [{ id: "s1", source_type: "friday_sermons", name: "خطبة جمعة" }],
+      total: 1,
+      top_score: 10,
+      source_used: args.source
+    })
+  }
+
+  const result = await orchestrateRetrieval(
+    "search_content",
+    { query: "هل يوجد فيديو لخطبة الجمعة", source: "auto" },
+    { execute: exec }
+  )
+
+  assert.ok(result)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].args.source, "friday_sermons")
 }
 
 runTests().catch(err => {

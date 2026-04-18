@@ -345,6 +345,34 @@ function isLibraryBooksQuery(norm: string): boolean {
   return includesAny(norm, ["المكتبه", "المكتبة", "الكتب", "كتاب", "مؤلفات", "اين اجد المكتبة", "أين أجد المكتبة"])
 }
 
+function isTranslationWordsQuery(norm: string): boolean {
+  return includesAny(norm, [
+    "ترجمة كلمات الموقع",
+    "ترجمه كلمات الموقع",
+    "ترجمة كلمات",
+    "ترجمه كلمات",
+    "ترجمة مصطلحات",
+    "ترجمه مصطلحات",
+    "معاني كلمات",
+    "معاني مصطلحات",
+    "قاموس الموقع",
+    "قاموس مصطلحات العتبة",
+    "قاموس مصطلحات",
+    "مصطلحات العتبة"
+  ])
+}
+
+function isFridaySermonVideoAvailabilityQuery(norm: string): boolean {
+  return includesAny(norm, [
+    "هل يوجد فيديو لخطبة الجمعة",
+    "هل يوجد فيديو لخطبه الجمعه",
+    "هل توجد فيديوهات لخطبة الجمعة",
+    "فيديو لخطبة الجمعة",
+    "فيديوهات خطبة الجمعة",
+    "فيديو لخطب الجمعة"
+  ])
+}
+
 function isImamaWeekQuery(norm: string): boolean {
   return includesAny(norm, ["اسبوع الامامه", "أسبوع الإمامة", "اسبوع الإمامة", "أسبوع الامامه"])
 }
@@ -893,6 +921,14 @@ export function getSafeCapabilityDirectAnswer(query: string): string | null {
 
   if (isLibraryBooksQuery(norm)) {
     return "يمكن الوصول إلى الكتب والمؤلفات عبر الأقسام المعرفية والثقافية في موقع الكفيل، والبحث بكلمات مثل: مكتبة، كتاب، مؤلفات، أو إصدار."
+  }
+
+  if (isTranslationWordsQuery(norm)) {
+    return "يمكنك الاستفادة من قسم القاموس اللغوي في موقع الكفيل للبحث عن معاني الكلمات والمصطلحات، أو كتابة الكلمة المطلوبة مباشرةً ليظهر شرحها ومعناها."
+  }
+
+  if (isFridaySermonVideoAvailabilityQuery(norm)) {
+    return "نعم، توجد فيديوهات لخطب الجمعة ضمن مواد قسم خطب الجمعة في موقع الكفيل، ويمكنك تصفحها للوصول إلى الخطب المرئية المتاحة."
   }
 
   if (isWhereFindVideosQuery(norm)) {

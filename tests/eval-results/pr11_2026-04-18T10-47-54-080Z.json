@@ -1,9 +1,9 @@
 {
-  "run_id": "pr11_2026-04-18T10-51-03-563Z",
-  "timestamp": "2026-04-18T10:51:03.563Z",
+  "run_id": "pr11_2026-04-18T10-47-54-080Z",
+  "timestamp": "2026-04-18T10:47:54.080Z",
   "base_url": "http://localhost:3000",
-  "overall_passed": true,
-  "passed_categories": 14,
+  "overall_passed": false,
+  "passed_categories": 13,
   "total_categories": 14,
   "categories": [
     {
@@ -350,10 +350,10 @@
       "threshold": {
         "minPassRate": 1
       },
-      "pass_rate": 1,
-      "passed_checks": 3,
+      "pass_rate": 0.667,
+      "passed_checks": 2,
       "total_checks": 3,
-      "passed": true,
+      "passed": false,
       "meta": {
         "query": "أين يقام نداء العقيدة"
       },
@@ -370,7 +370,7 @@
         },
         {
           "id": "named_event_has_location_or_context",
-          "passed": true,
+          "passed": false,
           "value": null
         }
       ]

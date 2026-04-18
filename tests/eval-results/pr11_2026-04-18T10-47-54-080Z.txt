@@ -1,9 +1,9 @@
 PR11 Arabic Eval Suite Report
-Run ID: pr11_2026-04-18T10-51-03-563Z
+Run ID: pr11_2026-04-18T10-47-54-080Z
 Base URL: http://localhost:3000
-Timestamp: 2026-04-18T10:51:03.563Z
+Timestamp: 2026-04-18T10:47:54.080Z
 
-Overall: PASS (14/14 categories passed)
+Overall: FAIL (13/14 categories passed)
 
 Category Summary:
 - repeated_question_stability [runtime] => PASS | pass_rate=1 | threshold>=1
@@ -16,7 +16,7 @@ Category Summary:
 - arabic_entity_variation_normalization [runtime] => PASS | pass_rate=1 | threshold>=0.67
 - person_attribute_facts [runtime] => PASS | pass_rate=1 | threshold>=1
 - office_holder_facts [runtime] => PASS | pass_rate=1 | threshold>=1
-- named_event_lookup [runtime] => PASS | pass_rate=1 | threshold>=1
+- named_event_lookup [runtime] => FAIL | pass_rate=0.667 | threshold>=1
 - singular_project_queries [runtime] => PASS | pass_rate=1 | threshold>=1
 - follow_up_grounding [runtime] => PASS | pass_rate=1 | threshold>=1
 - direct_answer_shape_control [runtime] => PASS | pass_rate=1 | threshold>=1
@@ -66,7 +66,7 @@ Detailed Checks:
 * named_event_lookup
   - named_event_not_unavailable: PASS | أين يقام نداء العقيدة
   - named_event_mentions_event_name: PASS
-  - named_event_has_location_or_context: PASS
+  - named_event_has_location_or_context: FAIL
 * singular_project_queries
   - singular_project_not_unavailable: PASS | هل للعتبة العباسية مشروع دجاج
   - singular_project_domain_preserved: PASS

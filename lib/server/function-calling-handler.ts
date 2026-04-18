@@ -37,7 +37,11 @@ import {
 } from "./evidence-extractor"
 import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace"
 import { orchestrateRetrieval } from "./retrieval-orchestrator"
-import { understandQuery, type QueryUnderstandingResult } from "./query-understanding"
+import {
+  deriveRetrievalCapabilitySignals,
+  understandQuery,
+  type QueryUnderstandingResult
+} from "./query-understanding"
 import {
   getLastUserMessage,
   hasPriorAssistantContext,
@@ -52,7 +56,6 @@ import {
 } from "./runtime/answer-shape-policy"
 import { detectForcedUtilityIntent } from "./runtime/forced-utility-routing-policy"
 import {
-  getPostBootstrapTools,
   getPrimaryRetrievalToolForQuery,
   looksLikeSiteContentQuery,
 } from "./runtime/retrieval-bootstrap-policy"
@@ -95,6 +98,142 @@ function wantsExplicitSources(text: string): boolean {
   const norm = normalizeArabicLight(text)
   return ["المصدر", "مصدر", "المصادر", "مصادر", "الرابط", "رابط", "الروابط", "روابط"]
     .some(token => norm.includes(normalizeArabicLight(token)))
+}
+
+const allowedUtilityTools = new Set([
+  "get_source_metadata",
+  "browse_source_page",
+  "get_latest_by_source",
+  "list_source_categories",
+  "get_statistics"
+])
+
+function getPostBootstrapUtilityTools(
+  tools: OpenAI.Chat.Completions.ChatCompletionTool[]
+): OpenAI.Chat.Completions.ChatCompletionTool[] {
+  return tools.filter(tool => {
+    if (tool.type !== "function") return true
+    const name = tool.function?.name
+    return typeof name === "string" && allowedUtilityTools.has(name)
+  })
+}
+
+export function shouldAllowSafeCapabilityDirectAnswer(
+  text: string,
+  understanding: QueryUnderstandingResult
+): boolean {
+  const norm = normalizeArabicLight(text)
+  const capability = deriveRetrievalCapabilitySignals(understanding, text)
+  const hasHelpOrNavigationSignal = [
+    "كيف",
+    "استخدم",
+    "استعمل",
+    "ابحث",
+    "البحث",
+    "اين اجد",
+    "اين القى",
+    "الوصول",
+    "قسم",
+    "اقسام",
+    "الخدمات",
+    "خدمات",
+    "خدمة",
+    "الزيارة بالنيابة",
+    "بث مباشر",
+    "البث المباشر",
+    "مواقيت",
+    "الصلاة",
+    "تبرع",
+    "الدعم",
+    "مكتبة",
+    "كتب",
+    "فيديوهات",
+    "ترجمه",
+    "ترجمة",
+    "قاموس",
+    "مصطلح",
+    "معنى"
+  ].some(token => norm.includes(normalizeArabicLight(token)))
+  const hasStructuralCapabilitySignal = [
+    "الفرق",
+    "وظيفه",
+    "وظيفة",
+    "دور",
+    "تابع",
+    "تابعه",
+    "تابعة",
+    "ينتمي",
+    "نوع",
+    "هل هو مشروع",
+    "هل هي فعاليه",
+    "هل هي فعالية"
+  ].some(token => norm.includes(normalizeArabicLight(token)))
+  const hasNamedEventContextSignal = [
+    "اين",
+    "أين",
+    "يقام",
+    "تقام",
+    "في",
+    "متى",
+    "موعد",
+    "مكان",
+    "الموقع"
+  ].some(token => norm.includes(normalizeArabicLight(token)))
+  const hasLanguageCapabilitySignal = [
+    "ترجمه",
+    "ترجمة",
+    "قاموس",
+    "مصطلح",
+    "مصطلحات",
+    "معنى",
+    "معاني"
+  ].some(token => norm.includes(normalizeArabicLight(token)))
+  const hasVideoSermonAvailabilitySignal =
+    [
+      "هل يوجد",
+      "هل توجد",
+      "اين اجد",
+      "أين أجد"
+    ].some(token => norm.includes(normalizeArabicLight(token))) &&
+    [
+      "فيديو",
+      "فيديوهات",
+      "فديو"
+    ].some(token => norm.includes(normalizeArabicLight(token))) &&
+    [
+      "خطبه",
+      "خطبة",
+      "خطب الجمعه",
+      "خطب الجمعة",
+      "صلاه الجمعه",
+      "صلاة الجمعة"
+    ].some(token => norm.includes(normalizeArabicLight(token)))
+
+  if (capability.named_event_or_program && hasNamedEventContextSignal) {
+    return true
+  }
+
+  if (hasLanguageCapabilitySignal) {
+    return true
+  }
+
+  if (hasVideoSermonAvailabilitySignal) {
+    return true
+  }
+
+  if (understanding.content_intent !== "generic") return false
+  if (capability.entity_first_mode) return false
+  if (understanding.extracted_entities.person.length > 0) return false
+
+  if (understanding.operation_intent === "browse" || understanding.operation_intent === "classify") {
+    return true
+  }
+
+  if (understanding.operation_intent !== "fact_question") {
+    return hasHelpOrNavigationSignal || hasStructuralCapabilitySignal
+  }
+
+  return hasHelpOrNavigationSignal || hasStructuralCapabilitySignal
 }
 
 function getPreviousUserMessage(messages: ChatCompletionMessageParam[]): string {
@@ -669,9 +808,9 @@ export function buildDeterministicLatestListAnswer(
       .replace(/\s+/g, " ")
       .trim()
 
-    lines.push(`**${title}**`)
-    if (snippet) lines.push(snippet)
-    if (url) lines.push(`[المصدر](${url})`)
+    lines.push(`${i + 1}. ${title}`)
+    if (snippet) lines.push(`   ${snippet}`)
+    if (url) lines.push(`   [المصدر](${url})`)
   }
 
   return lines.join("\n")
@@ -1851,7 +1990,8 @@ export async function resolveToolCalls(
   }
 
   const safeCapabilityDirectAnswer =
-    !wantsExplicitSources(userQueryForIntent)
+    !wantsExplicitSources(userQueryForIntent) &&
+    shouldAllowSafeCapabilityDirectAnswer(userQueryForIntent, queryUnderstanding)
       ? getSafeCapabilityDirectAnswer(userQueryForIntent)
       : null
 
@@ -2095,7 +2235,7 @@ export async function resolveToolCalls(
     console.log(`[Tool Resolution] Iteration ${iterations}`)
 
     const toolsForIteration = orchestratorBootstrapped
-      ? getPostBootstrapTools(tools)
+      ? getPostBootstrapUtilityTools(tools)
       : tools
 
     const response = toolsForIteration.length > 0

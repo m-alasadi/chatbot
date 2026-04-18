@@ -584,7 +584,7 @@ export async function siteSearchContent(
 
   const safeLimit = Math.min(Math.max(limit || 5, 1), 20)
   const rawCandidates = source === "auto"
-    ? rankCandidateSources(query, params)
+    ? rankCandidateSources(query, params, capability)
     : [source]
 
   const candidates = rawCandidates.filter(s => {

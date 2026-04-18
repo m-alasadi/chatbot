@@ -161,23 +161,7 @@ function buildSourceConstraint(
 ): SourceConstraint {
   const explicitSource = typeof args.source === "string" ? args.source : "auto"
   const intent = mapUnderstandingIntent(understanding)
-  const norm = normalizeQueryForTrace(query)
-  const hasOfficeHolderSignal =
-    norm.includes(normalizeQueryForTrace("المتولي")) ||
-    norm.includes(normalizeQueryForTrace("الشرعي"))
-  const hasNamedEventSignal =
-    norm.includes(normalizeQueryForTrace("نداء العقيدة")) ||
-    norm.includes(normalizeQueryForTrace("مهرجان")) ||
-    norm.includes(normalizeQueryForTrace("فعالية")) ||
-    norm.includes(normalizeQueryForTrace("برنامج"))
-  const hasProjectSignal =
-    understanding.extracted_entities.source_specific.includes("projects_query") ||
-    norm.includes(normalizeQueryForTrace("مشروع")) ||
-    norm.includes(normalizeQueryForTrace("مشاريع")) ||
-    norm.includes(normalizeQueryForTrace("زراعي")) ||
-    norm.includes(normalizeQueryForTrace("انتاج")) ||
-    norm.includes(normalizeQueryForTrace("تعليمي")) ||
-    norm.includes(normalizeQueryForTrace("دجاج"))
+  const capability = deriveRetrievalCapabilitySignals(understanding, query)
 
   if (explicitSource !== "auto") {
     return {
@@ -188,7 +172,7 @@ function buildSourceConstraint(
     }
   }
 
-  if (hasOfficeHolderSignal) {
+  if (capability.office_holder_fact) {
     return {
       intent: "news",
       hardConstraint: false,
@@ -197,7 +181,7 @@ function buildSourceConstraint(
     }
   }
 
-  if (hasNamedEventSignal) {
+  if (capability.named_event_or_program) {
     return {
       intent: "news",
       hardConstraint: false,
@@ -206,12 +190,27 @@ function buildSourceConstraint(
     }
   }
 
-  if (hasProjectSignal) {
+  if (capability.singular_project_lookup || understanding.extracted_entities.source_specific.includes("projects_query")) {
     return {
       intent: "generic",
       hardConstraint: false,
       preferredSources: ["articles_latest", "videos_latest", "auto"],
       allowedSources: ["articles_latest", "videos_latest", "auto"]
+    }
+  }
+
+  if (
+    intent === "video" &&
+    (
+      understanding.extracted_entities.source_specific.includes("friday_sermons") ||
+      understanding.extracted_entities.source_specific.includes("wahy_friday")
+    )
+  ) {
+    return {
+      intent: "video",
+      hardConstraint: false,
+      preferredSources: ["friday_sermons", "wahy_friday", "videos_latest", "auto"],
+      allowedSources: ["friday_sermons", "wahy_friday", "videos_latest", "videos_by_category", "auto"]
     }
   }
 

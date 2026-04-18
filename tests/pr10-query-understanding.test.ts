@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
-import { understandQuery } from "../lib/server/query-understanding"
+import { deriveRetrievalCapabilitySignals, understandQuery } from "../lib/server/query-understanding"
+import { rankCandidateSources } from "../lib/server/site-ranking-policy"
 
 async function runTests() {
   testVideoQueryUnderstanding()
@@ -7,6 +8,7 @@ async function runTests() {
   testFactVsListIntent()
   testArabicEntityHandling()
   testRouteConfidenceBehavior()
+  testSharedCapabilitySignalsGuideRanking()
   console.log("PR10 query understanding tests passed")
 }
 
@@ -47,6 +49,16 @@ function testRouteConfidenceBehavior() {
 
   assert.ok(generic.route_confidence < specific.route_confidence)
   assert.ok(specific.route_confidence >= 0.6)
+}
+
+function testSharedCapabilitySignalsGuideRanking() {
+  const query = "من هو المتولي الشرعي للعتبة العباسية"
+  const understanding = understandQuery(query)
+  const capability = deriveRetrievalCapabilitySignals(understanding, query)
+  const ranked = rankCandidateSources(query, {}, capability)
+
+  assert.equal(capability.office_holder_fact, true)
+  assert.equal(ranked[0], "articles_latest")
 }
 
 runTests().catch(err => {

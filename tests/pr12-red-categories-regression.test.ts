@@ -46,7 +46,7 @@ function testFactGroundedShapeIsCompact() {
   ]
 
   const answer = formatGroundedAnswer("من هو أبو الفضل العباس", evidence)
-  assert.ok(answer.includes("المصدر:"))
+  assert.ok(answer.includes("[المصدر]("))
   assert.ok(!answer.includes("\n\n"))
 }
 

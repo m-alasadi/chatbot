@@ -1,3 +1,4 @@
+import { type RetrievalCapabilitySignals } from "./query-understanding"
 import { type SiteSourceName, type SourceFetchParams, EXPANDABLE_SOURCES } from "./site-source-adapters"
 
 // ── Arabic normalization utilities ──────────────────────────────────
@@ -428,8 +429,17 @@ export function buildEvidenceSnippet(item: any, query: string): string {
 
 interface SourceScore { source: SiteSourceName; score: number }
 
+type RankingCapabilitySignals = Pick<
+  RetrievalCapabilitySignals,
+  "office_holder_fact" | "named_event_or_program" | "singular_project_lookup"
+>
+
 /** Rank candidate sources by query affinity instead of simple if/else branches */
-export function rankCandidateSources(query: string, params: SourceFetchParams = {}): SiteSourceName[] {
+export function rankCandidateSources(
+  query: string,
+  params: SourceFetchParams = {},
+  capability?: RankingCapabilitySignals
+): SiteSourceName[] {
   const norm = normalizeArabic(query)
   const scores: SourceScore[] = []
 
@@ -478,14 +488,18 @@ export function rankCandidateSources(query: string, params: SourceFetchParams = 
 
   // Office-holder facts + named initiatives/events
   const officeHolderHints = ["المتولي", "المتولي الشرعي", "الامين العام", "امين عام", "مسؤول"]
-  const officeBoost = officeHolderHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 7 : 0), 0)
+  const officeBoost = capability?.office_holder_fact
+    ? 14
+    : officeHolderHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 7 : 0), 0)
   if (officeBoost > 0) {
     scores.push({ source: "articles_latest", score: 8 + officeBoost })
     scores.push({ source: "shrine_history_sections", score: 6 + officeBoost })
   }
 
   const namedEventHints = ["نداء العقيده", "نداء العقيدة", "مهرجان", "فعاليه", "فعالية", "مبادره", "مبادرة", "برنامج"]
-  const eventBoost = namedEventHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 7 : 0), 0)
+  const eventBoost = capability?.named_event_or_program
+    ? 14
+    : namedEventHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 7 : 0), 0)
   if (eventBoost > 0) {
     scores.push({ source: "articles_latest", score: 8 + eventBoost })
     scores.push({ source: "videos_latest", score: 7 + eventBoost })
@@ -494,7 +508,9 @@ export function rankCandidateSources(query: string, params: SourceFetchParams = 
   }
 
   const singularProjectHints = ["مشروع ", "مشروع", "دجاج", "زراعي", "انتاج", "إنتاج", "تربية"]
-  const projectBoost = singularProjectHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 5 : 0), 0)
+  const projectBoost = capability?.singular_project_lookup
+    ? 10
+    : singularProjectHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 5 : 0), 0)
   if (projectBoost > 0) {
     scores.push({ source: "articles_latest", score: 7 + projectBoost })
     scores.push({ source: "videos_latest", score: 5 + projectBoost })
