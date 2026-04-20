@@ -22,6 +22,23 @@ function tokenize(text: string): string[] {
   return normalizeAr(text).split(/\s+/).filter(word => word.length >= 2)
 }
 
+function isHistoricalShrineLifecycleQuery(normQuery: string): boolean {
+  const shrineSignals = [
+    "العتبه", "العتبة", "العباسيه", "العباسية", "الحرم", "المرقد", "الضريح",
+    "قبر العباس", "ابي الفضل", "أبي الفضل", "ابو الفضل", "أبو الفضل"
+  ]
+  const historicalFrameSignals = ["مراحل", "تاريخ", "تأريخ", "هدم", "عدوان", "اعتداء", "بناء"]
+  const structuralSignals = ["بناء", "هدم", "اعمار", "إعمار", "ترميم", "تشييد", "عدوان", "اعتداء"]
+  const explicitProjectSignals = ["مشاريع", "مشروع", "توسعه", "توسعة"]
+
+  const hasShrineContext = shrineSignals.some(signal => normQuery.includes(normalizeAr(signal)))
+  const hasHistoricalFrame = historicalFrameSignals.some(signal => normQuery.includes(normalizeAr(signal)))
+  const hasStructuralSignal = structuralSignals.some(signal => normQuery.includes(normalizeAr(signal)))
+  const explicitProjectLookup = explicitProjectSignals.some(signal => normQuery.includes(normalizeAr(signal)))
+
+  return hasShrineContext && hasHistoricalFrame && hasStructuralSignal && !explicitProjectLookup
+}
+
 function compactRepeatedText(text: string): string {
   const clean = String(text || "").replace(/\s+/g, " ").trim()
   if (!clean) return clean
@@ -303,20 +320,27 @@ export function formatGroundedAnswer(
     normQuery.includes("خبر ام") ||
     normQuery.includes("تصنيف") ||
     normQuery.includes("هل هو")
+  const historicalShrineLifecycleQuery = isHistoricalShrineLifecycleQuery(normQuery)
   const isProjectStyleQuery =
-    normQuery.includes("مشروع") ||
-    normQuery.includes("مشاريع") ||
-    normQuery.includes("توسعه") ||
-    normQuery.includes("اعمار") ||
-    normQuery.includes("بناء") ||
-    normQuery.includes("استثمار") ||
-    normQuery.includes("مجزره") ||
-    normQuery.includes("مزرعه")
+    !historicalShrineLifecycleQuery &&
+    (
+      normQuery.includes("مشروع") ||
+      normQuery.includes("مشاريع") ||
+      normQuery.includes("توسعه") ||
+      normQuery.includes("اعمار") ||
+      normQuery.includes("بناء") ||
+      normQuery.includes("استثمار") ||
+      normQuery.includes("مجزره") ||
+      normQuery.includes("مزرعه")
+    )
   const isExpansionProjectQuery =
-    normQuery.includes("توسعه") ||
-    normQuery.includes("اعمار") ||
-    normQuery.includes("بناء") ||
-    normQuery.includes("تشييد")
+    !historicalShrineLifecycleQuery &&
+    (
+      normQuery.includes("توسعه") ||
+      normQuery.includes("اعمار") ||
+      normQuery.includes("بناء") ||
+      normQuery.includes("تشييد")
+    )
   const isYesNoProjectQuery =
     isProjectStyleQuery &&
     (

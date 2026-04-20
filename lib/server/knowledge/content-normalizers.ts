@@ -167,6 +167,26 @@ function normalizeHistorySection(raw: any): NormalizedContent {
   }
 }
 
+function normalizeHistoryTimeline(raw: any): NormalizedContent {
+  const id = String(raw.id || raw.history_id || raw.title || "")
+  const title = pickText(raw.title, raw.sec_title, raw.name, "مرحلة تاريخية")
+  const bodyText = pickText(raw.text, raw.description, raw.content)
+  const fullText = stripHtml(bodyText)
+
+  return {
+    id: `shrine_history_timeline::${id}`,
+    source: "shrine_history_timeline",
+    family: "history",
+    title,
+    section: "المراحل التاريخية للعتبة العباسية",
+    url: `${SITE_DOMAIN()}/history?lang=ar`,
+    published_at: toISODate(raw.time || raw.created_at),
+    summary: summarize(bodyText),
+    full_text: fullText,
+    metadata: { original_id: raw.id || raw.history_id },
+  }
+}
+
 function normalizeHistoryContent(
   raw: any,
   source: "shrine_history_by_section" | "abbas_history_by_id"
@@ -231,6 +251,9 @@ export function normalizeRawToContent(
 
     case "videos_categories":
       return (arr ?? []).map(normalizeVideoCategory)
+
+    case "shrine_history_timeline":
+      return (arr ?? []).map(normalizeHistoryTimeline)
 
     case "shrine_history_sections":
       return (arr ?? []).map(normalizeHistorySection)

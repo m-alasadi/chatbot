@@ -36,6 +36,7 @@ export function extractNamedPhrase(query: string): string {
   }
 
   const removablePrefixes = [
+    "ماهي", "ماهو",
     "ما هي", "ما هو", "ما اسم", "من هو", "من هي", "كيف أستخدم", "كيف استخدم", "كيف", "صف لي", "صف", "وصف", "اين يقام", "اين", "هل", "كم", "عدد لي", "عدد", "لخص لي",
     "اشرح لي باختصار حول", "اشرح لي حول", "اشرح لي عن", "اشرح لي", "اشرح",
     "تكلم لي عن", "تكلم عن", "تكلم لي", "حدثني عن", "اخبرني عن", "عرفني على",
@@ -51,6 +52,7 @@ export function extractNamedPhrase(query: string): string {
   }
 
   const removableFillers = [
+    "ماهي", "ماهو",
     "لعتبه", "للعتبه", "العتبه", "العباسيه", "العباسية",
     "ما", "هو", "هي", "من", "عن", "في", "على", "هل", "يوجد", "لي", "حول", "باختصار", "مختصر",
     "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني", "ابحث", "خبر", "قديم", "يتحدث", "كيف", "استخدم", "أستخدم", "صف", "وصف",
@@ -146,6 +148,23 @@ export function isCategoryIntent(query: string): boolean {
   return categoryKeywords.some(kw => norm.includes(normalizeArabic(kw)))
 }
 
+function isShrineLifecycleHistoryQuery(normQuery: string): boolean {
+  const shrineSignals = [
+    "العتبه", "العتبة", "العباسيه", "العباسية", "الحرم", "المرقد", "الضريح",
+    "قبر العباس", "ابي الفضل", "أبي الفضل", "ابو الفضل", "أبو الفضل"
+  ]
+  const historicalFrameSignals = ["مراحل", "تاريخ", "تأريخ", "هدم", "عدوان", "اعتداء", "بناء"]
+  const structuralSignals = ["بناء", "هدم", "اعمار", "إعمار", "ترميم", "تشييد", "عدوان", "اعتداء"]
+  const explicitProjectSignals = ["مشاريع", "مشروع", "توسعه", "توسعة"]
+
+  const hasShrineContext = shrineSignals.some(signal => normQuery.includes(normalizeArabic(signal)))
+  const hasHistoricalFrame = historicalFrameSignals.some(signal => normQuery.includes(normalizeArabic(signal)))
+  const hasStructuralSignal = structuralSignals.some(signal => normQuery.includes(normalizeArabic(signal)))
+  const explicitProjectLookup = explicitProjectSignals.some(signal => normQuery.includes(normalizeArabic(signal)))
+
+  return hasShrineContext && hasHistoricalFrame && hasStructuralSignal && !explicitProjectLookup
+}
+
 // ── Stronger multi-field scoring ────────────────────────────────────
 
 interface WeightedField { text: string; weight: number }
@@ -194,6 +213,13 @@ export function scoreUnifiedItem(item: any, query: string): number {
   if (!normQ) return 1
 
   const tokens = tokenizeArabicQuery(query)
+  const combinedPrimaryText = normalizeArabic([
+    item?.name || "",
+    item?.description || "",
+    item?.source_raw?.caption || "",
+    item?.source_raw?.summary || "",
+    item?._snippet || ""
+  ].join(" "))
   const namedPhrase = extractNamedPhrase(query)
   const normTitle = normalizeArabic(item?.name || "")
   const itemSections = Array.isArray(item?.sections)
@@ -202,7 +228,46 @@ export function scoreUnifiedItem(item: any, query: string): number {
   const fields = getItemSearchFields(item)
   const isOfficialSearchHit = item?.source_raw?.official_search === true
   const officialSearchQuery = normalizeArabic(String(item?.source_raw?.query || ""))
+  const shrineLifecycleHistoryQuery = isShrineLifecycleHistoryQuery(normQ)
+  const historicalFramingSignals = [
+    "لمحه تاريخيه", "لمحة تاريخية", "لمحه تأريخيه", "لمحة تأريخية",
+    "الجزء", "بين مراحل", "عمليات الاعمار", "عبر التاريخ", "التاريخيه", "التاريخية"
+  ]
+  const eventExhibitSignals = ["معرض", "مهرجان", "فعاليه", "فعالية", "تركيا", "رسوم", "ثلاثيه الابعاد", "ثلاثية الابعاد", "لوحات", "لاول مره", "لأول مرة"]
+  const currentProjectSignals = [
+    "مشروع", "مشاريع", "يقطع مراحل متقدمه", "يقطع مراحل متقدمة", "نسبه انجاز", "نسبة انجاز",
+    "افتتاح", "اواوين", "الأواوين", "الطابق الثاني", "وضع حجر", "انجاز"
+  ]
+  const hasHistoricalFraming = historicalFramingSignals.some(signal => combinedPrimaryText.includes(normalizeArabic(signal)))
+  const isEventExhibitLikeResult = eventExhibitSignals.some(signal => combinedPrimaryText.includes(normalizeArabic(signal)))
+  const isCurrentProjectLikeResult = currentProjectSignals.some(signal => combinedPrimaryText.includes(normalizeArabic(signal)))
+  const shrineSpecificAbbasSignals = ["العتبه العباسيه", "العتبة العباسية", "ابي الفضل", "أبي الفضل", "ابو الفضل", "أبو الفضل", "العباس"]
+  const hasAbbasSpecificSubject = shrineSpecificAbbasSignals.some(signal => combinedPrimaryText.includes(normalizeArabic(signal)))
+  const queryRequestsAbbasSubject =
+    normQ.includes(normalizeArabic("العتبه العباسيه")) ||
+    normQ.includes(normalizeArabic("العتبة العباسية")) ||
+    normQ.includes(normalizeArabic("قبر العباس")) ||
+    normQ.includes(normalizeArabic("ابي الفضل")) ||
+    normQ.includes(normalizeArabic("أبي الفضل")) ||
+    normQ.includes(normalizeArabic("ابو الفضل")) ||
+    normQ.includes(normalizeArabic("أبو الفضل")) ||
+    (
+      normQ.includes(normalizeArabic("العتبه")) &&
+      normQ.includes(normalizeArabic("العباسيه"))
+    ) ||
+    (
+      normQ.includes(normalizeArabic("العتبة")) &&
+      normQ.includes(normalizeArabic("العباسية"))
+    )
+  const mentionsHusseinOnlySubject =
+    combinedPrimaryText.includes(normalizeArabic("الامام الحسين")) &&
+    !combinedPrimaryText.includes(normalizeArabic("ابي الفضل")) &&
+    !combinedPrimaryText.includes(normalizeArabic("أبي الفضل")) &&
+    !combinedPrimaryText.includes(normalizeArabic("ابو الفضل")) &&
+    !combinedPrimaryText.includes(normalizeArabic("أبو الفضل")) &&
+    !combinedPrimaryText.includes(normalizeArabic("قبر العباس"))
   const isHistorySource =
+    item?.source_type === "shrine_history_timeline" ||
     item?.source_type === "shrine_history_by_section" ||
     item?.source_type === "shrine_history_sections" ||
     item?.source_type === "abbas_history_by_id" ||
@@ -247,6 +312,7 @@ export function scoreUnifiedItem(item: any, query: string): number {
   let hasSpecificNamedPhrase = false
 
   const genericTokens = new Set([
+    "ماهي", "ماهو",
     "ما", "اسم", "من", "هو", "هي", "هل", "اين", "يقام", "كم", "عدد", "لي", "عن", "في", "على",
     "هن", "له", "لها", "لهم", "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع", "خبر", "قديم", "يتحدث",
     "تكلم", "اشرح", "حدثني", "اخبرني", "حول", "باختصار", "اعطني", "اعرض", "عليه", "السلام"
@@ -263,6 +329,10 @@ export function scoreUnifiedItem(item: any, query: string): number {
 
   const titleSpecificMatchCount = specificTokens.filter(tok => normTitle.includes(tok)).length
   const namedPhraseTokens = namedPhrase ? tokenizeArabicQuery(namedPhrase) : []
+  const namedPhraseTokenCoverage =
+    namedPhraseTokens.length > 0
+      ? namedPhraseTokens.filter(tok => normTitle.includes(tok)).length / namedPhraseTokens.length
+      : 0
   const isOfficeHolderQuery =
     normQ.includes(normalizeArabic("المتولي الشرعي")) ||
     (normQ.includes(normalizeArabic("المتولي")) && normQ.includes(normalizeArabic("الشرعي")))
@@ -278,6 +348,24 @@ export function scoreUnifiedItem(item: any, query: string): number {
     specificTokens.length >= 2 || isNamedPersonQuery || isNamedHistoryEntityQuery || isOfficeHolderQuery
 
   if ((explicitShrineHistoryQuery || explicitShrineDescriptionQuery) && !isHistorySource) {
+    return 0
+  }
+
+  if (
+    shrineLifecycleHistoryQuery &&
+    isOfficialSearchHit &&
+    queryRequestsAbbasSubject &&
+    !hasAbbasSpecificSubject
+  ) {
+    return 0
+  }
+
+  if (
+    shrineLifecycleHistoryQuery &&
+    isOfficialSearchHit &&
+    (isEventExhibitLikeResult || isCurrentProjectLikeResult || mentionsHusseinOnlySubject) &&
+    !hasHistoricalFraming
+  ) {
     return 0
   }
 
@@ -328,6 +416,14 @@ export function scoreUnifiedItem(item: any, query: string): number {
     score += 10
   }
 
+  if (shrineLifecycleHistoryQuery && hasHistoricalFraming) {
+    score += 16
+  }
+
+  if (shrineLifecycleHistoryQuery && hasAbbasSpecificSubject) {
+    score += 10
+  }
+
   if (explicitShrineDescriptionQuery && isHistorySource) {
     score += 16
   } else if (explicitShrineHistoryQuery && isHistorySource) {
@@ -336,8 +432,19 @@ export function scoreUnifiedItem(item: any, query: string): number {
     score += 6
   }
 
-  // For named-entity lookups, phrase mismatch means the item is irrelevant.
-  if (namedPhrase && !hasSpecificNamedPhrase && (!isOfficialSearchHit || namedPhraseTokens.length >= 2)) {
+  // For named-entity lookups, phrase mismatch means the item is irrelevant,
+  // unless the title already covers most phrase tokens (for example: "مراحل الهدم"
+  // should still match a query phrased as "مراحل هدم").
+  const hasStrongNamedPhraseTokenCoverage =
+    namedPhraseTokens.length >= 2 &&
+    (namedPhraseTokenCoverage >= 0.75 || titleSpecificMatchCount >= Math.min(2, namedPhraseTokens.length))
+
+  if (
+    namedPhrase &&
+    !hasSpecificNamedPhrase &&
+    !hasStrongNamedPhraseTokenCoverage &&
+    (!isOfficialSearchHit || namedPhraseTokens.length >= 2)
+  ) {
     return 0
   }
 
@@ -456,6 +563,7 @@ export function rankCandidateSources(
   // History signals
   const historyHints = ["تاريخ", "سيره", "العباس", "العتبه", "ابو الفضل", "تاريخي"]
   const histBoost = historyHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 5 : 0), 0)
+  if (histBoost > 0) scores.push({ source: "shrine_history_timeline", score: 8 + histBoost })
   if (params.section_id) scores.push({ source: "shrine_history_by_section", score: 4 + histBoost })
   if (params.id) scores.push({ source: "abbas_history_by_id", score: 4 + histBoost })
   if (isCategoryIntent(query) && histBoost > 0) scores.push({ source: "shrine_history_sections", score: 2 + histBoost })
@@ -464,6 +572,7 @@ export function rankCandidateSources(
   const abbasHints = ["العباس", "ابو الفضل", "ابا الفضل", "ابوالفضل"]
   const isAbbasIntent = abbasHints.some(h => norm.includes(normalizeArabic(h)))
   if (isAbbasIntent && !params.section_id && !params.id) {
+    scores.push({ source: "shrine_history_timeline", score: 5 + histBoost })
     scores.push({ source: "shrine_history_sections", score: 6 + histBoost })
   }
 
@@ -493,6 +602,7 @@ export function rankCandidateSources(
     : officeHolderHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 7 : 0), 0)
   if (officeBoost > 0) {
     scores.push({ source: "articles_latest", score: 8 + officeBoost })
+    scores.push({ source: "shrine_history_timeline", score: 7 + officeBoost })
     scores.push({ source: "shrine_history_sections", score: 6 + officeBoost })
   }
 

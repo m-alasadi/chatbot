@@ -652,7 +652,10 @@ function cleanProject(project: any, detailed: boolean = false): any {
   // تحديد رابط المصدر حسب نوع المحتوى
   const sourceType = project?.source_type
   const isVideoSource = sourceType === "videos_latest" || sourceType === "videos_by_category" || sourceType === "friday_sermons" || sourceType === "wahy_friday"
-  const isHistorySource = sourceType === "shrine_history_by_section" || sourceType === "shrine_history_sections"
+  const isHistorySource =
+    sourceType === "shrine_history_timeline" ||
+    sourceType === "shrine_history_by_section" ||
+    sourceType === "shrine_history_sections"
   const isAbbasSource = sourceType === "abbas_history_by_id"
   const mediaSlug = project?.source_raw?.request || project?.source_raw?.news_id || project?.source_raw?.article_id
 
@@ -758,6 +761,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
  */
 function friendlySourceName(source: string): string {
   const map: Record<string, string> = {
+    shrine_history_timeline: "تاريخ العتبة",
     shrine_history_sections: "تاريخ العتبة",
     shrine_history_by_section: "تاريخ العتبة",
     abbas_history_by_id: "تاريخ العباس",

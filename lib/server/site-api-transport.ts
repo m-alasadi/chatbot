@@ -165,8 +165,14 @@ export async function callSiteAPI(
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
           Accept: "application/json",
-          "Accept-Language": config.acceptLanguage
+          "Accept-Language": config.acceptLanguage,
+          "User-Agent": "Mozilla/5.0",
+          "X-Requested-With": "XMLHttpRequest"
         }
+
+        const siteOrigin = new URL(normalizedBase).origin
+        headers["Origin"] = siteOrigin
+        headers["Referer"] = `${siteOrigin}/history?lang=ar`
 
         // إضافة Token إذا كان متوفراً
         if (config.token) {

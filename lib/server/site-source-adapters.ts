@@ -6,6 +6,7 @@ export type SiteSourceName =
   | "videos_latest"
   | "videos_categories"
   | "videos_by_category"
+  | "shrine_history_timeline"
   | "shrine_history_sections"
   | "shrine_history_by_section"
   | "abbas_history_by_id"
@@ -25,6 +26,7 @@ export const ALL_SOURCES: SiteSourceName[] = [
   "videos_latest",
   "videos_categories",
   "videos_by_category",
+  "shrine_history_timeline",
   "shrine_history_sections",
   "shrine_history_by_section",
   "abbas_history_by_id",
@@ -38,6 +40,7 @@ const SOURCE_CACHE_DURATION_MS: Record<SiteSourceName, number> = {
   videos_latest: 15 * 60 * 1000,
   videos_categories: 6 * 60 * 60 * 1000,
   videos_by_category: 20 * 60 * 1000,
+  shrine_history_timeline: 12 * 60 * 60 * 1000,
   shrine_history_sections: 12 * 60 * 60 * 1000,
   shrine_history_by_section: 60 * 60 * 1000,
   abbas_history_by_id: 60 * 60 * 1000,
@@ -51,6 +54,7 @@ const SOURCE_REQUEST_POLICY: Record<SiteSourceName, { timeout: number; retries: 
   videos_latest: { timeout: 14000, retries: 0 },
   videos_categories: { timeout: 8000, retries: 0 },
   videos_by_category: { timeout: 12000, retries: 0 },
+  shrine_history_timeline: { timeout: 14000, retries: 1 },
   shrine_history_sections: { timeout: 10000, retries: 0 },
   shrine_history_by_section: { timeout: 14000, retries: 1 },
   abbas_history_by_id: { timeout: 14000, retries: 1 },
@@ -277,6 +281,23 @@ function normalizeSourceDataset(source: SiteSourceName, rawData: any): any[] {
     }))
   }
 
+  if (source === "shrine_history_timeline") {
+    return arr.map((item: any) => ({
+      id: String(item?.id || item?.history_id || item?.title || ""),
+      name: pickText(item?.title, item?.name, "مرحلة تاريخية"),
+      description: pickText(item?.text, item?.description, item?.content),
+      image: item?.image || null,
+      created_at: toUnixDate(item?.time || item?.created_at),
+      address: "",
+      sections: [normalizeSection("المراحل التاريخية للعتبة العباسية")],
+      kftags: [],
+      properties: [],
+      url: `${siteDomain}/history?lang=ar`,
+      source_type: source,
+      source_raw: item
+    }))
+  }
+
   if (source === "shrine_history_by_section" || source === "abbas_history_by_id") {
     const historyPath = source === "abbas_history_by_id" ? "/abbas?lang=ar" : "/history?lang=ar"
     return arr.map((item: any) => ({
@@ -436,6 +457,7 @@ export function friendlySourceLabel(source: string): string {
     videos_latest: "الفيديوهات",
     videos_categories: "أقسام الفيديو",
     videos_by_category: "فيديوهات حسب القسم",
+    shrine_history_timeline: "المراحل التاريخية للعتبة",
     shrine_history_sections: "أقسام تاريخ العتبة",
     shrine_history_by_section: "تاريخ العتبة",
     abbas_history_by_id: "تاريخ العباس",

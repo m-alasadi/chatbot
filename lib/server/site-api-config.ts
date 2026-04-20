@@ -35,6 +35,9 @@ export function getSiteAPIConfig(): SiteAPIConfig {
     videos_by_category:
       process.env.SITE_API_VIDEOS_BY_CATEGORY_ENDPOINT ||
       "/alkafeel_back_test/api/v1/videos/ByCat/{catId}/16?page=1",
+    shrine_history_timeline:
+      process.env.SITE_API_SHRINE_HISTORY_TIMELINE_ENDPOINT ||
+      "/alkafeel_back_test/api/v1/alkafeel-histories/getBySecId/1",
     shrine_history_sections:
       process.env.SITE_API_SHRINE_HISTORY_SECTIONS_ENDPOINT ||
       "/alkafeel_back_test/api/v1/alkafeel-histories/getOtherSec",

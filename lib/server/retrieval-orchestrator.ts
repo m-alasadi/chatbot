@@ -234,7 +234,7 @@ function buildSourceConstraint(
         intent,
         hardConstraint: true,
         preferredSources: ["shrine_history_sections", "auto"],
-        allowedSources: ["shrine_history_sections", "shrine_history_by_section", "abbas_history_by_id", "auto"]
+        allowedSources: ["shrine_history_timeline", "shrine_history_sections", "shrine_history_by_section", "abbas_history_by_id", "auto"]
       }
     case "wahy":
       return {
@@ -254,8 +254,8 @@ function buildSourceConstraint(
       return {
         intent,
         hardConstraint: true,
-        preferredSources: ["shrine_history_sections", "auto"],
-        allowedSources: ["shrine_history_sections", "shrine_history_by_section", "abbas_history_by_id", "auto"]
+        preferredSources: ["shrine_history_timeline", "shrine_history_sections", "auto"],
+        allowedSources: ["shrine_history_timeline", "shrine_history_sections", "shrine_history_by_section", "abbas_history_by_id", "auto"]
       }
     case "language":
       return {

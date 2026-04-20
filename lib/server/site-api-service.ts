@@ -228,6 +228,34 @@ async function fetchOfficialNewsSearchResults(query: string, limit: number): Pro
   return items
 }
 
+export function shouldAllowOfficialNewsSearchFallback(
+  source: SiteSourceName | "auto",
+  scoredCount: number,
+  topScore: number,
+  capability: ReturnType<typeof deriveRetrievalCapabilitySignals>,
+  query: string
+): boolean {
+  const hasQueryTokens = tokenizeArabicQuery(query).length > 0
+  if (!hasQueryTokens) return false
+
+  const isPrimaryNewsSource = source === "auto" || source === "articles_latest"
+  const isHistorySource =
+    source === "shrine_history_timeline" ||
+    source === "shrine_history_sections" ||
+    source === "shrine_history_by_section"
+  const weakOrEmptyHistoryMatch = isHistorySource && (scoredCount === 0 || topScore < 8)
+
+  if (!isPrimaryNewsSource && !weakOrEmptyHistoryMatch) return false
+
+  return (
+    scoredCount === 0 ||
+    topScore < 8 ||
+    capability.named_event_or_program ||
+    capability.singular_project_lookup ||
+    looksLikeTitleQuery(query)
+  )
+}
+
 /**
  * جلب جميع المشاريع من API
  * يتم cache النتائج لتجنب استدعاءات متكررة
@@ -643,16 +671,13 @@ export async function siteSearchContent(
     .sort((a, b) => b.score - a.score)
 
   const topScore = scored[0]?.score || 0
-  const shouldUseOfficialNewsSearch =
-    tokenizeArabicQuery(query).length > 0 &&
-    (source === "auto" || source === "articles_latest") &&
-    (
-      scored.length === 0 ||
-      topScore < 8 ||
-      capability.named_event_or_program ||
-      capability.singular_project_lookup ||
-      looksLikeTitleQuery(query)
-    )
+  const shouldUseOfficialNewsSearch = shouldAllowOfficialNewsSearchFallback(
+    source,
+    scored.length,
+    topScore,
+    capability,
+    query
+  )
 
   if (shouldUseOfficialNewsSearch) {
     console.log(`[siteSearchContent] Official news search fallback for query="${query}"`)

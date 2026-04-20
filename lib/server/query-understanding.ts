@@ -59,6 +59,23 @@ function containsStandaloneNormalizedToken(norm: string, token: string): boolean
   return norm.split(/\s+/).includes(normalizedToken)
 }
 
+function isHistoricalShrineLifecycleQuery(norm: string): boolean {
+  const shrineSignals = [
+    "العتبه", "العتبة", "العباسيه", "العباسية", "الحرم", "المرقد", "الضريح",
+    "قبر العباس", "ابي الفضل", "أبي الفضل", "ابو الفضل", "أبو الفضل"
+  ]
+  const historicalFrameSignals = ["مراحل", "تاريخ", "تأريخ", "هدم", "عدوان", "اعتداء", "بناء"]
+  const structuralSignals = ["بناء", "هدم", "اعمار", "إعمار", "ترميم", "تشييد", "عدوان", "اعتداء"]
+  const explicitProjectSignals = ["مشاريع", "مشروع", "توسعه", "توسعة"]
+
+  const hasShrineContext = shrineSignals.some(signal => norm.includes(normalizeQueryForTrace(signal)))
+  const hasHistoricalFrame = historicalFrameSignals.some(signal => norm.includes(normalizeQueryForTrace(signal)))
+  const hasStructuralSignal = structuralSignals.some(signal => norm.includes(normalizeQueryForTrace(signal)))
+  const explicitProjectLookup = explicitProjectSignals.some(signal => norm.includes(normalizeQueryForTrace(signal)))
+
+  return hasShrineContext && hasHistoricalFrame && hasStructuralSignal && !explicitProjectLookup
+}
+
 function detectContentIntent(norm: string): QueryContentIntent {
   const videoHints = ["فيديو", "فديو", "محاضره", "محاضرات", "مرئي", "مقطع", "يوتيوب"]
   const newsHints = ["خبر", "اخبار", "مقال", "مقالات", "بيان"]
@@ -180,6 +197,7 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
     norm.includes(normalizeQueryForTrace("كلدار")) ||
     norm.includes(normalizeQueryForTrace("الحرم"))
   ) {
+    sourceSpecific.push("shrine_history_timeline")
     sourceSpecific.push("shrine_history_sections")
   }
   if (norm.includes(normalizeQueryForTrace("المتولي")) || norm.includes(normalizeQueryForTrace("الشرعي"))) {
@@ -199,17 +217,20 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
   }
 
   if (
-    norm.includes(normalizeQueryForTrace("مشاريع")) ||
-    norm.includes(normalizeQueryForTrace("مشروع")) ||
-    norm.includes(normalizeQueryForTrace("توسعة")) ||
-    norm.includes(normalizeQueryForTrace("اعمار")) ||
-    norm.includes(normalizeQueryForTrace("إعمار")) ||
-    norm.includes(normalizeQueryForTrace("ترميم")) ||
-    norm.includes(normalizeQueryForTrace("صيانة")) ||
-    norm.includes(normalizeQueryForTrace("تعليمي")) ||
-    norm.includes(normalizeQueryForTrace("زراعي")) ||
-    norm.includes(normalizeQueryForTrace("انتاج")) ||
-    norm.includes(normalizeQueryForTrace("دجاج"))
+    (
+      norm.includes(normalizeQueryForTrace("مشاريع")) ||
+      norm.includes(normalizeQueryForTrace("مشروع")) ||
+      norm.includes(normalizeQueryForTrace("توسعة")) ||
+      norm.includes(normalizeQueryForTrace("اعمار")) ||
+      norm.includes(normalizeQueryForTrace("إعمار")) ||
+      norm.includes(normalizeQueryForTrace("ترميم")) ||
+      norm.includes(normalizeQueryForTrace("صيانة")) ||
+      norm.includes(normalizeQueryForTrace("تعليمي")) ||
+      norm.includes(normalizeQueryForTrace("زراعي")) ||
+      norm.includes(normalizeQueryForTrace("انتاج")) ||
+      norm.includes(normalizeQueryForTrace("دجاج"))
+    ) &&
+    !isHistoricalShrineLifecycleQuery(norm)
   ) {
     sourceSpecific.push("projects_query")
     sourceSpecific.push("articles_latest")
@@ -266,7 +287,7 @@ function deriveHintedSources(contentIntent: QueryContentIntent, entities: QueryE
       sources.push("abbas_history_by_id", "shrine_history_sections")
       break
     case "history":
-      sources.push("shrine_history_sections")
+      sources.push("shrine_history_timeline", "shrine_history_sections")
       break
     case "sermon":
       sources.push("friday_sermons")
@@ -347,9 +368,11 @@ export function deriveRetrievalCapabilitySignals(
   const personAttributeFact =
     understanding.extracted_entities.person.length > 0 &&
     personAttributeSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
+  const historicalShrineLifecycleQuery = isHistoricalShrineLifecycleQuery(norm)
   const singularProjectLookup =
     singularProjectSignals.some(s => norm.includes(normalizeQueryForTrace(s))) &&
-    !norm.includes(normalizeQueryForTrace("مشاريع"))
+    !norm.includes(normalizeQueryForTrace("مشاريع")) &&
+    !historicalShrineLifecycleQuery
   const broadCapabilityOverview =
     understanding.operation_intent === "explain" ||
     norm.includes(normalizeQueryForTrace("كيف")) ||

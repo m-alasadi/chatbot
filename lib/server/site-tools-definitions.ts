@@ -13,6 +13,7 @@ const SOURCE_ENUM = [
   "videos_latest",
   "videos_categories",
   "videos_by_category",
+  "shrine_history_timeline",
   "shrine_history_sections",
   "shrine_history_by_section",
   "abbas_history_by_id",
