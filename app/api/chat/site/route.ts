@@ -56,9 +56,20 @@ function getSecurityHeadersWithTrace(traceId?: string): HeadersInit {
   }
 }
 
-function classifyRuntimeFailure(error: any): "timeout" | "rate_limit" | "upstream" | "network" | "unknown" {
+function classifyRuntimeFailure(error: any): "timeout" | "rate_limit" | "upstream" | "network" | "auth" | "unknown" {
   const text = String(error?.message || error || "").toLowerCase()
   if (!text) return "unknown"
+  if (
+    text.includes("incorrect api key") ||
+    text.includes("invalid_api_key") ||
+    text.includes("api key") ||
+    text.includes("unauthorized") ||
+    text.includes("forbidden") ||
+    text.includes("401") ||
+    text.includes("403")
+  ) {
+    return "auth"
+  }
   if (text.includes("timeout") || text.includes("timed out") || text.includes("request_budget_exhausted")) {
     return "timeout"
   }
@@ -88,17 +99,20 @@ function classifyRuntimeFailure(error: any): "timeout" | "rate_limit" | "upstrea
 
 function buildRuntimeFailureMessage(kind: ReturnType<typeof classifyRuntimeFailure>, traceId: string): string {
   const traceSuffix = `\n\nرقم التتبع: ${traceId}`
+  const underDevelopmentMessage = `خدمة الرد الآلي قيد التطوير حاليًا وقد لا تتوفر الإجابة في هذه اللحظة. يرجى المحاولة بعد قليل.${traceSuffix}`
   switch (kind) {
+    case "auth":
+      return underDevelopmentMessage
     case "timeout":
-      return `تعذر إكمال الإجابة في الوقت المتاح. حاول إعادة السؤال بصياغة أقصر أو بعد قليل.${traceSuffix}`
+      return underDevelopmentMessage
     case "rate_limit":
-      return `الخدمة تتلقى عددًا كبيرًا من الطلبات الآن. حاول مرة أخرى بعد قليل.${traceSuffix}`
+      return underDevelopmentMessage
     case "upstream":
-      return `مصدر الإجابة غير متاح مؤقتًا الآن. حاول بعد قليل.${traceSuffix}`
+      return underDevelopmentMessage
     case "network":
-      return `حدثت مشكلة اتصال أثناء جلب البيانات من المصدر.${traceSuffix}`
+      return underDevelopmentMessage
     default:
-      return `تعذر إكمال الإجابة بسبب خلل مؤقت في مسار الاسترجاع.${traceSuffix}`
+      return underDevelopmentMessage
   }
 }
 
@@ -669,30 +683,30 @@ export async function POST(request: Request) {
     const errorSecurityHeaders = getSecurityHeaders()
 
     // معالجة أنواع الأخطاء المختلفة
-    let errorMessage = "حدث خطأ غير متوقع"
+    const underDevelopmentErrorMessage = `خدمة الرد الآلي قيد التطوير حاليًا وقد لا تتوفر الإجابة في هذه اللحظة. يرجى المحاولة بعد قليل.\n\nرقم التتبع: ${traceId}`
+    let errorMessage = underDevelopmentErrorMessage
     let statusCode = 500
     let fallbackType: "api_error" | "api_quota_exceeded" = "api_error"
 
     if (error.message?.toLowerCase().includes("api key not found")) {
-      errorMessage =
-        "لم يتم العثور على مفتاح OpenAI API. يرجى التواصل مع المسؤول."
+      errorMessage = underDevelopmentErrorMessage
       statusCode = 401
     } else if (error.message?.toLowerCase().includes("incorrect api key")) {
-      errorMessage = "مفتاح OpenAI API غير صحيح. يرجى التواصل مع المسؤول."
+      errorMessage = underDevelopmentErrorMessage
       statusCode = 401
     } else if (error.code === "insufficient_quota" || error.message?.toLowerCase().includes("insufficient_quota") || error.message?.toLowerCase().includes("exceeded your current quota")) {
-      errorMessage = "الخدمة متوقفة مؤقتاً بسبب نفاد حصة مزود الذكاء الاصطناعي."
+      errorMessage = underDevelopmentErrorMessage
       statusCode = 429
       fallbackType = "api_quota_exceeded"
     } else if (error.message?.toLowerCase().includes("rate limit")) {
-      errorMessage = "تم تجاوز الحد المسموح من الطلبات. يرجى المحاولة بعد قليل."
+      errorMessage = underDevelopmentErrorMessage
       statusCode = 429
     } else if (error.message?.toLowerCase().includes("model")) {
-      errorMessage = `النموذج غير متاح حالياً. يرجى المحاولة لاحقاً.`
+      errorMessage = underDevelopmentErrorMessage
       statusCode = 503
     } else if (error.status) {
       statusCode = error.status
-      errorMessage = error.message || errorMessage
+      errorMessage = underDevelopmentErrorMessage
     }
 
     // إرجاع رد fallback

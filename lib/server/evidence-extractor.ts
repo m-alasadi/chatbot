@@ -219,7 +219,7 @@ export function formatEvidenceForModel(evidenceList: Evidence[]): string {
   if (!evidenceList || evidenceList.length === 0) return ""
 
   const lines: string[] = [
-    "[أدلة مستخرجة من المصادر - استخدم هذه الاقتباسات في إجابتك]"
+    "[أدلة مستخرجة من المصادر - حلّل هذه البيانات واستخلص منها الإجابة المناسبة بأسلوب طبيعي]"
   ]
 
   for (let i = 0; i < evidenceList.length; i++) {
@@ -256,7 +256,7 @@ export function buildMandatoryInstruction(evidenceList: Evidence[]): string {
   }
 
   lines.push("")
-  lines.push("قاعدة مطلقة: لا تلخص الاقتباس الإلزامي ولا تعيد صياغته. اذكره كما هو ثم أضف جملة توضيحية قصيرة.")
+  lines.push("تعليمات: حلّل الاقتباسات أعلاه واستخلص منها الإجابة المناسبة لسؤال المستخدم. لا تلصق الاقتباس كما هو. صِغ إجابة طبيعية ومباشرة باللغة العربية.")
   lines.push("لكل نتيجة رابطها الخاص. استخدم الرابط المرفق مع كل نتيجة فقط.")
 
   return lines.join("\n")
@@ -504,10 +504,15 @@ export function formatGroundedAnswer(
 
     const quote = String(top.quote || "").replace(/\s+/g, " ").trim()
     if (directOnlyRequested) return buildDirectResponse(quote)
-    const lines = ["**الجواب**", quote]
-    if (top.source_title) lines.push(`**${top.source_title}**`)
+    // بدلاً من عرض الاقتباس الخام كإجابة، نصيغ إجابة طبيعية
+    const lines: string[] = []
+    // إذا كان الاقتباس يحتوي على معلومة واضحة، نعرضها مباشرة
+    lines.push(quote)
     const sourceLink = formatSourceLink(top)
-    if (sourceLink) lines.push(sourceLink)
+    if (sourceLink) {
+      lines.push("")
+      lines.push(`📎 ${sourceLink}`)
+    }
     return lines.join("\n")
   }
 
@@ -515,17 +520,22 @@ export function formatGroundedAnswer(
     return buildProjectYesNoAnswer()
   }
 
-  const lines: string[] = [
-    isExpansionProjectQuery
-      ? "**أبرز مشاريع التوسعة ذات الصلة**"
-      : isProjectStyleQuery
-        ? "**أبرز المشاريع ذات الصلة**"
-        : "**النتائج الأقرب**"
-  ]
+  const lines: string[] = []
 
-  for (const evidence of ordered.slice(0, 2)) {
+  if (isExpansionProjectQuery) {
+    lines.push("**أبرز مشاريع التوسعة ذات الصلة**")
+  } else if (isProjectStyleQuery) {
+    lines.push("**أبرز المشاريع ذات الصلة**")
+  }
+
+  for (const evidence of ordered.slice(0, 3)) {
     lines.push("")
-    lines.push(buildEvidenceCard(evidence))
+    if (evidence.source_title) lines.push(`**${evidence.source_title}**`)
+    // عرض ملخص مختصر بدلاً من الاقتباس الخام الكامل
+    const snippet = shortenQuote(evidence.quote, 150)
+    lines.push(snippet)
+    const sourceLink = formatSourceLink(evidence)
+    if (sourceLink) lines.push(`🔗 ${sourceLink}`)
   }
 
   return lines.join("\n")

@@ -530,6 +530,9 @@ function splitCompoundFactQuery(text: string): string[] {
     .replace(new RegExp(`\\s+و(?=${questionLead}\\s)`, "gu"), " | ")
     .replace(new RegExp(`\\s+ثم\\s+(?=${questionLead}\\s)`, "gu"), " | ")
     .replace(new RegExp(`،\\s*(?=${questionLead}\\s)`, "gu"), " | ")
+    // Also split on "و" before noun phrases that ask about a DIFFERENT entity
+    // e.g. "اسم ام العباس وزوجته" → two sub-questions about mother AND wife
+    .replace(/\s+و(?=(?:اسم|زوج[ةت]|ابن|بن[ت]|ام|أم|والد[ةت]?|اولاد|أولاد|ألقاب|لقب)\S*)/gu, " | ")
 
   const parts = segmented
     .split("|")
@@ -1560,7 +1563,7 @@ async function injectKnowledgeAndGuard(
   userQuery: string,
   understanding?: QueryUnderstandingResult
 ): Promise<Evidence[]> {
-  const extractedEvidence = extractToolResultEvidence(messages, userQuery)
+  let extractedEvidence = extractToolResultEvidence(messages, userQuery)
   const topEvidenceConfidence = extractedEvidence[0]?.confidence ?? 0
   const hasKnowledgeContextAlready = messages.some(
     m => m.role === "system" && typeof m.content === "string" && m.content.includes("[سياق معرفي إضافي من النصوص الكاملة]")
@@ -1665,35 +1668,147 @@ async function injectKnowledgeAndGuard(
     // Only suppress tool results for biographical questions (traits, family, life).
     // For shrine activity/construction queries, let tool results come through normally.
     if (isAbbasBiographyQuery(userQuery)) {
-      // Check if the knowledge context actually covers the specific sub-topic asked about.
-      // If the context doesn't mention the key concept (e.g. wives, children), allow
-      // the LLM to answer from general knowledge rather than saying "not found".
       const norm = normalizeArabicLight(userQuery)
       const kCtxNorm = normalizeArabicLight(
         messages.filter(m => m.role === "system").map(m => typeof m.content === "string" ? m.content : "").join(" ")
       )
-      // Topics the local knowledge base is known to NOT cover for Abbas himself
+
+      // Detect compound queries — they may need MULTIPLE sources
+      const isCompound = isCompoundFactQuery(userQuery)
+
+      // Detect knowledge gaps: topics the local knowledge base doesn't cover
       const wivesQuery = ["زوج", "زوجة", "زوجات", "نكاح", "تزوج"].some(t => norm.includes(t))
       const contextMentionsAbbasWives = kCtxNorm.includes("تزوج العباس") || kCtxNorm.includes("زوجة العباس") || kCtxNorm.includes("زوجات العباس")
       const knowledgeGap = wivesQuery && !contextMentionsAbbasWives
 
-      if (knowledgeGap) {
-        // Knowledge base doesn't cover this topic — let LLM use general historical knowledge
-        console.log(`[Evidence Guard] Abbas biography — knowledge gap detected, permitting general knowledge`)
-        messages.push({
-          role: "system",
-          content: "ℹ️ السياق المعرفي المحلي لا يتضمن معلومات عن هذا الجانب تحديداً. أجب من معرفتك التاريخية الموثوقة عن الإمام أبي الفضل العباس (عليه السلام). تجاهل نتائج الأدوات المرتبطة بأخبار الضريح — هي غير ذات صلة."
-        })
+      if (isCompound || knowledgeGap) {
+        // Compound query or knowledge gap: DON'T suppress tool results.
+        // The knowledge base covers part of the question, but tool results (news/articles)
+        // may contain answers for the parts the knowledge base doesn't cover.
+        console.log(`[Evidence Guard] Abbas biography — compound/gap query, combining knowledge + tool results`)
+
+        // If tool results exist and might cover the gap, use them alongside knowledge
+        if (extractedEvidence.length > 0) {
+          injectToolEvidenceBlock(messages, userQuery, extractedEvidence)
+        }
+
+        // Deep content fetch: for knowledge gaps, the evidence might mention the topic
+        // (e.g. title says "زوجة العباس") but the truncated snippet (150 chars) doesn't
+        // contain the actual answer (e.g. the wife's name). Fetch the full article content
+        // for the most relevant evidence item to give the LLM the complete text.
+        if (knowledgeGap) {
+          const gapKeywords = ["زوج", "زوجة", "زوجات", "تزوج", "نكح"]
+          let fullContentFetched = false
+
+          // Helper: fetch full article by ID and inject into messages
+          const fetchAndInjectFullArticle = async (articleId: string, articleName: string, articleUrl: string): Promise<boolean> => {
+            try {
+              console.log(`[Evidence Guard] Fetching full article content for gap topic, id=${articleId}`)
+              const fullArticle = await executeToolByName("get_content_by_id", { id: articleId, source: "articles_latest" })
+              if (fullArticle.success && fullArticle.data) {
+                const fullText = fullArticle.data.description || fullArticle.data.content || ""
+                const fullName = fullArticle.data.name || articleName
+                const fullUrl = fullArticle.data.url || articleUrl
+                if (fullText.length > 0) {
+                  const suppToolId = `deep_fetch_${Date.now()}`
+                  messages.push({
+                    role: "assistant",
+                    content: null,
+                    tool_calls: [{ id: suppToolId, type: "function" as const, function: { name: "get_content_by_id", arguments: JSON.stringify({ id: articleId }) } }]
+                  })
+                  messages.push({
+                    role: "tool",
+                    tool_call_id: suppToolId,
+                    content: JSON.stringify({
+                      success: true,
+                      data: {
+                        name: fullName,
+                        description: typeof fullText === "string" ? fullText.substring(0, 2000) : fullText,
+                        url: fullUrl
+                      }
+                    })
+                  })
+                  messages.push({
+                    role: "system",
+                    content: `📰 تم جلب النص الكامل للخبر "${fullName}". اقرأ محتواه بعناية واستخلص منه الإجابة عن الجزء المتعلق بالزوجة/الزواج. لا تعتذر عن عدم توفر المعلومة إذا كانت مذكورة في هذا الخبر.`
+                  })
+                  return true
+                }
+              }
+            } catch (e) {
+              console.log(`[Evidence Guard] Full article fetch failed:`, e)
+            }
+            return false
+          }
+
+          // Step 1: Check extracted evidence for gap-relevant articles
+          const gapRelevantEvidence = extractedEvidence.filter(e => {
+            const titleNorm = normalizeArabicLight(e.source_title)
+            const quoteNorm = normalizeArabicLight(e.quote)
+            return gapKeywords.some(k => titleNorm.includes(k) || quoteNorm.includes(k))
+          })
+          if (gapRelevantEvidence.length > 0) {
+            const idMatch = gapRelevantEvidence[0].source_url.match(/[?&]id=(\d+)/)
+            if (idMatch) {
+              fullContentFetched = await fetchAndInjectFullArticle(idMatch[1], gapRelevantEvidence[0].source_title, gapRelevantEvidence[0].source_url)
+            }
+          }
+
+          // Step 2: Check ALL raw tool result items (not just evidence) for gap-relevant articles
+          if (!fullContentFetched) {
+            const allToolItems = collectToolResultItems(messages as any[])
+            const gapToolItem = allToolItems.find((item: any) => {
+              const nameNorm = normalizeArabicLight(item?.name || "")
+              return gapKeywords.some(k => nameNorm.includes(k)) && item?.id
+            })
+            if (gapToolItem) {
+              fullContentFetched = await fetchAndInjectFullArticle(
+                String(gapToolItem.id),
+                gapToolItem.name || "",
+                gapToolItem.url || ""
+              )
+            }
+          }
+
+          // Step 3: Targeted supplementary search specifically for the gap topic
+          if (!fullContentFetched) {
+            const gapSearchQuery = "زوجة أبي الفضل العباس"
+            try {
+              console.log(`[Evidence Guard] Supplementary targeted search for gap: "${gapSearchQuery}"`)
+              const supplementaryResult = await executeToolByName("search_content", { query: gapSearchQuery, source: "auto" })
+              // Check for results — even low-score results may have the article we need
+              const rawResults = supplementaryResult?.data?.results || supplementaryResult?.data?.projects || supplementaryResult?.data?.items || []
+              if (rawResults.length > 0) {
+                const gapResult = rawResults.find((p: any) => {
+                  const titleNorm = normalizeArabicLight(p.name || "")
+                  return gapKeywords.some((k: string) => titleNorm.includes(k))
+                }) || rawResults[0] // fallback to first result if none match by title
+                if (gapResult?.id) {
+                  fullContentFetched = await fetchAndInjectFullArticle(
+                    String(gapResult.id),
+                    gapResult.name || "",
+                    gapResult.url || ""
+                  )
+                }
+              }
+            } catch (e) {
+              console.log(`[Evidence Guard] Supplementary search failed:`, e)
+            }
+          }
+        }
+
+        // For compound/gap queries, we've combined knowledge + tool results + full article
+        // Return evidence so the LLM can synthesize from all sources
+        return extractedEvidence
+
+      } else {
+        // Simple biography query (not compound, no gap) — suppress tool results.
+        // Abbas dataset IS the authoritative source for these facts.
+        console.log(`[Evidence Guard] Abbas biography — simple query, suppressing tool results`)
         return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
       }
-
-      console.log(`[Evidence Guard] Abbas biography query — suppressing tool-result evidence`)
-      messages.push({
-        role: "system",
-        content: "📚 تعليمات: أجب عن هذا السؤال البيوغرافي من المعلومات الواردة في [سياق معرفي إضافي من النصوص الكاملة] أعلاه. تجاهل نتائج الأدوات المرتبطة بأخبار الضريح أو الأنشطة — هي غير ذات صلة بهذا السؤال."
-      })
-      return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
     }
+
     // Non-biographical query (shrine activities, expansion, etc.) — inject tool evidence normally
     console.log(`[Evidence Guard] Abbas shrine/activity query — tool-result evidence allowed`)
     injectToolEvidenceBlock(messages, userQuery, extractedEvidence)
@@ -1726,12 +1841,12 @@ async function injectKnowledgeAndGuard(
  * Try to generate a direct template-based answer from evidence.
  *
  * Returns a string answer only when:
- *  - There is exactly 1 top-confidence evidence item (≥75%) → specific article lookup
- *  - OR the top item has ≥85% confidence regardless of count
+ *  - The query is a specific fact question AND a clear direct answer can be extracted
+ *    (e.g., office holder name, yes/no project answer)
+ *  - OR the top item has very high confidence (≥80%)
  *
- * This bypasses the final LLM streaming call for focused single-result queries.
- * For general multi-result searches (confidence < 75%), returns null so the LLM
- * synthesises the answer with the mandatory-quote instruction already injected.
+ * For general/complex queries, returns null so the LLM synthesizes
+ * a natural, intelligent answer using the system prompt and context.
  */
 function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | null {
   if (!evidence || evidence.length === 0) return null
@@ -1739,30 +1854,20 @@ function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | 
 
   const understanding = understandQuery(query)
   if (understanding.operation_intent === "explain") return null
-  const isFactIntent = understanding.operation_intent === "fact_question"
 
-  if (isFactIntent) {
+  // Only generate direct answers for very specific patterns where
+  // we can confidently extract the exact answer (office holder, yes/no, etc.)
+  const isFactIntent = understanding.operation_intent === "fact_question"
+  if (isFactIntent && isOfficeHolderQuery(query)) {
     const generatedFact = generateDirectAnswer(query, evidence)
-    if (!generatedFact) return null
-    if (!directAnswerSatisfiesSensitiveQuery(query, generatedFact)) return null
-    return generatedFact
-      .replace(/\s*\n+\s*/g, " ")
-      .replace(/\s{2,}/g, " ")
-      .trim()
+    if (generatedFact && directAnswerSatisfiesSensitiveQuery(query, generatedFact)) {
+      return generatedFact.replace(/\s*\n+\s*/g, " ").replace(/\s{2,}/g, " ").trim()
+    }
   }
 
-  const top = evidence[0]
-  // Single high-confidence match (title-query hit on a specific article)
-  const isSingleHighConf = evidence.length === 1 && top.confidence >= 40
-  // Or high confidence regardless of count
-  const isExtremeConf = top.confidence >= 55
-
-  if (!isSingleHighConf && !isExtremeConf) return null
-
-  const generated = generateDirectAnswer(query, evidence)
-  if (!generated) return null
-  if (!directAnswerSatisfiesSensitiveQuery(query, generated)) return null
-  return generated
+  // For all other queries, let the LLM synthesize an intelligent answer
+  // using the improved system prompt + evidence context
+  return null
 }
 
 function directAnswerSatisfiesSensitiveQuery(query: string, answer: string): boolean {
