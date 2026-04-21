@@ -30,6 +30,111 @@ export function getLastUserMessage(messages: ChatCompletionMessageParam[]): stri
   return ""
 }
 
+function getPreviousUserMessage(messages: ChatCompletionMessageParam[]): string {
+  let seenLatestUser = false
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role !== "user") continue
+    if (!seenLatestUser) {
+      seenLatestUser = true
+      continue
+    }
+    if (typeof m.content === "string") return m.content
+    if (Array.isArray(m.content)) {
+      const textPart = m.content.find((p: any) => p.type === "text")
+      if (textPart && "text" in textPart) return textPart.text
+    }
+  }
+  return ""
+}
+
+function containsArabicPronounFollowUp(norm: string): boolean {
+  return includesAny(norm, [
+    "ما اسمائهن",
+    "ما اسمائهن؟",
+    "ما اسمائهم",
+    "ما اسماؤهم",
+    "ما اسمها",
+    "ما اسمه",
+    "اسمائهن",
+    "اسمائهم",
+    "اسماؤهم",
+    "اسمها",
+    "اسمهم",
+    "اسمهن",
+    "من هن",
+    "من هم",
+    "ماذا تقصد",
+    "هؤلاء",
+    "هذولا",
+    "هذولي",
+    "هؤلاء المذكورين",
+  ])
+}
+
+function extractPrimarySubjectFromUserText(text: string): string {
+  const raw = String(text || "").trim()
+  if (!raw) return ""
+
+  const patterns = [
+    /(?:هل\s+)?(?:لديكم|عندكم|عندكم\s+الآن)\s+([\u0621-\u064A\s]{2,40})/u,
+    /(?:هل\s+)?(?:يوجد|توجد|تتوفر|متوفر|متوفرة)\s+([\u0621-\u064A\s]{2,40})/u,
+    /(?:اريد|أريد|اعطني|أعطني|هات|اعرض|أعرض|حدثني\s+عن|اخبرني\s+عن|أخبرني\s+عن)\s+([\u0621-\u064A\s]{2,40})/u,
+  ]
+
+  for (const pattern of patterns) {
+    const match = raw.match(pattern)
+    if (!match) continue
+    const phrase = String(match[1] || "")
+      .replace(/[؟?!.,،؛:()\[\]{}"']/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+    if (phrase) return phrase
+  }
+
+  const cleaned = raw
+    .replace(/[؟?!.,،؛:()\[\]{}"']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  const tokens = cleaned.split(" ").filter(Boolean)
+  if (tokens.length <= 1) return cleaned
+  return tokens.slice(-2).join(" ")
+}
+
+export function getResolvedUserQuery(
+  messages: ChatCompletionMessageParam[],
+  understanding?: QueryUnderstandingResult
+): string {
+  const current = getLastUserMessage(messages)
+  if (!current) return ""
+
+  const currentNorm = normalizeArabicLight(current)
+  const previousUser = getPreviousUserMessage(messages)
+  if (!previousUser) return current
+
+  const needsContext =
+    requiresPriorConversationContext(current, understanding) ||
+    containsArabicPronounFollowUp(currentNorm)
+
+  if (!needsContext) return current
+
+  const priorSubject = extractPrimarySubjectFromUserText(previousUser)
+  if (!priorSubject) return current
+
+  const priorSubjectNorm = normalizeArabicLight(priorSubject)
+  if (currentNorm.includes(priorSubjectNorm)) return current
+
+  if (includesAny(currentNorm, ["اسم", "اسماء", "ما اسم", "اسمائ", "اسماؤ"])) {
+    return `ما أسماء ${priorSubject}`
+  }
+
+  if (includesAny(currentNorm, ["امثله", "أمثلة", "مثال", "امثله عن", "اعطني امثله", "أعطني أمثلة"])) {
+    return `اعطني أمثلة عن ${priorSubject}`
+  }
+
+  return `${current} (${priorSubject})`
+}
+
 export function hasPriorAssistantContext(messages: ChatCompletionMessageParam[]): boolean {
   return messages.some(m => m.role === "assistant")
 }
