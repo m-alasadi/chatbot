@@ -3,6 +3,7 @@ import { understandQuery } from "../lib/server/query-understanding"
 import { buildDeterministicLatestListAnswer } from "../lib/server/function-calling-handler"
 import { formatGroundedAnswer, type Evidence } from "../lib/server/evidence-extractor"
 import { orchestrateRetrieval } from "../lib/server/retrieval-orchestrator"
+import { detectForcedUtilityIntent } from "../lib/server/runtime/forced-utility-routing-policy"
 import type { APICallResult } from "../lib/server/site-api-service"
 import type { AllowedToolName } from "../lib/server/site-tools-definitions"
 
@@ -135,6 +136,30 @@ async function testWahyVsFridayRoutingSeparation() {
   assert.equal(sermonCall?.source, "friday_sermons")
 }
 
+function testForcedLatestVideoCategoryKeepsQuery() {
+  const query = "اخر فيديو من قسم المنوعات"
+  const understanding = understandQuery(query)
+  const forced = detectForcedUtilityIntent(query, understanding, () => false)
+
+  assert.ok(forced)
+  assert.equal(forced?.tool, "get_latest_by_source")
+  assert.equal(forced?.args?.source, "videos_latest")
+  assert.equal(forced?.args?.limit, 1)
+  assert.equal(forced?.args?.query, query)
+}
+
+function testForcedVideoSectionListingUsesLatestToolWithQuery() {
+  const query = "اعرض لي فيديوهات قسم مستشفى الكفيل"
+  const understanding = understandQuery(query)
+  const forced = detectForcedUtilityIntent(query, understanding, () => false)
+
+  assert.ok(forced)
+  assert.equal(forced?.tool, "get_latest_by_source")
+  assert.equal(forced?.args?.source, "videos_latest")
+  assert.equal(forced?.args?.limit, 5)
+  assert.equal(forced?.args?.query, query)
+}
+
 async function runTests() {
   testFactVsListIntentUnderstanding()
   testListShapeFormatter()
@@ -142,6 +167,8 @@ async function runTests() {
   testProjectGroundedShapeHasProjectSignal()
   await testBiographyRoutingAvoidsInvalidFirstSource()
   await testWahyVsFridayRoutingSeparation()
+  testForcedLatestVideoCategoryKeepsQuery()
+  testForcedVideoSectionListingUsesLatestToolWithQuery()
   console.log("PR12 red-category regression tests passed")
 }
 

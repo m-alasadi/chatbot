@@ -572,6 +572,202 @@ export async function siteGetStatistics(): Promise<APICallResult> {
   }
 }
 
+interface VideoCategoryCandidate {
+  id: string
+  name: string
+}
+
+const VIDEO_CATEGORY_QUERY_STOPWORDS = new Set([
+  "فيديو",
+  "فيديوهات",
+  "فديو",
+  "محاضره",
+  "محاضرة",
+  "محاضرات",
+  "مرئي",
+  "مقطع",
+  "مقاطع",
+  "اعرض",
+  "اعطني",
+  "هات",
+  "ابحث",
+  "اريد",
+  "أريد",
+  "عن",
+  "في",
+  "من",
+  "حسب",
+  "قسم",
+  "القسم",
+  "اقسام",
+  "الأقسام",
+  "احدث",
+  "أحدث",
+  "اخر",
+  "آخر",
+  "قديم",
+  "جديد",
+  "يوجد",
+  "هل",
+  "لي",
+  "متعلق",
+  "يتعلق",
+  "حول"
+].map(token => normalizeArabic(token)))
+
+function extractVideoCategoryQueryTokens(query: string): string[] {
+  return tokenizeArabicQuery(query).filter(token => !VIDEO_CATEGORY_QUERY_STOPWORDS.has(token))
+}
+
+export function matchVideoCategoryFromList(
+  query: string,
+  categories: VideoCategoryCandidate[]
+): VideoCategoryCandidate | null {
+  const normQuery = normalizeArabic(query)
+  const queryTokens = extractVideoCategoryQueryTokens(query)
+  if (!normQuery || queryTokens.length === 0) return null
+
+  let bestMatch: { category: VideoCategoryCandidate; score: number } | null = null
+
+  for (const category of categories) {
+    const normCategory = normalizeArabic(category.name)
+    if (!normCategory) continue
+
+    let score = 0
+
+    if (normQuery === normCategory) {
+      score += 140
+    } else if (normQuery.includes(normCategory)) {
+      score += 120
+    } else if (normCategory.includes(normQuery) && normQuery.length >= 4) {
+      score += 95
+    }
+
+    const categoryTokens = tokenizeArabicQuery(category.name)
+    if (categoryTokens.length === 0) continue
+
+    let overlapCount = 0
+    for (const categoryToken of categoryTokens) {
+      if (queryTokens.some(queryToken =>
+        queryToken === categoryToken ||
+        queryToken.includes(categoryToken) ||
+        categoryToken.includes(queryToken)
+      )) {
+        overlapCount++
+      }
+    }
+
+    if (overlapCount > 0) {
+      score += overlapCount * 22
+      if (overlapCount === categoryTokens.length) score += 24
+      if (overlapCount >= Math.min(2, categoryTokens.length)) score += 12
+      if (categoryTokens.length === 1 && overlapCount === 1 && queryTokens.length <= 4) score += 16
+    }
+
+    if (
+      score > 0 &&
+      (!bestMatch || score > bestMatch.score || (score === bestMatch.score && normCategory.length > normalizeArabic(bestMatch.category.name).length))
+    ) {
+      bestMatch = { category, score }
+    }
+  }
+
+  if (!bestMatch) return null
+  return bestMatch.score >= 40 ? bestMatch.category : null
+}
+
+async function resolveVideoCategoryRequest(
+  query: string,
+  source: SiteSourceName | "auto",
+  params: SourceFetchParams,
+  understanding?: ReturnType<typeof understandQuery>
+): Promise<{
+  source: SiteSourceName | "auto"
+  params: SourceFetchParams
+  matchedCategory: VideoCategoryCandidate | null
+}> {
+  if (params.category_id) {
+    return {
+      source,
+      params,
+      matchedCategory: null
+    }
+  }
+
+  const supportedVideoSources = new Set<SiteSourceName | "auto">([
+    "auto",
+    "videos_latest",
+    "videos_by_category"
+  ])
+
+  if (!supportedVideoSources.has(source)) {
+    return {
+      source,
+      params,
+      matchedCategory: null
+    }
+  }
+
+  if (isCategoryIntent(query)) {
+    return {
+      source,
+      params,
+      matchedCategory: null
+    }
+  }
+
+  const resolvedUnderstanding = understanding || understandQuery(query)
+  const normQuery = normalizeArabic(query)
+  const hasVideoSignal =
+    resolvedUnderstanding.content_intent === "video" ||
+    normQuery.includes(normalizeArabic("فيديو")) ||
+    normQuery.includes(normalizeArabic("محاضره")) ||
+    normQuery.includes(normalizeArabic("محاضرة")) ||
+    normQuery.includes(normalizeArabic("مرئي"))
+
+  if (!hasVideoSignal) {
+    return {
+      source,
+      params,
+      matchedCategory: null
+    }
+  }
+
+  const categoriesResult = await getSourceDocuments("videos_categories")
+  if (!categoriesResult.success || !Array.isArray(categoriesResult.data)) {
+    return {
+      source,
+      params,
+      matchedCategory: null
+    }
+  }
+
+  const categories = categoriesResult.data
+    .map((item: any) => ({
+      id: String(item?.id || ""),
+      name: String(item?.name || "")
+    }))
+    .filter((item: VideoCategoryCandidate) => item.id.length > 0 && item.name.length > 0)
+
+  const matchedCategory = matchVideoCategoryFromList(query, categories)
+  if (!matchedCategory) {
+    return {
+      source: source === "videos_by_category" ? "videos_latest" : source,
+      params,
+      matchedCategory: null
+    }
+  }
+
+  return {
+    source: "videos_by_category",
+    params: {
+      ...params,
+      category_id: matchedCategory.id
+    },
+    matchedCategory
+  }
+}
+
 export async function siteSearchContent(
   query: string,
   source: SiteSourceName | "auto" = "auto",
@@ -581,20 +777,23 @@ export async function siteSearchContent(
   const understanding = understandQuery(query)
   const capability = deriveRetrievalCapabilitySignals(understanding, query)
   const entityFirstMode = capability.entity_first_mode
+  const resolvedVideoRequest = await resolveVideoCategoryRequest(query, source, params, understanding)
+  const effectiveSource = resolvedVideoRequest.source
+  const effectiveParams = resolvedVideoRequest.params
 
   const safeLimit = Math.min(Math.max(limit || 5, 1), 20)
-  const rawCandidates = source === "auto"
-    ? rankCandidateSources(query, params, capability)
-    : [source]
+  const rawCandidates = effectiveSource === "auto"
+    ? rankCandidateSources(query, effectiveParams, capability)
+    : [effectiveSource]
 
   const candidates = rawCandidates.filter(s => {
-    if (!canFetchSource(s, params)) return false
+    if (!canFetchSource(s, effectiveParams)) return false
     if (CATEGORY_INDEX_SOURCES.includes(s) && !isCategoryIntent(query)) return false
     return true
   })
 
   const fetched = await Promise.all(
-    candidates.map(async s => ({ source: s, result: await getSourceDocuments(s, params) }))
+    candidates.map(async s => ({ source: s, result: await getSourceDocuments(s, effectiveParams) }))
   )
 
   let merged: any[] = []
@@ -607,7 +806,7 @@ export async function siteSearchContent(
   const norm = normalizeArabic(query)
   const abbasAutoHints = ["العباس", "ابو الفضل", "ابا الفضل", "ابوالفضل"]
   const isAbbasBioQuery = abbasAutoHints.some(h => norm.includes(normalizeArabic(h)))
-  if (isAbbasBioQuery && !params.section_id && !params.id && source === "auto") {
+  if (isAbbasBioQuery && !effectiveParams.section_id && !effectiveParams.id && effectiveSource === "auto") {
     const sectionsResult = await getSourceDocuments("shrine_history_sections")
     if (sectionsResult.success && Array.isArray(sectionsResult.data)) {
       for (const item of sectionsResult.data) {
@@ -619,14 +818,49 @@ export async function siteSearchContent(
     }
   }
 
-  if (merged.length === 0 && source === "auto") {
+  if (merged.length === 0 && effectiveSource === "auto") {
     const SAFE_FALLBACK: SiteSourceName[] = ["articles_latest", "videos_latest", "lang_words_ar"]
     const fallback = await Promise.all(
-      SAFE_FALLBACK.map(async s => ({ source: s, result: await getSourceDocuments(s, params) }))
+      SAFE_FALLBACK.map(async s => ({ source: s, result: await getSourceDocuments(s, effectiveParams) }))
     )
     for (const entry of fallback) {
       if (entry.result.success && Array.isArray(entry.result.data)) {
         merged.push(...entry.result.data)
+      }
+    }
+  }
+
+  // For section/category listing intents, return category feed directly instead of
+  // forcing lexical match against every video title.
+  const isListLikeCategoryRequest =
+    effectiveSource === "videos_by_category" &&
+    (understanding.operation_intent === "list_items" || understanding.operation_intent === "latest")
+
+  if (isListLikeCategoryRequest) {
+    merged.sort((a, b) => {
+      const dateA = new Date(a?.created_at || 0).getTime()
+      const dateB = new Date(b?.created_at || 0).getTime()
+      return dateB - dateA
+    })
+
+    const directItems = merged.slice(0, safeLimit).map(item => ({
+      ...item,
+      _snippet: buildEvidenceSnippet(item, query)
+    }))
+
+    return {
+      success: true,
+      data: {
+        results: directItems,
+        total: directItems.length,
+        result_count: directItems.length,
+        top_score: null,
+        query,
+        source_used: effectiveSource,
+        candidate_sources: candidates,
+        source_attempts: candidates,
+        entity_first_mode: entityFirstMode,
+        matched_category: resolvedVideoRequest.matchedCategory
       }
     }
   }
@@ -645,7 +879,7 @@ export async function siteSearchContent(
   const topScore = scored[0]?.score || 0
   const shouldUseOfficialNewsSearch =
     tokenizeArabicQuery(query).length > 0 &&
-    (source === "auto" || source === "articles_latest") &&
+    (effectiveSource === "auto" || effectiveSource === "articles_latest") &&
     (
       scored.length === 0 ||
       topScore < 8 ||
@@ -674,7 +908,7 @@ export async function siteSearchContent(
   }
 
   const shouldExpandSearch =
-    source === "auto" &&
+    effectiveSource === "auto" &&
     tokenizeArabicQuery(query).length > 0 &&
     (
       !entityFirstMode ||
@@ -687,9 +921,9 @@ export async function siteSearchContent(
     if (expandSources.length > 0) {
       const extra = await expandSearchFromSources(
         expandSources,
-        params,
+        effectiveParams,
         deduped,
-        (s) => fetchSourceMetadataRaw(s, params),
+        (s) => fetchSourceMetadataRaw(s, effectiveParams),
         (s, p, pms) => fetchSourcePage(s, p, pms)
       )
       for (const item of extra) {
@@ -707,7 +941,7 @@ export async function siteSearchContent(
   const shouldRunDeepTitleScan =
     isTitleQ &&
     !hasStrongTitleHit &&
-    source === "auto" &&
+    effectiveSource === "auto" &&
     (
       !entityFirstMode ||
       scored.length === 0 ||
@@ -721,10 +955,10 @@ export async function siteSearchContent(
       const deepHits = await deepTitleSearch(
         query,
         deepSources,
-        params,
+        effectiveParams,
         deduped,
         safeLimit,
-        (s) => fetchSourceMetadataRaw(s, params),
+        (s) => fetchSourceMetadataRaw(s, effectiveParams),
         (s, p, pms) => fetchSourcePage(s, p, pms)
       )
       for (const h of deepHits) {
@@ -749,10 +983,11 @@ export async function siteSearchContent(
       result_count: results.length,
       top_score: scored.length > 0 ? scored[0].score : null,
       query,
-      source_used: source,
+      source_used: effectiveSource,
       candidate_sources: candidates,
       source_attempts: candidates,
-      entity_first_mode: entityFirstMode
+      entity_first_mode: entityFirstMode,
+      matched_category: resolvedVideoRequest.matchedCategory
     }
   }
 }
@@ -853,14 +1088,25 @@ export async function siteListSourceCategories(
 export async function siteGetLatestBySource(
   source: SiteSourceName | "auto" = "auto",
   limit: number = 5,
-  params: SourceFetchParams = {}
+  params: SourceFetchParams = {},
+  query?: string
 ): Promise<APICallResult> {
+  const understanding = query ? understandQuery(query) : undefined
+  const resolvedVideoRequest = query
+    ? await resolveVideoCategoryRequest(query, source, params, understanding)
+    : {
+        source,
+        params,
+        matchedCategory: null as VideoCategoryCandidate | null
+      }
+  const effectiveSource = resolvedVideoRequest.source
+  const effectiveParams = resolvedVideoRequest.params
   const safeLimit = Math.min(Math.max(limit || 5, 1), 20)
-  const candidates = source === "auto"
-    ? (["articles_latest", "videos_latest"] as SiteSourceName[]).filter(s => canFetchSource(s, params))
-    : [source]
+  const candidates = effectiveSource === "auto"
+    ? (["articles_latest", "videos_latest"] as SiteSourceName[]).filter(s => canFetchSource(s, effectiveParams))
+    : [effectiveSource]
 
-  const results = await Promise.all(candidates.map(s => getSourceDocuments(s, params)))
+  const results = await Promise.all(candidates.map(s => getSourceDocuments(s, effectiveParams)))
   const merged = results
     .filter(r => r.success && Array.isArray(r.data))
     .flatMap(r => r.data as any[])
@@ -878,8 +1124,9 @@ export async function siteGetLatestBySource(
       projects: items,
       total: items.length,
       limit: safeLimit,
-      source_used: source,
-      candidate_sources: candidates
+      source_used: effectiveSource,
+      candidate_sources: candidates,
+      matched_category: resolvedVideoRequest.matchedCategory
     }
   }
 }
@@ -1062,14 +1309,14 @@ export async function executeToolByName(
           category_id: args.category_id,
           section_id: args.section_id,
           id: args.id
-        })
+        }, args.query)
 
       case "get_latest_by_source":
         return await siteGetLatestBySource(args.source || "auto", args.limit, {
           category_id: args.category_id,
           section_id: args.section_id,
           id: args.id
-        })
+        }, args.query)
 
       case "get_statistics":
         return await siteGetMultiSourceStatistics()

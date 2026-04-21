@@ -1,0 +1,87 @@
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+[Function Call] API Error: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+[OfficialNewsSearch] Request failed: This operation was aborted
+[Knowledge Ingestion] Fetch failed for /alkafeel_back_test/api/v1/articles/GetLast/16/all?page=1: fetch failed
+[Knowledge Ingestion] Fetch failed for /alkafeel_back_test/api/v1/videos/latest/16?page=1: fetch failed
+[OfficialNewsSearch] Request failed: This operation was aborted
+[Site API Error]: انتهت مهلة الاتصال بعد 14 ثانية
+[Site API Error]: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+[Function Call] API Error: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+[Site API Error]: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+[Function Call] API Error: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+[Site API Error]: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+[Site API Error]: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+[Site API Error]: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+[OfficialNewsSearch] Request failed: fetch failed
+[Chat API] Streaming FC Error:  [Error: Connection error.] {
+  status: undefined,
+  headers: undefined,
+  error: undefined,
+  code: undefined,
+  param: undefined,
+  type: undefined,
+  cause:  [TypeError: fetch failed] {
+  cause:  [Error: getaddrinfo ENOTFOUND api.openai.com] {
+  errno: -3008,
+  code: 'ENOTFOUND',
+  syscall: 'getaddrinfo',
+  hostname: 'api.openai.com'
+}
+}
+}
+[OfficialNewsSearch] Request failed: fetch failed
+[OfficialNewsSearch] Request failed: fetch failed
+[OfficialNewsSearch] Request failed: fetch failed
+[Chat API] Streaming FC Error:  [Error: Connection error.] {
+  status: undefined,
+  headers: undefined,
+  error: undefined,
+  code: undefined,
+  param: undefined,
+  type: undefined,
+  cause:  [TypeError: fetch failed] {
+  cause:  [Error: getaddrinfo ENOTFOUND api.openai.com] {
+  errno: -3008,
+  code: 'ENOTFOUND',
+  syscall: 'getaddrinfo',
+  hostname: 'api.openai.com'
+}
+}
+}
+[Chat API] Streaming FC Error:  [Error: Connection error.] {
+  status: undefined,
+  headers: undefined,
+  error: undefined,
+  code: undefined,
+  param: undefined,
+  type: undefined,
+  cause:  [TypeError: fetch failed] {
+  cause:  [Error: getaddrinfo ENOTFOUND api.openai.com] {
+  errno: -3008,
+  code: 'ENOTFOUND',
+  syscall: 'getaddrinfo',
+  hostname: 'api.openai.com'
+}
+}
+}
+[OfficialNewsSearch] Request failed: fetch failed
+[OfficialNewsSearch] Request failed: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: fetch failed
+[Site API Error]: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+[Function Call] API Error: Unexpected token '<', "<!DOCTYPE "... is not valid JSON

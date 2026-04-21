@@ -129,7 +129,7 @@ function normalizeVideo(
 }
 
 function normalizeVideoCategory(raw: any): NormalizedContent {
-  const id = String(raw.id || raw.cat_id || raw.slug || "")
+  const id = String(raw.id || raw.cat_id || raw.slug || raw.request || "")
   const title = pickText(raw.title, raw.cat_title, raw.name, "قسم فيديو")
   const bodyText = pickText(raw.description, "قسم من أقسام المكتبة المرئية")
 
@@ -143,7 +143,7 @@ function normalizeVideoCategory(raw: any): NormalizedContent {
     published_at: new Date().toISOString(),
     summary: bodyText,
     full_text: stripHtml(bodyText),
-    metadata: { original_id: raw.id || raw.cat_id },
+    metadata: { original_id: raw.id || raw.cat_id || raw.request },
   }
 }
 

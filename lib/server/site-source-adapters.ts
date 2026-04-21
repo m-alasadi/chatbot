@@ -245,10 +245,10 @@ function normalizeSourceDataset(source: SiteSourceName, rawData: any): any[] {
 
   if (source === "videos_categories") {
     return arr.map((item: any) => ({
-      id: String(item?.id || item?.cat_id || item?.slug || ""),
+      id: String(item?.id || item?.cat_id || item?.slug || item?.request || ""),
       name: pickText(item?.title, item?.name, item?.cat_title, "قسم فيديو"),
-      description: pickText(item?.description, "قسم من أقسام الفيديو"),
-      image: item?.image || null,
+      description: pickText(item?.description, item?.caption, "قسم من أقسام الفيديو"),
+      image: item?.image || item?.photo || item?.icon || null,
       created_at: new Date().toISOString(),
       address: "",
       sections: [normalizeSection("أقسام الفيديو")],

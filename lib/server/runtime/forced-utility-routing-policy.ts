@@ -25,6 +25,10 @@ function includesAnyLatestSingle(norm: string): boolean {
     leadWords.some(word => norm.includes(normalizeArabicLight(word)))
 }
 
+function hasAnyKeyword(norm: string, keywords: string[]): boolean {
+  return keywords.some(keyword => norm.includes(normalizeArabicLight(keyword)))
+}
+
 export function detectForcedUtilityIntent(
   userText: string,
   understanding: QueryUnderstandingResult | undefined,
@@ -49,6 +53,10 @@ export function detectForcedUtilityIntent(
   const isLatestIntent = understanding?.operation_intent === "latest"
   const isListIntent = understanding?.operation_intent === "list_items"
   const isBrowseIntent = understanding?.operation_intent === "browse"
+  const latestKeywords = ["احدث", "اخر", "آخر", "الجديد", "احدث ", "اخر "]
+  const explicitListingWords = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
+  const pluralCollectionHints = ["فيديوهات", "مقاطع", "محاضرات", "اخبار", "خطب", "نتائج", "مواد"]
+  const sectionFilterHints = ["قسم", "القسم", "تصنيف", "التصنيف", "فئه", "فئة"]
   const isExplicitTopNewsRequest =
     (isNews || understoodNews) &&
     !(isVideo || understoodVideo) &&
@@ -56,6 +64,9 @@ export function detectForcedUtilityIntent(
       norm.includes(normalizeArabicLight("ابرز")) ||
       norm.includes(normalizeArabicLight("اليوم"))
     )
+  const hasLatestKeyword = isLatestIntent || hasAnyKeyword(norm, latestKeywords)
+  const hasExplicitListingKeyword = hasAnyKeyword(norm, explicitListingWords)
+  const hasListingKeyword = isListIntent || hasExplicitListingKeyword
 
   // 1. Source-specific count → get_source_metadata
   // But NOT for biographical queries like "عدد ألقاب العباس" — those go to knowledge layer.
@@ -86,24 +97,41 @@ export function detectForcedUtilityIntent(
   }
 
   // 4. Explicit latest listing requests (utility listing, not semantic retrieval)
-  const latestKeywords = ["احدث", "اخر", "آخر", "الجديد", "احدث ", "اخر "]
-  const explicitListingWords = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
   const isExplicitLatestListing =
-    (isLatestIntent || latestKeywords.some(k => norm.includes(normalizeArabicLight(k)))) &&
-    (isListIntent || explicitListingWords.some(k => norm.includes(normalizeArabicLight(k))))
+    hasLatestKeyword &&
+    (hasExplicitListingKeyword || hasAnyKeyword(norm, pluralCollectionHints))
   const isExplicitSingleLatestNewsRequest =
     (isNews || understoodNews || norm.includes(normalizeArabicLight("العتبة العباسية"))) &&
     includesAnyLatestSingle(norm)
 
   if (isExplicitSingleLatestNewsRequest) {
-    return { tool: "get_latest_by_source", args: { source: "articles_latest", limit: 1 } }
+    return { tool: "get_latest_by_source", args: { source: "articles_latest", limit: 1, query: userText } }
   }
 
   if (isExplicitLatestListing) {
-    if (isWahyFriday || understoodWahy) return { tool: "get_latest_by_source", args: { source: "wahy_friday", limit: 5 } }
-    if (isSermon || understoodSermon) return { tool: "get_latest_by_source", args: { source: "friday_sermons", limit: 5 } }
-    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_latest_by_source", args: { source: "videos_latest", limit: 5 } }
-    if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_latest_by_source", args: { source: "articles_latest", limit: 5 } }
+    if (isWahyFriday || understoodWahy) return { tool: "get_latest_by_source", args: { source: "wahy_friday", limit: 5, query: userText } }
+    if (isSermon || understoodSermon) return { tool: "get_latest_by_source", args: { source: "friday_sermons", limit: 5, query: userText } }
+    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_latest_by_source", args: { source: "videos_latest", limit: 5, query: userText } }
+    if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_latest_by_source", args: { source: "articles_latest", limit: 5, query: userText } }
+  }
+
+  // 4.1 "Latest" singular media request without explicit listing words (e.g. "اخر فيديو من قسم ...")
+  if (hasLatestKeyword && !isExplicitLatestListing) {
+    const inferredLimit = hasAnyKeyword(norm, pluralCollectionHints) ? 5 : 1
+    if (isWahyFriday || understoodWahy) return { tool: "get_latest_by_source", args: { source: "wahy_friday", limit: inferredLimit, query: userText } }
+    if (isSermon || understoodSermon) return { tool: "get_latest_by_source", args: { source: "friday_sermons", limit: inferredLimit, query: userText } }
+    if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_latest_by_source", args: { source: "videos_latest", limit: inferredLimit, query: userText } }
+    if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_latest_by_source", args: { source: "articles_latest", limit: inferredLimit, query: userText } }
+  }
+
+  // 4.2 Explicit listing for a video category/section (e.g. "اعرض فيديوهات قسم مستشفى الكفيل")
+  if (
+    (isVideo || understoodVideo) &&
+    hasListingKeyword &&
+    hasAnyKeyword(norm, sectionFilterHints) &&
+    !(isNews || understoodNews)
+  ) {
+    return { tool: "get_latest_by_source", args: { source: "videos_latest", limit: 5, query: userText } }
   }
 
   // 5. Explicit top-news requests (e.g. "ما أبرز أخبار العتبة اليوم")
