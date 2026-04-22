@@ -77,7 +77,7 @@ async function getKnowledgeContext(
     const norm = normalizeArabicLight(query)
     const isAbbasAttributeQuery =
       isAbbasBiographyQuery(query) &&
-      ["ابناء", "أبناء", "زوجات", "القاب", "كنيه", "كنية"].some(t => norm.includes(normalizeArabicLight(t)))
+      ["ابناء", "أبناء", "زوجات", "زوج", "القاب", "كنيه", "كنية"].some(t => norm.includes(normalizeArabicLight(t)))
 
     const compoundParts = splitCompoundFactQuery(query)
     const compoundAnchor = extractCompoundQueryAnchor(query, understanding)
@@ -197,7 +197,7 @@ async function fetchAndInjectFullArticle(
     })
     messages.push({
       role: "system",
-      content: `📰 تم جلب النص الكامل للخبر "${fullArticle.data.name || articleName}". اقرأ محتواه بعناية واستخلص منه الإجابة عن الجزء المتعلق بالزوجة/الزواج. لا تعتذر عن عدم توفر المعلومة إذا كانت مذكورة في هذا الخبر.`,
+      content: `📰 تم جلب النص الكامل للخبر "${fullArticle.data.name || articleName}". اقرأ محتواه بعناية واستخلص منه الإجابة المطلوبة. لا تعتذر عن عدم توفر المعلومة إذا كانت مذكورة في هذا الخبر.`,
     })
     return true
   } catch (e) {
@@ -209,7 +209,8 @@ async function fetchAndInjectFullArticle(
 async function resolveKnowledgeGap(
   messages: ChatCompletionMessageParam[],
   extractedEvidence: Evidence[],
-  gapKeywords: string[]
+  gapKeywords: string[],
+  userQuery?: string
 ): Promise<void> {
   // Step 1: check extracted evidence for gap-relevant articles
   const gapEvidence = extractedEvidence.find(e =>
@@ -229,7 +230,7 @@ async function resolveKnowledgeGap(
 
   // Step 3: targeted supplementary search
   try {
-    const gapSearchQuery = "زوجة أبي الفضل العباس"
+    const gapSearchQuery = userQuery || gapKeywords.join(" ")
     console.log(`[Evidence Guard] Supplementary search for gap: "${gapSearchQuery}"`)
     const supplementary = await executeToolByName("search_content", { query: gapSearchQuery, source: "auto" })
     const rawResults = supplementary?.data?.results || supplementary?.data?.projects || supplementary?.data?.items || []
@@ -320,26 +321,31 @@ export async function injectKnowledgeAndGuard(
     })
   }
 
-  if (abbasKnowledgeInjected && isAbbasBiographyQuery(userQuery)) {
+  if (isAbbasBiographyQuery(userQuery)) {
     const norm = normalizeArabicLight(userQuery)
     const kCtxNorm = normalizeArabicLight(
       messages.filter(m => m.role === "system").map(m => typeof m.content === "string" ? m.content : "").join(" ")
     )
     const isCompound = isCompoundFactQuery(userQuery)
-    const wivesQuery = ["زوج", "زوجة", "زوجات", "نكاح", "تزوج"].some(t => norm.includes(t))
-    const knowledgeGap = wivesQuery && !kCtxNorm.includes("تزوج العباس") && !kCtxNorm.includes("زوجة العباس")
+    const specificTokens = extractSpecificQueryTokens(userQuery).filter(t => t.length >= 3)
+
+    // Detect any attribute gap: a specific token from the query is absent from the current knowledge context
+    const knowledgeGap = !abbasKnowledgeInjected ||
+      (specificTokens.length > 0 && specificTokens.some(t => !kCtxNorm.includes(t)))
 
     if (isCompound || knowledgeGap) {
       console.log(`[Evidence Guard] Abbas biography — compound/gap query, combining sources`)
       if (extractedEvidence.length > 0) injectToolEvidenceBlock(messages, userQuery, extractedEvidence)
       if (knowledgeGap) {
-        await resolveKnowledgeGap(messages, extractedEvidence, ["زوج", "زوجة", "زوجات", "تزوج", "نكح"])
+        await resolveKnowledgeGap(messages, extractedEvidence, specificTokens.length > 0 ? specificTokens : ["العباس"], userQuery)
       }
       return extractedEvidence
     }
 
-    console.log(`[Evidence Guard] Abbas biography — simple query, suppressing tool results`)
-    return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
+    if (abbasKnowledgeInjected) {
+      console.log(`[Evidence Guard] Abbas biography — simple query, suppressing tool results`)
+      return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
+    }
   }
 
   if (abbasKnowledgeInjected) {
