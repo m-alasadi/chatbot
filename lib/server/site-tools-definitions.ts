@@ -223,6 +223,10 @@ export const TOOL_GET_LATEST_PROJECTS: ChatCompletionTool = {
           enum: SOURCE_ENUM,
           description: "المصدر"
         },
+        query: {
+          type: "string",
+          description: "نص المستخدم الأصلي للمطابقة الدلالية (مثل تحديد قسم فيديو)"
+        },
         category_id: {
           type: "string",
           description: "تصنيف الفيديو"
@@ -255,6 +259,10 @@ export const TOOL_GET_LATEST_BY_SOURCE: ChatCompletionTool = {
           minimum: 1,
           maximum: 20,
           description: "عدد النتائج"
+        },
+        query: {
+          type: "string",
+          description: "نص المستخدم الأصلي للمطابقة الدلالية (مثل تحديد قسم فيديو)"
         },
         category_id: {
           type: "string",

@@ -1,643 +1,46 @@
-/**
+﻿/**
  * Function Calling Handler
- * 
- * يدير تدفق Function Calling من OpenAI:
- * 1. يستقبل function call من OpenAI
- * 2. يتحقق من أن الأداة مسموحة (Whitelist)
- * 3. ينفذ الأداة عبر Service Layer
- * 4. يُرجع النتيجة لـ OpenAI
+ *
+ * Manages the OpenAI Function Calling flow:
+ * 1. Receives function calls from OpenAI
+ * 2. Validates against the tool whitelist
+ * 3. Executes via the Service Layer
+ * 4. Returns results to OpenAI
  */
 
 import OpenAI from "openai"
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions"
-import {
-  isAllowedTool,
-  type AllowedToolName
-} from "./site-tools-definitions"
+import { isAllowedTool, type AllowedToolName } from "./site-tools-definitions"
 import { executeToolByName, type APICallResult } from "./site-api-service"
 import { getFallbackResponse } from "./system-prompts"
 import {
   isEmptyAPIResponse,
   generateNoResultsSuggestions,
   generateAPIErrorSuggestions,
-  extractQueryFromMessage,
-  formatSuggestionsForResponse
+  formatSuggestionsForResponse,
 } from "./smart-suggestions"
-import { ensureKnowledgeReady } from "./knowledge/content-ingestion"
-import { searchKnowledgeChunks, searchKnowledgeWithBackfill } from "./knowledge/knowledge-search"
-import {
-  extractBestEvidence,
-  extractEvidenceFromToolResults,
-  formatEvidenceForModel,
-  buildMandatoryInstruction,
-  generateDirectAnswer,
-  formatGroundedAnswer,
-  collectToolResultItems,
-  type Evidence
-} from "./evidence-extractor"
 import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace"
 import { orchestrateRetrieval } from "./retrieval-orchestrator"
-import {
-  deriveRetrievalCapabilitySignals,
-  understandQuery,
-  type QueryUnderstandingResult
-} from "./query-understanding"
-import {
-  getLastUserMessage,
-  hasPriorAssistantContext,
-  getLastAssistantText,
-  extractFirstListedTitle,
-  isContextualFollowUpQuery,
-  requiresPriorConversationContext,
-} from "./runtime/dialog-context-policy"
-import {
-  buildAnswerShapeInstruction,
-  getSafeCapabilityDirectAnswer,
-} from "./runtime/answer-shape-policy"
+import { understandQuery, type QueryUnderstandingResult } from "./query-understanding"
+import { getLastUserMessage, getResolvedUserQuery } from "./runtime/dialog-context-policy"
+import { isOutOfScopeQuery, isSmallTalkQuery } from "./runtime/query-scope-policy"
+import { buildAnswerShapeInstruction } from "./runtime/answer-shape-policy"
 import { detectForcedUtilityIntent } from "./runtime/forced-utility-routing-policy"
+import { getPrimaryRetrievalToolForQuery } from "./runtime/retrieval-bootstrap-policy"
 import {
-  getPrimaryRetrievalToolForQuery,
-  looksLikeSiteContentQuery,
-} from "./runtime/retrieval-bootstrap-policy"
+  isAbbasBiographyQuery,
+  isOfficeHolderQuery,
+  isCompoundFactQuery,
+  buildCompoundCoverageInstruction,
+} from "../ai/intent-detector"
+import {
+  injectKnowledgeAndGuard,
+  tryGenerateDirectAnswer,
+  buildGroundedEvidenceFallback,
+} from "./knowledge/knowledge-injection"
+
+// ── Data cleaning helpers ───────────────────────────────────────────
 
-// ── Light Arabic normalization for intent detection ────────────────
-function normalizeArabicLight(text: string): string {
-  return (text || "")
-    .replace(/[\u0610-\u061A\u064B-\u065F\u0670]/g, "")
-    .replace(/\u0640/g, "")
-    .replace(/[\u0622\u0623\u0625\u0627]/g, "\u0627")
-    .replace(/\u0649/g, "\u064A")
-    .replace(/\u0629/g, "\u0647")
-    .replace(/\s+/g, " ")
-    .trim()
-}
-
-function extractSpecificQueryTokens(text: string): string[] {
-  const norm = normalizeArabicLight(text)
-  const genericTokens = new Set([
-    "ما", "هو", "هي", "هل", "من", "عن", "في", "على", "الى", "او",
-    "هن", "له", "لها", "لهم",
-    "لي", "حول", "باختصار", "مختصر", "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني",
-    "ابحث", "خبر", "قديم", "يتحدث", "اعطني", "اعرض", "عليه", "السلام",
-    "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع"
-  ])
-
-  return norm
-    .split(/\s+/)
-    .filter(token => token.length >= 2)
-    .filter(token => !genericTokens.has(token))
-}
-
-function isOfficeHolderQuery(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-  return norm.includes(normalizeArabicLight("المتولي الشرعي")) ||
-    (norm.includes(normalizeArabicLight("المتولي")) && norm.includes(normalizeArabicLight("الشرعي")))
-}
-
-function wantsExplicitSources(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-  return ["المصدر", "مصدر", "المصادر", "مصادر", "الرابط", "رابط", "الروابط", "روابط"]
-    .some(token => norm.includes(normalizeArabicLight(token)))
-}
-
-const allowedUtilityTools = new Set([
-  "get_source_metadata",
-  "browse_source_page",
-  "get_latest_by_source",
-  "list_source_categories",
-  "get_statistics"
-])
-
-function getPostBootstrapUtilityTools(
-  tools: OpenAI.Chat.Completions.ChatCompletionTool[]
-): OpenAI.Chat.Completions.ChatCompletionTool[] {
-  return tools.filter(tool => {
-    if (tool.type !== "function") return true
-    const name = tool.function?.name
-    return typeof name === "string" && allowedUtilityTools.has(name)
-  })
-}
-
-export function shouldAllowSafeCapabilityDirectAnswer(
-  text: string,
-  understanding: QueryUnderstandingResult
-): boolean {
-  const norm = normalizeArabicLight(text)
-  const capability = deriveRetrievalCapabilitySignals(understanding, text)
-  const hasHelpOrNavigationSignal = [
-    "كيف",
-    "استخدم",
-    "استعمل",
-    "ابحث",
-    "البحث",
-    "اين اجد",
-    "اين القى",
-    "الوصول",
-    "قسم",
-    "اقسام",
-    "الخدمات",
-    "خدمات",
-    "خدمة",
-    "الزيارة بالنيابة",
-    "بث مباشر",
-    "البث المباشر",
-    "مواقيت",
-    "الصلاة",
-    "تبرع",
-    "الدعم",
-    "مكتبة",
-    "كتب",
-    "فيديوهات",
-    "ترجمه",
-    "ترجمة",
-    "قاموس",
-    "مصطلح",
-    "معنى"
-  ].some(token => norm.includes(normalizeArabicLight(token)))
-  const hasStructuralCapabilitySignal = [
-    "الفرق",
-    "وظيفه",
-    "وظيفة",
-    "دور",
-    "تابع",
-    "تابعه",
-    "تابعة",
-    "ينتمي",
-    "نوع",
-    "هل هو مشروع",
-    "هل هي فعاليه",
-    "هل هي فعالية"
-  ].some(token => norm.includes(normalizeArabicLight(token)))
-  const hasNamedEventContextSignal = [
-    "اين",
-    "أين",
-    "يقام",
-    "تقام",
-    "في",
-    "متى",
-    "موعد",
-    "مكان",
-    "الموقع"
-  ].some(token => norm.includes(normalizeArabicLight(token)))
-  const hasLanguageCapabilitySignal = [
-    "ترجمه",
-    "ترجمة",
-    "قاموس",
-    "مصطلح",
-    "مصطلحات",
-    "معنى",
-    "معاني"
-  ].some(token => norm.includes(normalizeArabicLight(token)))
-  const hasVideoSermonAvailabilitySignal =
-    [
-      "هل يوجد",
-      "هل توجد",
-      "اين اجد",
-      "أين أجد"
-    ].some(token => norm.includes(normalizeArabicLight(token))) &&
-    [
-      "فيديو",
-      "فيديوهات",
-      "فديو"
-    ].some(token => norm.includes(normalizeArabicLight(token))) &&
-    [
-      "خطبه",
-      "خطبة",
-      "خطب الجمعه",
-      "خطب الجمعة",
-      "صلاه الجمعه",
-      "صلاة الجمعة"
-    ].some(token => norm.includes(normalizeArabicLight(token)))
-
-  if (capability.named_event_or_program && hasNamedEventContextSignal) {
-    return true
-  }
-
-  if (hasLanguageCapabilitySignal) {
-    return true
-  }
-
-  if (hasVideoSermonAvailabilitySignal) {
-    return true
-  }
-
-  if (understanding.content_intent !== "generic") return false
-  if (capability.entity_first_mode) return false
-  if (understanding.extracted_entities.person.length > 0) return false
-
-  if (understanding.operation_intent === "browse" || understanding.operation_intent === "classify") {
-    return true
-  }
-
-  if (understanding.operation_intent !== "fact_question") {
-    return hasHelpOrNavigationSignal || hasStructuralCapabilitySignal
-  }
-
-  return hasHelpOrNavigationSignal || hasStructuralCapabilitySignal
-}
-
-function getPreviousUserMessage(messages: ChatCompletionMessageParam[]): string {
-  let seenLatestUser = false
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i]
-    if (message.role !== "user") continue
-
-    if (!seenLatestUser) {
-      seenLatestUser = true
-      continue
-    }
-
-    if (typeof message.content === "string") return message.content
-    if (Array.isArray(message.content)) {
-      const textPart = (message.content as any[]).find((part: any) => part?.type === "text")
-      if (textPart && "text" in textPart) return textPart.text
-    }
-  }
-  return ""
-}
-
-function isNameOnlyFollowUpQuery(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-  return [
-    "الاسم فقط",
-    "اذكر الاسم فقط",
-    "أذكر الاسم فقط",
-    "اعطني الاسم فقط",
-    "أعطني الاسم فقط",
-    "اسم فقط"
-  ].some(token => norm.includes(normalizeArabicLight(token)))
-}
-
-function isRoleOfThisEntityFollowUpQuery(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-  return [
-    "هذه الجهة",
-    "هذه الجهه",
-    "وظيفة هذه الجهة",
-    "وظيفه هذه الجهه",
-    "ما وظيفة هذه الجهة",
-    "ما وظيفه هذه الجهه",
-    "ما دور هذه الجهة",
-    "ما دور هذه الجهه",
-    "دور هذه الجهة",
-    "دور هذه الجهه",
-    "هذا المنصب"
-  ].some(token => norm.includes(normalizeArabicLight(token)))
-}
-
-function cleanExtractedEntityName(value: string): string {
-  return String(value || "")
-    .replace(/[()"'«»]/g, "")
-    .replace(/[،,:؛.]+$/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-}
-
-function extractCanonicalEntityName(text: string): string | null {
-  const raw = String(text || "")
-  if (!raw.trim()) return null
-  const norm = normalizeArabicLight(raw)
-
-  const canonicalCandidates = [
-    "سماحة العلامة السيد أحمد الصافي",
-    "السيد أحمد الصافي",
-    "مكتب المتولي الشرعي للشؤون النسوية",
-    "إذاعة الكفيل",
-    "نداء العقيدة",
-    "أسبوع الإمامة",
-    "جامعة الكفيل",
-    "جامعة العميد",
-    "مدارس العميد",
-    "مجموعة العميد التعليمية",
-    "مستشفى الكفيل التخصصي",
-    "مشاتل الكفيل الزراعية",
-    "أبو الفضل العباس",
-    "أبي الفضل العباس"
-  ]
-
-  for (const candidate of canonicalCandidates) {
-    if (norm.includes(normalizeArabicLight(candidate))) {
-      return candidate
-    }
-  }
-
-  const honorificNameMatch = raw.match(
-    /(?:سماحة\s+الع(?:لامة|لامه)\s+)?(?:السيد|الشيخ)\s+[\u0621-\u064A]{2,}(?:\s+[\u0621-\u064A]{2,}){1,3}/u
-  )
-  if (honorificNameMatch) {
-    return cleanExtractedEntityName(honorificNameMatch[0])
-  }
-
-  return null
-}
-
-function buildContextAwareSafeAnswer(
-  query: string,
-  messages: ChatCompletionMessageParam[]
-): string | null {
-  const lastAssistantText = getLastAssistantText(messages)
-  const previousUserText = getPreviousUserMessage(messages)
-  const anchorEntity =
-    extractCanonicalEntityName(lastAssistantText) ||
-    extractCanonicalEntityName(previousUserText)
-  const normQuery = normalizeArabicLight(query)
-  const normAnchor = normalizeArabicLight(anchorEntity || "")
-  const contextualParts = [query]
-
-  if (anchorEntity) {
-    contextualParts.push(anchorEntity)
-  } else if (previousUserText) {
-    contextualParts.push(previousUserText)
-  }
-
-  const contextualQuery = contextualParts.filter(Boolean).join("\n")
-  if (!contextualQuery.trim()) return null
-
-  const isAbbasAnchor =
-    normAnchor.includes(normalizeArabicLight("أبو الفضل العباس")) ||
-    normAnchor.includes(normalizeArabicLight("أبي الفضل العباس")) ||
-    normAnchor.includes(normalizeArabicLight("العباس"))
-
-  if (isAbbasAnchor) {
-    if (
-      normQuery.includes(normalizeArabicLight("أبناؤه")) ||
-      normQuery.includes(normalizeArabicLight("ابناؤه")) ||
-      normQuery.includes(normalizeArabicLight("أولاده")) ||
-      normQuery.includes(normalizeArabicLight("اولاده"))
-    ) {
-      return "من أبناء أبي الفضل العباس: الفضل، وعبيد الله، والحسن، والقاسم، ومحمد."
-    }
-
-    if (
-      normQuery.includes(normalizeArabicLight("ألقابه")) ||
-      normQuery.includes(normalizeArabicLight("القابه")) ||
-      normQuery.includes(normalizeArabicLight("لقبه"))
-    ) {
-      return "من أشهر ألقاب أبي الفضل العباس: قمر بني هاشم، السقاء، وحامل اللواء."
-    }
-
-    if (
-      normQuery.includes(normalizeArabicLight("اسم زوجته")) ||
-      normQuery.includes(normalizeArabicLight("زوجته"))
-    ) {
-      return "اسم زوجته المشهورة هو لُبابة بنت عبيد الله بن العباس."
-    }
-
-    if (
-      normQuery.includes(normalizeArabicLight("زوجاته")) ||
-      normQuery.includes(normalizeArabicLight("زوجة واحدة")) ||
-      normQuery.includes(normalizeArabicLight("كم كانت زوجاته"))
-    ) {
-      return "المشهور تاريخيًا أن لأبي الفضل العباس زوجة واحدة معروفة هي لُبابة بنت عبيد الله بن العباس."
-    }
-
-    if (
-      normQuery.includes(normalizeArabicLight("شهادته")) ||
-      normQuery.includes(normalizeArabicLight("استشهاده")) ||
-      normQuery.includes(normalizeArabicLight("متى كانت شهادته"))
-    ) {
-      return "استُشهد أبو الفضل العباس (عليه السلام) يوم عاشوراء سنة 61 هـ في واقعة كربلاء."
-    }
-  }
-
-  if (isNameOnlyFollowUpQuery(query)) {
-    const extractedEntity = anchorEntity
-    if (extractedEntity) return extractedEntity
-
-    const contextualAnswer = getSafeCapabilityDirectAnswer(contextualQuery)
-    if (!contextualAnswer) return null
-    return extractCanonicalEntityName(contextualAnswer) || contextualAnswer
-  }
-
-  if (isRoleOfThisEntityFollowUpQuery(query)) {
-    return getSafeCapabilityDirectAnswer(contextualQuery)
-  }
-
-  return getSafeCapabilityDirectAnswer(contextualQuery)
-}
-
-function buildMissingContextAnswer(query: string): string | null {
-  const norm = normalizeArabicLight(query)
-  const hasExplicitSubject = [
-    "المتولي الشرعي",
-    "المتولي",
-    "إذاعة الكفيل",
-    "اذاعة الكفيل",
-    "نداء العقيدة",
-    "أسبوع الإمامة",
-    "اسبوع الامامة",
-    "الشؤون النسوية",
-    "جامعة الكفيل",
-    "جامعة العميد",
-    "مدارس العميد",
-    "أبي الفضل العباس",
-    "ابي الفضل العباس",
-    "العباس"
-  ].some(token => norm.includes(normalizeArabicLight(token)))
-
-  if (hasExplicitSubject) return null
-
-  if (
-    isNameOnlyFollowUpQuery(query) ||
-    isRoleOfThisEntityFollowUpQuery(query) ||
-    wantsExplicitSources(query)
-  ) {
-    return "هذا السؤال يعتمد على السياق السابق. اذكر الاسم أو الموضوع المقصود أولاً ثم سأجيبك بدقة."
-  }
-
-  return null
-}
-
-function looksLikePronounOnlyEntityFollowUp(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-  return [
-    "ألقابه",
-    "القابه",
-    "أبناؤه",
-    "ابناؤه",
-    "أولاده",
-    "اولاده",
-    "زوجته",
-    "زوجاته",
-    "اسم زوجته",
-    "شهادته",
-    "استشهاده"
-  ].some(token => norm.includes(normalizeArabicLight(token)))
-}
-
-function isKnowledgePriorityQuery(
-  text: string,
-  understanding?: QueryUnderstandingResult
-): boolean {
-  const norm = normalizeArabicLight(text)
-  if (isAbbasBiographyQuery(text)) return true
-  if (isOfficeHolderQuery(text)) return true
-  if (
-    norm.includes(normalizeArabicLight("سدنة")) ||
-    norm.includes(normalizeArabicLight("سدانة")) ||
-    norm.includes(normalizeArabicLight("كلدار")) ||
-    norm.includes(normalizeArabicLight("الحرم"))
-  ) {
-    return true
-  }
-  if (understanding?.content_intent === "history") return true
-  if (
-    understanding?.extracted_entities.person?.length ||
-    understanding?.extracted_entities.topic?.some(topic =>
-      normalizeArabicLight(topic).includes(normalizeArabicLight("سدنة")) ||
-      normalizeArabicLight(topic).includes(normalizeArabicLight("اخوات"))
-    )
-  ) {
-    return true
-  }
-  return false
-}
-
-function evidenceContainsLikelyPersonName(evidence: Evidence[]): boolean {
-  const pool = evidence
-    .slice(0, 5)
-    .map(item => `${item.source_title} ${item.quote}`)
-    .join(" ")
-  return /(السيد|الشيخ|سماحة|العلامة)\s+[\u0621-\u064A]{2,}(?:\s+[\u0621-\u064A]{2,}){1,3}/u.test(pool)
-}
-
-function evidenceCoversSpecificTokens(query: string, evidence: Evidence[]): boolean {
-  const specificTokens = extractSpecificQueryTokens(query)
-  if (specificTokens.length === 0) return true
-
-  const pool = normalizeArabicLight(
-    evidence
-      .slice(0, 4)
-      .map(item => `${item.source_title} ${item.quote} ${item.source_section}`)
-      .join(" ")
-  )
-  const matched = specificTokens.filter(token => pool.includes(token)).length
-  const minimumMatches = Math.min(2, specificTokens.length)
-  return matched >= minimumMatches
-}
-
-function splitCompoundFactQuery(text: string): string[] {
-  const raw = String(text || "")
-    .replace(/[؟?]+/g, " | ")
-    .replace(/،/g, " ، ")
-    .replace(/\s+/g, " ")
-    .trim()
-
-  if (!raw) return []
-
-  const questionLead = "(?:من|ما|متى|اين|أين|هل|كم|كيف|لماذا)"
-  const segmented = raw
-    .replace(new RegExp(`\\s+و(?=${questionLead}\\s)`, "gu"), " | ")
-    .replace(new RegExp(`\\s+ثم\\s+(?=${questionLead}\\s)`, "gu"), " | ")
-    .replace(new RegExp(`،\\s*(?=${questionLead}\\s)`, "gu"), " | ")
-
-  const parts = segmented
-    .split("|")
-    .map(part => part.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-
-  return [...new Set(parts)].slice(0, 3)
-}
-
-function isCompoundFactQuery(text: string): boolean {
-  return splitCompoundFactQuery(text).length > 1
-}
-
-function extractCompoundQueryAnchor(
-  query: string,
-  understanding?: QueryUnderstandingResult
-): string {
-  const candidates = [
-    understanding?.extracted_entities.person?.[0],
-    understanding?.extracted_entities.topic?.find(topic => topic.split(/\s+/).length >= 2),
-    understanding?.extracted_entities.place?.[0]
-  ].filter(Boolean) as string[]
-
-  if (candidates.length > 0) return candidates[0]
-
-  const norm = normalizeArabicLight(query)
-  if (norm.includes(normalizeArabicLight("ابي الفضل")) || norm.includes(normalizeArabicLight("أبي الفضل"))) {
-    return "أبي الفضل العباس"
-  }
-  const hasStandaloneAbbas = norm.split(/\s+/).includes(normalizeArabicLight("العباس"))
-  const institutionalAbbasContext =
-    norm.includes(normalizeArabicLight("العتبة العباسية")) ||
-    norm.includes(normalizeArabicLight("العتبه العباسيه")) ||
-    norm.split(/\s+/).includes(normalizeArabicLight("العباسية")) ||
-    norm.split(/\s+/).includes(normalizeArabicLight("العباسيه"))
-  if (hasStandaloneAbbas && !institutionalAbbasContext) {
-    return "العباس"
-  }
-  if (norm.includes(normalizeArabicLight("العتبة العباسية")) || norm.includes(normalizeArabicLight("العتبه العباسيه"))) {
-    return "العتبة العباسية"
-  }
-
-  return ""
-}
-
-function buildCompoundCoverageInstruction(text: string): string | null {
-  const parts = splitCompoundFactQuery(text)
-  if (parts.length < 2) return null
-
-  return `تعليمات تغطية الإجابة: السؤال الحالي مركب ويتضمن ${parts.length} مطالب. أجب عن كل مطلب بترتيبه الوارد صراحةً، ولا تكتفِ بالإجابة عن أول جزء فقط. إذا كانت معلومة أحد الأجزاء غير متاحة فاذكر ذلك لهذا الجزء وحده.`
-}
-
-function enrichCompoundQueryPart(part: string, anchor: string): string {
-  if (!anchor) return part
-
-  const normPart = normalizeArabicLight(part)
-  const normAnchor = normalizeArabicLight(anchor)
-  if (normPart.includes(normAnchor)) return part
-
-  return `${part} ${anchor}`.trim()
-}
-
-
-/**
- * Detect user intents that require a deterministic tool call
- * instead of letting the model freely choose (possibly wrong) tools.
- */
-
-/**
- * Returns true only when the query is asking about Abbas's personal biography
- * (traits, titles, family, life, martyrdom) — NOT about shrine activities,
- * expansions, renovations, or any building/construction work.
- */
-function isAbbasBiographyQuery(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-
-  // If the query is about shrine construction/expansion/activities → NOT biographical
-  const shrineActivityPatterns = [
-    "توسعه", "توسعة", "بناء", "ترميم", "انشاء", "إنشاء", "قبه", "قبة",
-    "رواق", "صحن", "بلاطه", "بلاطة", "مشروع", "مشاريع", "طابق",
-    "تشييد", "اعمار", "اعمال", "عمل", "خدمه", "خدمة",
-    "فعاليه", "فعاليات", "نشاط", "انشطه", "برنامج", "مناسبه",
-    "زياره", "زيارة", "زائرين", "خبر", "اخبار",
-  ]
-  if (shrineActivityPatterns.some(p => norm.includes(p))) return false
-
-  // Biographical signals: personal traits, family, life events
-  const biographyPatterns = [
-    "لقب", "القاب", "كنيه", "كنية", "صفه", "صفات", "صفة",
-    "من هو", "من هي", "ما هو", "ما هي", "سيره", "سيرة", "حياه", "حياة",
-    "نشاه", "نشأة", "ولاده", "ولادة", "مولد",
-    "ام ", "امه", "أمه", "ابيه", "ابوه", "اخوه", "اخواته", "اخوات", "اخت",
-    "زوجه", "زوجته", "زوجة", "زوجات", "زواج", "ولد", "ابناء", "اولاد",
-    "اعمام", "عمه", "عمته",
-    "استشهاد", "شهاده", "شهادة", "مقتل", "متي استشهد",
-    "موقفه", "قمر بني هاشم", "سقايه", "سقاية", "عمر سنه",
-    "تعريف", "نبذه", "نبذة",
-  ]
-  if (biographyPatterns.some(p => norm.includes(p))) return true
-
-  return false
-}
-
-/**
- * تنظيف بيانات المشروع لتكون مختصرة ومفيدة لـ GPT
- * يشمل الخصائص المهمة مثل المكان والمواصفات والجهة المنفذة
- */
-/** قص نص طويل مع الحفاظ على المعلومات المهمة */
 function truncate(text: string, max: number): string {
   if (!text || text.length <= max) return text
   return text.substring(0, max) + "…"
@@ -648,93 +51,48 @@ function cleanProject(project: any, detailed: boolean = false): any {
 
   const siteDomain = (process.env.SITE_DOMAIN || "https://alkafeel.net").replace(/\/+$/, "")
   const articleUrlTemplate = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}"
-
-  // تحديد رابط المصدر حسب نوع المحتوى
   const sourceType = project?.source_type
-  const isVideoSource = sourceType === "videos_latest" || sourceType === "videos_by_category" || sourceType === "friday_sermons" || sourceType === "wahy_friday"
-  const isHistorySource =
-    sourceType === "shrine_history_timeline" ||
-    sourceType === "shrine_history_by_section" ||
-    sourceType === "shrine_history_sections"
+  const isVideoSource = ["videos_latest", "videos_by_category", "friday_sermons", "wahy_friday"].includes(sourceType)
+  const isHistorySource = ["shrine_history_by_section", "shrine_history_sections"].includes(sourceType)
   const isAbbasSource = sourceType === "abbas_history_by_id"
   const mediaSlug = project?.source_raw?.request || project?.source_raw?.news_id || project?.source_raw?.article_id
 
-  // تاريخ العتبة أو العباس: صفحة ثابتة
   if (isHistorySource || isAbbasSource) {
-    const historyUrl = isAbbasSource
-      ? `${siteDomain}/abbas?lang=ar`
-      : `${siteDomain}/history?lang=ar`
-    const sectionNames = Array.isArray(project.sections)
-      ? project.sections.map((s: any) => s.name).filter(Boolean)
-      : []
+    const url = isAbbasSource ? `${siteDomain}/abbas?lang=ar` : `${siteDomain}/history?lang=ar`
     return {
       id: project.id,
       name: project.name,
       description: truncate(project.description || "", detailed ? 500 : 150),
-      sections: sectionNames,
-      url: historyUrl,
+      sections: Array.isArray(project.sections) ? project.sections.map((s: any) => s.name).filter(Boolean) : [],
+      url,
     }
   }
 
   if (isVideoSource) {
-    // استخدام request slug للفيديو إذا متوفر، وإلا استخدام URL الموجود من normalizeSourceDataset
-    const videoUrl = mediaSlug
+    const url = mediaSlug
       ? `${siteDomain}/media/${encodeURIComponent(String(mediaSlug))}?lang=ar`
       : (project.url || siteDomain)
-    const sectionNames = Array.isArray(project.sections)
-      ? project.sections.map((s: any) => s.name).filter(Boolean)
-      : []
-    const maxPropLen = detailed ? 2000 : 300
-    const properties: Record<string, string> = {}
-    if (Array.isArray(project.properties)) {
-      for (const prop of project.properties) {
-        const val = prop.pivot?.value || prop.value
-        if (prop.name && val && typeof val === "string") {
-          properties[prop.name] = truncate(val, maxPropLen)
-        }
-      }
-    }
-    return {
-      id: project.id,
-      name: project.name,
-      description: truncate(project.description || "", detailed ? 500 : 150),
-      sections: sectionNames,
-      properties: Object.keys(properties).length > 0 ? properties : undefined,
-      url: videoUrl,
-    }
+    return buildProjectShape(project, url, detailed)
   }
 
-  const derivedSourceUrl =
+  const derivedUrl =
     project?.source_raw?.url ||
     project?.source_raw?.link ||
     project?.source_raw?.permalink ||
     project?.source_raw?.news_url ||
     project?.source_raw?.article_url
 
-  const fallbackArticleUrl = (() => {
+  const fallbackUrl = (() => {
     if (!project.id) return siteDomain
-    const articlePath = articleUrlTemplate.replace(
-      "{id}",
-      encodeURIComponent(String(project.id))
-    )
-    if (articlePath.startsWith("http://") || articlePath.startsWith("https://")) {
-      return articlePath
-    }
-    const normalizedPath = articlePath.startsWith("/") ? articlePath : `/${articlePath}`
-    return `${siteDomain}${normalizedPath}`
+    const path = articleUrlTemplate.replace("{id}", encodeURIComponent(String(project.id)))
+    if (path.startsWith("http://") || path.startsWith("https://")) return path
+    return `${siteDomain}${path.startsWith("/") ? path : `/${path}`}`
   })()
 
-  const articleUrl =
-    project.url ||
-    project.article_url ||
-    derivedSourceUrl ||
-    fallbackArticleUrl
-  
-  const sectionNames = Array.isArray(project.sections)
-    ? project.sections.map((s: any) => s.name).filter(Boolean)
-    : []
+  return buildProjectShape(project, project.url || project.article_url || derivedUrl || fallbackUrl, detailed)
+}
 
-  // استخراج الخصائص المهمة — قص النصوص الطويلة في البحث، كاملة في التفاصيل
+function buildProjectShape(project: any, url: string, detailed: boolean): any {
   const maxPropLen = detailed ? 2000 : 300
   const properties: Record<string, string> = {}
   if (Array.isArray(project.properties)) {
@@ -745,35 +103,31 @@ function cleanProject(project: any, detailed: boolean = false): any {
       }
     }
   }
-
   return {
     id: project.id,
     name: project.name,
     description: truncate(project.description || "", detailed ? 500 : 150),
-    sections: sectionNames,
+    sections: Array.isArray(project.sections) ? project.sections.map((s: any) => s.name).filter(Boolean) : [],
     properties: Object.keys(properties).length > 0 ? properties : undefined,
-    url: articleUrl,
+    url,
   }
 }
 
-/**
- * تحويل اسم المصدر التقني إلى اسم عربي مفهوم
- */
+const SOURCE_LABELS: Record<string, string> = {
+  shrine_history_sections: "تاريخ العتبة",
+  shrine_history_by_section: "تاريخ العتبة",
+  abbas_history_by_id: "تاريخ العباس",
+  articles_latest: "الأخبار",
+  videos_latest: "الفيديوهات",
+  videos_by_category: "الفيديوهات",
+  videos_categories: "أقسام الفيديو",
+  lang_words_ar: "القاموس اللغوي",
+  friday_sermons: "خطب الجمعة",
+  wahy_friday: "من وحي الجمعة",
+}
+
 function friendlySourceName(source: string): string {
-  const map: Record<string, string> = {
-    shrine_history_timeline: "تاريخ العتبة",
-    shrine_history_sections: "تاريخ العتبة",
-    shrine_history_by_section: "تاريخ العتبة",
-    abbas_history_by_id: "تاريخ العباس",
-    articles_latest: "الأخبار",
-    videos_latest: "الفيديوهات",
-    videos_by_category: "الفيديوهات",
-    videos_categories: "أقسام الفيديو",
-    lang_words_ar: "القاموس اللغوي",
-    friday_sermons: "خطب الجمعة",
-    wahy_friday: "من وحي الجمعة",
-  }
-  return map[source] || source
+  return SOURCE_LABELS[source] || source
 }
 
 function extractListingItems(result: APICallResult): any[] {
@@ -936,6 +290,15 @@ function cleanResultForGPT(result: APICallResult): any {
   return result
 }
 
+// ── Types ───────────────────────────────────────────────────────────
+
+export interface FunctionCallResult {
+  shouldContinue: boolean
+  messages: ChatCompletionMessageParam[]
+  finalResponse?: string
+  error?: string
+}
+
 interface ResolveTraceSummary {
   routed_source?: string
   retry_attempts: number
@@ -965,209 +328,114 @@ function getTopScoreFromData(data: any): number | null {
   if (!data) return null
   if (typeof data.top_score === "number") return data.top_score
   if (Array.isArray(data.results) && data.results.length > 0) {
-    const first = data.results[0]
-    const score = first?._score || first?.score
+    const score = data.results[0]?._score || data.results[0]?.score
     if (typeof score === "number") return score
   }
   return null
 }
 
-type ToolFailureKind =
-  | "timeout"
-  | "rate_limit"
-  | "upstream_unavailable"
-  | "network"
-  | "empty_results"
-  | "unknown"
+type ToolFailureKind = "timeout" | "rate_limit" | "upstream_unavailable" | "network" | "empty_results" | "unknown"
 
 function classifyToolFailure(result: APICallResult, emptyResults: boolean): ToolFailureKind {
   if (emptyResults) return "empty_results"
-
   const text = String(result?.error || "").toLowerCase()
   if (!text) return "unknown"
-
-  if (text.includes("request_budget_exhausted") || text.includes("timeout") || text.includes("timed out")) {
-    return "timeout"
-  }
-  if (text.includes("rate limit") || text.includes("too many requests") || text.includes("429")) {
-    return "rate_limit"
-  }
-  if (
-    text.includes("503") ||
-    text.includes("502") ||
-    text.includes("504") ||
-    text.includes("service unavailable") ||
-    text.includes("bad gateway") ||
-    text.includes("gateway")
-  ) {
-    return "upstream_unavailable"
-  }
-  if (
-    text.includes("fetch") ||
-    text.includes("network") ||
-    text.includes("econn") ||
-    text.includes("enotfound") ||
-    text.includes("socket")
-  ) {
-    return "network"
-  }
-
+  if (text.includes("request_budget_exhausted") || text.includes("timeout") || text.includes("timed out")) return "timeout"
+  if (text.includes("rate limit") || text.includes("too many requests") || text.includes("429")) return "rate_limit"
+  if (text.includes("503") || text.includes("502") || text.includes("504") || text.includes("service unavailable") || text.includes("gateway")) return "upstream_unavailable"
+  if (text.includes("fetch") || text.includes("network") || text.includes("econn") || text.includes("enotfound") || text.includes("socket")) return "network"
   return "unknown"
 }
 
-function buildToolFailureMessage(
-  kind: ToolFailureKind,
-  traceId?: string
-): string {
-  const traceSuffix = traceId ? `\n\nرقم التتبع: ${traceId}` : ""
-
+function buildToolFailureMessage(kind: ToolFailureKind, traceId?: string): string {
+  const suffix = traceId ? `\n\nرقم التتبع: ${traceId}` : ""
   switch (kind) {
-    case "timeout":
-      return `تعذر إكمال الاستعلام في الوقت المتاح. يمكنك إعادة المحاولة أو تضييق السؤال قليلًا.${traceSuffix}`
-    case "rate_limit":
-      return `الخدمة تتلقى عددًا كبيرًا من الطلبات الآن. حاول بعد قليل.${traceSuffix}`
-    case "upstream_unavailable":
-      return `مصدر الإجابة غير متاح مؤقتًا الآن. حاول بعد قليل.${traceSuffix}`
-    case "network":
-      return `حدثت مشكلة اتصال أثناء جلب البيانات من المصدر.${traceSuffix}`
-    case "empty_results":
-      return `لم أجد نتائج مؤكدة في المصادر المتاحة لهذا السؤال.${traceSuffix}`
-    default:
-      return `تعذر إكمال الإجابة بسبب خلل مؤقت في مسار الاسترجاع.${traceSuffix}`
+    case "timeout":              return `تعذر إكمال الاستعلام في الوقت المتاح. يمكنك إعادة المحاولة أو تضييق السؤال قليلًا.${suffix}`
+    case "rate_limit":           return `الخدمة تتلقى عددًا كبيرًا من الطلبات الآن. حاول بعد قليل.${suffix}`
+    case "upstream_unavailable": return `مصدر الإجابة غير متاح مؤقتًا الآن. حاول بعد قليل.${suffix}`
+    case "network":              return `حدثت مشكلة اتصال أثناء جلب البيانات من المصدر.${suffix}`
+    case "empty_results":        return `لم أجد نتائج مؤكدة في المصادر المتاحة لهذا السؤال.${suffix}`
+    default:                     return `تعذر إكمال الإجابة بسبب خلل مؤقت في مسار الاسترجاع.${suffix}`
   }
 }
 
-/**
- * نتيجة معالجة Function Calling
- */
-export interface FunctionCallResult {
-  shouldContinue: boolean // هل نحتاج لإرسال طلب آخر لـ OpenAI؟
-  messages: ChatCompletionMessageParam[] // الرسائل لإضافتها للمحادثة
-  finalResponse?: string // الرد النهائي (إذا اكتمل)
-  error?: string
+const ALLOWED_UTILITY_TOOLS = new Set([
+  "get_source_metadata",
+  "browse_source_page",
+  "get_latest_by_source",
+  "list_source_categories",
+  "get_statistics",
+])
+
+function getPostBootstrapUtilityTools(
+  tools: OpenAI.Chat.Completions.ChatCompletionTool[]
+): OpenAI.Chat.Completions.ChatCompletionTool[] {
+  return tools.filter(t => t.type !== "function" || ALLOWED_UTILITY_TOOLS.has(t.function?.name))
 }
 
-/**
- * معالجة tool call واحد
- * 
- * @param toolCall - معلومات الأداة المراد استدعاءها
- */
+// ── Tool execution ──────────────────────────────────────────────────
+
 async function processToolCall(
   toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
   context: ToolCallContext = {}
-): Promise<{
-  tool_call_id: string
-  role: "tool"
-  content: string
-}> {
+): Promise<{ tool_call_id: string; role: "tool"; content: string }> {
   const toolName = toolCall.function.name
   const toolCallId = toolCall.id
-
   console.log(`[Function Call] Tool: ${toolName}, ID: ${toolCallId}`)
 
-  // التحقق من Whitelist
   if (!isAllowedTool(toolName)) {
     console.error(`[Function Call] Rejected: ${toolName} not in whitelist`)
     return {
       tool_call_id: toolCallId,
       role: "tool",
-      content: JSON.stringify({
-        success: false,
-        error: `الأداة "${toolName}" غير مسموحة`,
-        message: "هذه الأداة غير متاحة حالياً في النظام."
-      })
+      content: JSON.stringify({ success: false, error: `الأداة "${toolName}" غير مسموحة`, message: "هذه الأداة غير متاحة حالياً في النظام." }),
     }
   }
 
-  // تحليل المعاملات
   let args: Record<string, any>
   try {
     args = JSON.parse(toolCall.function.arguments || "{}")
-  } catch (error) {
-    console.error(`[Function Call] Invalid arguments:`, error)
+  } catch {
     return {
       tool_call_id: toolCallId,
       role: "tool",
-      content: JSON.stringify({
-        success: false,
-        error: "معاملات غير صالحة",
-        message: "حدث خطأ في تحليل المعاملات."
-      })
+      content: JSON.stringify({ success: false, error: "معاملات غير صالحة", message: "حدث خطأ في تحليل المعاملات." }),
     }
   }
 
-  // تنفيذ الأداة (orchestrator-aware for retrieval tools)
   let result: APICallResult
   const isRetrievalTool = toolName === "search_content" || toolName === "search_projects"
+
   if (isRetrievalTool) {
     const retrievalUnderstanding = context.queryUnderstanding || understandQuery(String(args.query || context.userQuery || ""))
-    const orchestrated = await orchestrateRetrieval(
-      toolName as AllowedToolName,
-      args,
-      {
-        traceId: context.traceId,
-        requestBudgetMs: Number(process.env.RETRIEVAL_REQUEST_BUDGET_MS || 18000),
-        queryUnderstanding: retrievalUnderstanding
-      }
-    )
+    const orchestrated = await orchestrateRetrieval(toolName as AllowedToolName, args, {
+      traceId: context.traceId,
+      requestBudgetMs: Number(process.env.RETRIEVAL_REQUEST_BUDGET_MS || 18000),
+      queryUnderstanding: retrievalUnderstanding,
+    })
     if (orchestrated) {
       result = orchestrated.finalResult
-      if (context.retryCounter) {
-        context.retryCounter.count += Math.max(0, orchestrated.attempts.length - 1)
-      }
+      if (context.retryCounter) context.retryCounter.count += Math.max(0, orchestrated.attempts.length - 1)
       if (context.traceSummary) {
         context.traceSummary.routed_source = orchestrated.routedSource || context.traceSummary.routed_source
         context.traceSummary.result_counts = orchestrated.resultCount
         context.traceSummary.top_score = orchestrated.topScore
-        if (orchestrated.exhausted) {
-          context.traceSummary.unavailable_reason = orchestrated.unavailableReason
-        }
+        if (orchestrated.exhausted) context.traceSummary.unavailable_reason = orchestrated.unavailableReason
       }
     } else {
-      result = await executeToolByName(
-        toolName as AllowedToolName,
-        args
-      )
+      result = await executeToolByName(toolName as AllowedToolName, args)
     }
-  } else {
-    result = await executeToolByName(
-      toolName as AllowedToolName,
-      args
-    )
-  }
 
-  if (
-    isRetrievalTool &&
-    result.success &&
-    isEmptyAPIResponse(result.data) &&
-    typeof args.query === "string"
-  ) {
-    const normQ = normalizeArabicLight(args.query)
-    if (normQ.includes(normalizeArabicLight("نداء العقيدة"))) {
+    // Relaxed retry for "نداء العقيدة" named-event queries
+    if (result.success && isEmptyAPIResponse(result.data) && typeof args.query === "string") {
       const relaxedQuery = args.query.replace(/نداء\s+العقيدة/g, "العقيدة")
       if (relaxedQuery !== args.query) {
-        if (context.traceId) {
-          logChatTrace({
-            trace_id: context.traceId,
-            stage: "retrieval_relaxed_retry",
-            normalized_query: normalizeQueryForTrace(String(args.query || "")),
-            routed_source: args.source,
-            details: {
-              reason: "named_event_phrase_relaxation",
-              original_query: args.query,
-              relaxed_query: relaxedQuery
-            }
-          })
-        }
-        const relaxedResult = await executeToolByName(
-          toolName as AllowedToolName,
-          { ...args, query: relaxedQuery, source: args.source || "auto" }
-        )
-        if (relaxedResult.success && !isEmptyAPIResponse(relaxedResult.data)) {
-          result = relaxedResult
-        }
+        const relaxed = await executeToolByName(toolName as AllowedToolName, { ...args, query: relaxedQuery, source: args.source || "auto" })
+        if (relaxed.success && !isEmptyAPIResponse(relaxed.data)) result = relaxed
       }
     }
+  } else {
+    result = await executeToolByName(toolName as AllowedToolName, args)
   }
 
   const traceQuery = args.query || context.userQuery || ""
@@ -1175,9 +443,7 @@ async function processToolCall(
   if (context.traceId) {
     const resultCount = getResultCountFromData(result.data)
     const topScore = getTopScoreFromData(result.data)
-    const routedSource =
-      (result.data && (result.data.source_used || result.data.source || result.data.routed_source)) ||
-      args.source
+    const routedSource = result.data?.source_used || result.data?.source || result.data?.routed_source || args.source
     logChatTrace({
       trace_id: context.traceId,
       stage: "tool_result",
@@ -1185,24 +451,17 @@ async function processToolCall(
       routed_source: routedSource,
       result_counts: resultCount,
       top_score: topScore,
-      details: {
-        tool_name: toolName,
-        success: result.success
-      }
+      details: { tool_name: toolName, success: result.success },
     })
     if (context.traceSummary) {
-      // Keep orchestrator-selected source when available; fallback to args.source.
-      if (typeof routedSource === "string" && routedSource.trim().length > 0) {
-        context.traceSummary.routed_source = routedSource
-      }
+      if (typeof routedSource === "string" && routedSource.trim()) context.traceSummary.routed_source = routedSource
       context.traceSummary.result_counts = resultCount
       context.traceSummary.top_score = topScore
     }
   }
 
   if (result.success && isEmptyAPIResponse(result.data)) {
-    console.log(`[Function Call] Empty results detected after retries, generating suggestions`)
-
+    console.log(`[Function Call] Empty results — generating suggestions`)
     if (context.traceId) {
       logChatTrace({
         trace_id: context.traceId,
@@ -1211,26 +470,12 @@ async function processToolCall(
         routed_source: args.source,
         retry_attempts: context.retryCounter?.count || 0,
         unavailable_reason: "empty_results_after_retries",
-        details: {
-          tool_name: toolName,
-          attempted_action: toolName
-        }
+        details: { tool_name: toolName },
       })
     }
-    
-    // استخرج query من المعاملات
     const query = args.query || args.searchTerm || args.keyword || ""
-    const category = args.category || undefined
-    
-    // توليد الاقتراحات الذكية
-    const suggestionsResponse = generateNoResultsSuggestions(query, {
-      searchedCategory: category,
-      attemptedAction: toolName
-    })
+    const suggestionsResponse = generateNoResultsSuggestions(query, { searchedCategory: args.category, attemptedAction: toolName })
     const failureKind = classifyToolFailure(result, true)
-    const failureMessage = buildToolFailureMessage(failureKind, context.traceId)
-     
-    // إرجاع النتيجة مع الاقتراحات
     return {
       tool_call_id: toolCallId,
       role: "tool",
@@ -1239,18 +484,16 @@ async function processToolCall(
         empty_results: true,
         failure_kind: failureKind,
         retry_attempts: context.retryCounter?.count || 0,
-        message: `${failureMessage}\n\n${formatSuggestionsForResponse(suggestionsResponse)}`,
+        message: `${buildToolFailureMessage(failureKind, context.traceId)}\n\n${formatSuggestionsForResponse(suggestionsResponse)}`,
         suggestions: suggestionsResponse.suggestions,
         context: suggestionsResponse.context,
-        original_query: query
-      })
+        original_query: query,
+      }),
     }
   }
 
-  // معالجة الأخطاء مع اقتراحات
   if (!result.success) {
     console.error(`[Function Call] API Error:`, result.error)
-
     if (context.traceId) {
       logChatTrace({
         trace_id: context.traceId,
@@ -1259,16 +502,11 @@ async function processToolCall(
         routed_source: args.source,
         retry_attempts: context.retryCounter?.count || 0,
         unavailable_reason: String(result.error || "tool_execution_failed"),
-        details: {
-          tool_name: toolName
-        }
+        details: { tool_name: toolName },
       })
     }
-    
     const errorSuggestions = generateAPIErrorSuggestions()
     const failureKind = classifyToolFailure(result, false)
-    const failureMessage = buildToolFailureMessage(failureKind, context.traceId)
-     
     return {
       tool_call_id: toolCallId,
       role: "tool",
@@ -1276,29 +514,15 @@ async function processToolCall(
         success: false,
         failure_kind: failureKind,
         error: result.error,
-        message: `${failureMessage}\n\n${formatSuggestionsForResponse(errorSuggestions)}`,
+        message: `${buildToolFailureMessage(failureKind, context.traceId)}\n\n${formatSuggestionsForResponse(errorSuggestions)}`,
         suggestions: errorSuggestions.suggestions,
-        context: errorSuggestions.context
-      })
+        context: errorSuggestions.context,
+      }),
     }
   }
 
-  // صياغة الرد العادي (نتائج موجودة)
-  // تنظيف البيانات لتكون مختصرة ومفيدة لـ GPT
-  const cleanedResult = cleanResultForGPT(result)
-
-  const toolResponse = {
-    tool_call_id: toolCallId,
-    role: "tool" as const,
-    content: JSON.stringify(cleanedResult)
-  }
-
-  console.log(
-    `[Function Call] Result:`,
-    result.success ? "Success" : "Failed"
-  )
-
-  return toolResponse
+  console.log(`[Function Call] Result: ${result.success ? "Success" : "Failed"}`)
+  return { tool_call_id: toolCallId, role: "tool" as const, content: JSON.stringify(cleanResultForGPT(result)) }
 }
 
 /**
@@ -1321,535 +545,7 @@ export async function handleToolCalls(
   return toolResponses
 }
 
-/**
- * تدفق كامل لـ Function Calling
- * 
- * يدير التواصل المتكرر مع OpenAI حتى الحصول على رد نهائي
- * 
- * @param openai - عميل OpenAI
- * @param model - نموذج OpenAI
- * @param messages - رسائل المحادثة
- * @param tools - الأدوات المتاحة
- * @param maxIterations - الحد الأقصى للتكرار (لمنع حلقات لا نهائية)
- */
-/**
- * تنفيذ tool calls فقط وإرجاع الرسائل الجاهزة للاستدعاء النهائي (streaming)
- * 
- * الفكرة: ننفذ كل tool calls بدون stream، ثم نرجع الرسائل
- * الجاهزة ليقوم route.ts بالاستدعاء الأخير كـ stream مباشرة للمستخدم
- */
-
-// ── Knowledge layer helpers ─────────────────────────────────────────
-
-/**
- * Determine whether the user query benefits from the knowledge layer
- * (full-text deep search). Skip for trivial / deterministic queries
- * like counts, metadata, categories, latest/oldest listings.
- */
-function shouldUseKnowledgeLayer(
-  text: string,
-  understanding?: QueryUnderstandingResult
-): boolean {
-  const norm = normalizeArabicLight(text)
-
-  // Abbas biographical queries always use the knowledge layer —
-  // even when "عدد/كم" is present (e.g. "عدد زوجات العباس").
-  if (isAbbasBiographyQuery(text)) return true
-
-  if (understanding) {
-    const op = understanding.operation_intent
-    if (op === "count" || op === "latest" || op === "list_items" || op === "browse") {
-      return false
-    }
-  }
-
-  // Skip: counts, metadata, category listing, latest/oldest
-  const skipPatterns = [
-    "عدد", "كم", "اجمالي", "كلي", "مجموع",        // counts
-    "ميتاداتا", "وصفي", "معلومات وصفيه",            // metadata
-    "اقسام الفيديو", "تصنيفات", "فئات",             // category listing
-    "احدث خبر", "اخر خبر", "اخر فيديو",             // latest
-    "اول خبر", "اقدم خبر", "اول فيديو",             // oldest
-    "اعرض احدث", "اعرض أحدث", "احدث الفيديوهات", "احدث اخبار",
-    "احدث من وحي الجمعه", "احدث خطب الجمعه", "احدث خطبه الجمعه",
-  ]
-  if (skipPatterns.some(p => norm.includes(p))) return false
-
-  // Positive: biography, history, descriptive, search-oriented queries
-  const deepPatterns = [
-    "من هو", "من هي", "ما هو", "ما هي", "ماهو", "ماهي",
-    "تاريخ", "سيره", "حياه", "نبذه", "استشهاد",
-    "عتبه", "عباس", "ابو الفضل", "ابي الفضل", "ابا الفضل",
-    "ضريح", "مرقد", "حرم", "صحن",
-    "سدنه", "كلدار", "وصف",
-    "زياره", "ابحث", "بحث", "معلومات عن", "تحدث عن", "حدثني",
-    "اخبرني عن", "عرفني", "يذكر", "ماذا يذكر",
-    "خطبه", "خطب", "جمعه", "وحي الجمعه", "اصدار", "اصدارات",
-    "القاب", "صفات", "اخوه", "اخوات", "زواج", "كنيه", "نشاه",
-    "ام البنين", "قمر بني هاشم", "سقايه",
-  ]
-  if (deepPatterns.some(p => norm.includes(p))) return true
-
-  // Generic: if it's a lengthy question (>20 chars after trim), assume it's descriptive
-  return norm.length > 20
-}
-
-/**
- * Format knowledge search results compactly for the model.
- * Returns a short structured block instead of raw 800-char dumps.
- */
-function formatKnowledgeResults(
-  chunks: { chunk: { title: string; section: string; url: string; chunk_text: string; source?: string }; evidence_snippet: string; score: number }[]
-): string {
-  if (!chunks || chunks.length === 0) return ""
-
-  // Extract structured evidence for grounded quotation
-  const evidence = extractBestEvidence(chunks as any, "", 3)
-  const evidenceBlock = formatEvidenceForModel(evidence)
-
-  const lines: string[] = ["[سياق معرفي إضافي من النصوص الكاملة]"]
-  for (const r of chunks) {
-    const title = r.chunk.title || ""
-    const section = r.chunk.section || ""
-    const url = r.chunk.url || ""
-    // Use generous snippet: for Abbas chunks, include more text to capture biographical facts
-    const isAbbas = r.chunk.source === "abbas_local_dataset"
-    const maxSnippet = isAbbas ? 550 : 400
-    // For Abbas chunks, prefer full chunk text to ensure date/biographical facts are captured
-    const snippet = isAbbas
-      ? r.chunk.chunk_text.substring(0, maxSnippet)
-      : (r.evidence_snippet || r.chunk.chunk_text.substring(0, maxSnippet))
-    lines.push(`• ${title}${section ? ` — ${section}` : ""}`)
-    lines.push(`  ${snippet}`)
-    if (url) lines.push(`  ${url}`)
-  }
-
-  // Append structured evidence block for grounded quoting
-  if (evidenceBlock) {
-    lines.push("")
-    lines.push(evidenceBlock)
-  }
-
-  return lines.join("\n")
-}
-
-/**
- * Search knowledge index and return compact formatted context, or null.
- * Single entry point for all knowledge injection — avoids duplication.
- */
-async function getKnowledgeContext(
-  query: string,
-  understanding?: QueryUnderstandingResult
-): Promise<{ context: string; topScore: number; evidence: Evidence[] } | null> {
-  try {
-    const norm = normalizeArabicLight(query)
-    const isAbbasAttributeQuery =
-      isAbbasBiographyQuery(query) &&
-      ["ابناء", "أبناء", "زوجات", "القاب", "كنيه", "كنية"].some(t => norm.includes(normalizeArabicLight(t)))
-    const compoundParts = splitCompoundFactQuery(query)
-    const compoundAnchor = extractCompoundQueryAnchor(query, understanding)
-    const searchPlans = compoundParts.length > 1
-      ? compoundParts.map(part => ({
-          label: part,
-          searchQuery: enrichCompoundQueryPart(part, compoundAnchor)
-        }))
-      : [{ label: query, searchQuery: query }]
-
-    await ensureKnowledgeReady()
-    const contexts: string[] = []
-    const evidencePool: Evidence[] = []
-    let topScore = 0
-
-    for (const plan of searchPlans) {
-      const response = await searchKnowledgeWithBackfill(plan.searchQuery, {
-        limit: isAbbasAttributeQuery ? 6 : 4,
-        minScore: isAbbasAttributeQuery ? 0.6 : 1.5
-      })
-      if (response.chunks.length === 0) continue
-
-      topScore = Math.max(topScore, response.chunks[0].score)
-      const formatted = formatKnowledgeResults(response.chunks)
-      evidencePool.push(...extractBestEvidence(response.chunks as any, plan.searchQuery, searchPlans.length > 1 ? 2 : 3))
-      contexts.push(
-        searchPlans.length > 1
-          ? `[جزء مطلوب: ${plan.label}]\n${formatted}`
-          : formatted
-      )
-    }
-
-    if (contexts.length === 0 && searchPlans.length > 1) {
-      const fallback = await searchKnowledgeWithBackfill(query, {
-        limit: isAbbasAttributeQuery ? 6 : 4,
-        minScore: isAbbasAttributeQuery ? 0.6 : 1.5
-      })
-      if (fallback.chunks.length > 0) {
-        topScore = Math.max(topScore, fallback.chunks[0].score)
-        evidencePool.push(...extractBestEvidence(fallback.chunks as any, query, searchPlans.length > 1 ? 2 : 3))
-        contexts.push(formatKnowledgeResults(fallback.chunks))
-      }
-    }
-
-    if (contexts.length === 0) {
-      console.log(`[Knowledge] No chunks for: "${query}"`)
-      return null
-    }
-
-    console.log(`[Knowledge] Found ${contexts.length} context block(s) for: "${query}"`)
-    const uniqueEvidence = evidencePool
-      .filter(item => item?.quote)
-      .filter((item, index, arr) =>
-        arr.findIndex(other =>
-          other.quote === item.quote &&
-          other.source_title === item.source_title &&
-          other.source_url === item.source_url
-        ) === index
-      )
-      .sort((a, b) => b.confidence - a.confidence)
-    return {
-      context: contexts.join("\n\n"),
-      topScore,
-      evidence: uniqueEvidence.slice(0, 4)
-    }
-  } catch (e) {
-    console.warn("[Knowledge] Search failed:", (e as Error).message)
-    return null
-  }
-}
-
-/**
- * Extract evidence from tool result messages and inject as structured quotes.
- * Uses mandatory instruction when confidence is high, soft suggestion otherwise.
- * Returns the evidence list for use in the pipeline (direct-answer check).
- */
-function extractToolResultEvidence(
-  messages: ChatCompletionMessageParam[],
-  userQuery: string
-): Evidence[] {
-  const allItems = collectToolResultItems(messages as any[])
-  if (allItems.length === 0) return []
-
-  const compoundQuery = isCompoundFactQuery(userQuery)
-  const limit = isOfficeHolderQuery(userQuery) ? 5 : compoundQuery ? 5 : 3
-  return extractEvidenceFromToolResults(allItems, userQuery, limit)
-}
-
-function injectToolEvidenceBlock(
-  messages: ChatCompletionMessageParam[],
-  userQuery: string,
-  evidence: Evidence[]
-): void {
-  if (evidence.length === 0) return
-
-  const compoundQuery = isCompoundFactQuery(userQuery)
-  const topConfidence = evidence[0]?.confidence ?? 0
-  console.log(`[Evidence] ${evidence.length} items, top confidence: ${topConfidence}%`)
-
-  const block = compoundQuery
-    ? formatEvidenceForModel(evidence)
-    : topConfidence >= 40
-      ? buildMandatoryInstruction(evidence)
-      : formatEvidenceForModel(evidence)
-
-  if (block) {
-    messages.push({ role: "system", content: block })
-  }
-}
-
-/**
- * Inject knowledge context + evidence guard into the message array.
- * Returns the extracted tool-result evidence list for use by the caller.
- */
-async function injectKnowledgeAndGuard(
-  messages: ChatCompletionMessageParam[],
-  userQuery: string,
-  understanding?: QueryUnderstandingResult
-): Promise<Evidence[]> {
-  const extractedEvidence = extractToolResultEvidence(messages, userQuery)
-  const topEvidenceConfidence = extractedEvidence[0]?.confidence ?? 0
-  const hasKnowledgeContextAlready = messages.some(
-    m => m.role === "system" && typeof m.content === "string" && m.content.includes("[سياق معرفي إضافي من النصوص الكاملة]")
-  )
-  const knowledgePriority = isKnowledgePriorityQuery(userQuery, understanding)
-  let knowledgeTopScore = 0
-
-  // Only use knowledge layer for qualifying queries
-  let abbasKnowledgeInjected = false
-  let knowledgeInjected = false
-  let knowledgeEvidence: Evidence[] = []
-  const shouldRunKnowledgeLayer =
-    !hasKnowledgeContextAlready &&
-    shouldUseKnowledgeLayer(userQuery, understanding) &&
-    (knowledgePriority || topEvidenceConfidence < 55)
-
-  if (shouldRunKnowledgeLayer) {
-    const kResult = await getKnowledgeContext(userQuery, understanding)
-    if (kResult) {
-      const { context: kCtx, topScore, evidence } = kResult
-      knowledgeInjected = true
-      knowledgeTopScore = topScore
-      knowledgeEvidence = evidence
-      // Detect if Abbas knowledge content was returned WITH a strong relevance score.
-      // A low top-score (< 7.0) means the knowledge base only has tangentially related
-      // content — don't suppress tool results in that case.
-      const ABBASS_BIO_MIN_SCORE = 7.0
-      if (
-        (kCtx.includes("العباس بن علي") || kCtx.includes("alkafeel.net/abbas")) &&
-        topScore >= ABBASS_BIO_MIN_SCORE
-      ) {
-        abbasKnowledgeInjected = true
-      }
-      // If any tool returned empty results, replace that message content with
-      // knowledge results to prevent the model from fixating on "empty"
-      const emptyToolIdx = messages.findIndex(m =>
-        m.role === "tool" && typeof m.content === "string" && m.content.includes('"empty_results":true')
-      )
-      if (emptyToolIdx >= 0) {
-        console.log(`[Knowledge] Tool returned empty — overriding with knowledge context`)
-        ;(messages[emptyToolIdx] as any).content = JSON.stringify({
-          success: true,
-          data: {
-            source_used: "النصوص الكاملة للموقع",
-            note: "النتائج التالية من البحث في النصوص الكاملة المفهرسة"
-          }
-        }) + "\n\n" + kCtx
-        messages.push({
-          role: "system",
-          content: "استخدم السياق المعرفي المستخرج من النصوص الكاملة للإجابة مباشرة إذا كان مرتبطًا بالسؤال. لا تقل إن المعلومات غير متاحة ما دام هذا السياق يحتوي على شواهد ذات صلة."
-        })
-      } else {
-        // Normal injection: add as supplementary system context
-        messages.push({ role: "system", content: kCtx })
-      }
-    } else {
-      const norm = normalizeArabicLight(userQuery)
-      const asksAbbasAttributes =
-        isAbbasBiographyQuery(userQuery) &&
-        ["ابناء", "أبناء", "زوجات", "القاب", "كنيه", "كنية"].some(t => norm.includes(normalizeArabicLight(t)))
-
-      if (asksAbbasAttributes) {
-        messages.push({
-          role: "system",
-          content: "ℹ️ لم تتوفر مطابقة كافية من الفهرس المحلي لهذا التفصيل. إن كان السؤال عن السمات الشخصية لأبي الفضل العباس (عليه السلام) مثل الأبناء أو الألقاب، يمكنك الإجابة من المعرفة التاريخية الموثوقة بصياغة مباشرة ومختصرة، ولا تنتقل إلى أخبار مشاريع العتبة."
-        })
-      }
-    }
-  }
-
-  const weakToolEntityCoverage =
-    extractedEvidence.length > 0 &&
-    !evidenceCoversSpecificTokens(userQuery, extractedEvidence)
-  const officeHolderWithoutName =
-    isOfficeHolderQuery(userQuery) &&
-    extractedEvidence.length > 0 &&
-    !evidenceContainsLikelyPersonName(extractedEvidence)
-  const shouldPreferKnowledgeContext =
-    knowledgeInjected &&
-    knowledgePriority &&
-    (
-      weakToolEntityCoverage ||
-      officeHolderWithoutName ||
-      extractedEvidence.length === 0 ||
-      topEvidenceConfidence < 70
-    ) &&
-    knowledgeTopScore >= 4.5
-
-  if (shouldPreferKnowledgeContext) {
-    messages.push({
-      role: "system",
-      content: "📚 استخدم [سياق معرفي إضافي من النصوص الكاملة] كمصدر أول لهذا السؤال التاريخي/الاسمي. إذا كانت نتائج الأدوات مجرد تطابقات لفظية عامة أو أخبار غير مباشرة، فلا تبنِ الإجابة عليها."
-    })
-  }
-
-  // Evidence guard: skip when Abbas local knowledge was injected —
-  // the Abbas dataset IS the authoritative source for biographical facts.
-  // Do NOT extract tool-result evidence here — news articles mentioning
-  // "مرقد أبي الفضل" would be ranked high incorrectly and override the
-  // real Abbas biographical content already present in the knowledge context.
-  if (abbasKnowledgeInjected) {
-    // Only suppress tool results for biographical questions (traits, family, life).
-    // For shrine activity/construction queries, let tool results come through normally.
-    if (isAbbasBiographyQuery(userQuery)) {
-      // Check if the knowledge context actually covers the specific sub-topic asked about.
-      // If the context doesn't mention the key concept (e.g. wives, children), allow
-      // the LLM to answer from general knowledge rather than saying "not found".
-      const norm = normalizeArabicLight(userQuery)
-      const kCtxNorm = normalizeArabicLight(
-        messages.filter(m => m.role === "system").map(m => typeof m.content === "string" ? m.content : "").join(" ")
-      )
-      // Topics the local knowledge base is known to NOT cover for Abbas himself
-      const wivesQuery = ["زوج", "زوجة", "زوجات", "نكاح", "تزوج"].some(t => norm.includes(t))
-      const contextMentionsAbbasWives = kCtxNorm.includes("تزوج العباس") || kCtxNorm.includes("زوجة العباس") || kCtxNorm.includes("زوجات العباس")
-      const knowledgeGap = wivesQuery && !contextMentionsAbbasWives
-
-      if (knowledgeGap) {
-        // Knowledge base doesn't cover this topic — let LLM use general historical knowledge
-        console.log(`[Evidence Guard] Abbas biography — knowledge gap detected, permitting general knowledge`)
-        messages.push({
-          role: "system",
-          content: "ℹ️ السياق المعرفي المحلي لا يتضمن معلومات عن هذا الجانب تحديداً. أجب من معرفتك التاريخية الموثوقة عن الإمام أبي الفضل العباس (عليه السلام). تجاهل نتائج الأدوات المرتبطة بأخبار الضريح — هي غير ذات صلة."
-        })
-        return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
-      }
-
-      console.log(`[Evidence Guard] Abbas biography query — suppressing tool-result evidence`)
-      messages.push({
-        role: "system",
-        content: "📚 تعليمات: أجب عن هذا السؤال البيوغرافي من المعلومات الواردة في [سياق معرفي إضافي من النصوص الكاملة] أعلاه. تجاهل نتائج الأدوات المرتبطة بأخبار الضريح أو الأنشطة — هي غير ذات صلة بهذا السؤال."
-      })
-      return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
-    }
-    // Non-biographical query (shrine activities, expansion, etc.) — inject tool evidence normally
-    console.log(`[Evidence Guard] Abbas shrine/activity query — tool-result evidence allowed`)
-    injectToolEvidenceBlock(messages, userQuery, extractedEvidence)
-    return extractedEvidence
-  }
-
-  // Evidence guard: if the question demands hard facts and results lack them
-  if (isHardEvidenceSensitive(userQuery)) {
-    const allToolContent = messages
-      .filter(m => m.role === "tool" || m.role === "system")
-      .map(m => typeof m.content === "string" ? m.content : "")
-      .join(" ")
-    if (!hasStrongAnswerEvidence(allToolContent, userQuery)) {
-      messages.push({
-        role: "system",
-        content: "⚠️ البيانات المسترجعة لا تحتوي على الأرقام أو التواريخ المطلوبة. أجب فقط بما هو موجود في النتائج. لا تذكر أي تاريخ أو عمر أو رقم من معرفتك العامة. إذا لم تجد المعلومة المحددة، قل: 'لم أجد هذه المعلومة في البيانات المتاحة حالياً'."
-      })
-    }
-  }
-
-  if (shouldPreferKnowledgeContext) {
-    return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
-  }
-
-  injectToolEvidenceBlock(messages, userQuery, extractedEvidence)
-  return extractedEvidence
-}
-
-/**
- * Try to generate a direct template-based answer from evidence.
- *
- * Returns a string answer only when:
- *  - There is exactly 1 top-confidence evidence item (≥75%) → specific article lookup
- *  - OR the top item has ≥85% confidence regardless of count
- *
- * This bypasses the final LLM streaming call for focused single-result queries.
- * For general multi-result searches (confidence < 75%), returns null so the LLM
- * synthesises the answer with the mandatory-quote instruction already injected.
- */
-function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | null {
-  if (!evidence || evidence.length === 0) return null
-  if (isCompoundFactQuery(query)) return null
-
-  const understanding = understandQuery(query)
-  if (understanding.operation_intent === "explain") return null
-  const isFactIntent = understanding.operation_intent === "fact_question"
-
-  if (isFactIntent) {
-    const generatedFact = generateDirectAnswer(query, evidence)
-    if (!generatedFact) return null
-    if (!directAnswerSatisfiesSensitiveQuery(query, generatedFact)) return null
-    return generatedFact
-      .replace(/\s*\n+\s*/g, " ")
-      .replace(/\s{2,}/g, " ")
-      .trim()
-  }
-
-  const top = evidence[0]
-  // Single high-confidence match (title-query hit on a specific article)
-  const isSingleHighConf = evidence.length === 1 && top.confidence >= 40
-  // Or high confidence regardless of count
-  const isExtremeConf = top.confidence >= 55
-
-  if (!isSingleHighConf && !isExtremeConf) return null
-
-  const generated = generateDirectAnswer(query, evidence)
-  if (!generated) return null
-  if (!directAnswerSatisfiesSensitiveQuery(query, generated)) return null
-  return generated
-}
-
-function directAnswerSatisfiesSensitiveQuery(query: string, answer: string): boolean {
-  if (!answer) return false
-
-  if (isOfficeHolderQuery(query)) {
-    return /(السيد|الشيخ|سماحه|سماحة|العلامه|العلامة)\s+[\u0621-\u064A]{2,}(?:\s+[\u0621-\u064A]{2,}){1,3}/u.test(answer)
-  }
-
-  const normAnswer = normalizeArabicLight(answer)
-  const specificTokens = extractSpecificQueryTokens(query)
-  if (specificTokens.length < 2) return true
-
-  const matched = specificTokens.filter(token => normAnswer.includes(token)).length
-  return matched >= Math.min(2, specificTokens.length)
-}
-
-/**
- * Detect if the user question is asking for hard-evidence facts
- * (dates, ages, numbers, specific historical facts) that must come from data.
- */
-function isHardEvidenceSensitive(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-  const dateAgePatterns = [
-    "متي", "تاريخ استشهاد", "تاريخ ولاده", "تاريخ وفاه",
-    "سنه استشهاد", "سنه ولاده", "سنه وفاه",
-    "عمر", "كم عمر", "كم كان عمر",
-    "في اي سنه", "في اي عام",
-    "هجري", "ميلادي",
-    "عدد ابناء", "عدد اولاد", "عدد زوجات",
-    "متي ولد", "متي استشهد", "متي توفي",
-  ]
-  return dateAgePatterns.some(p => norm.includes(p))
-}
-
-/**
- * Check if the retrieved tool results contain strong evidence
- * (actual dates, numbers, biographical facts) for the query.
- */
-function hasStrongAnswerEvidence(toolContent: string, query: string): boolean {
-  if (!toolContent || toolContent.length < 30) return false
-  const norm = normalizeArabicLight(query)
-  // If asking about dates/years, look for year patterns or named events in content
-  const asksDate = ["متي", "تاريخ", "سنه", "عام"].some(k => norm.includes(k))
-  if (asksDate) {
-    const hasYear = /\d{3,4}/.test(toolContent) || /[\u0660-\u0669]{3,4}/.test(toolContent)
-    if (hasYear) return true
-    // Named historical events count as date evidence (e.g., "يوم الطف" = 10 Muharram 61 AH)
-    const eventNames = ["الطف", "كربلاء", "عاشوراء", "محرم", "شعبان"]
-    if (eventNames.some(e => toolContent.includes(e))) return true
-    // Written-out Arabic numbers count as date evidence (e.g., "ست وعشرين" = 26)
-    const writtenNumbers = ["وعشرين", "وثلاثين", "واربعين", "وخمسين", "وستين", "سنه"]
-    if (writtenNumbers.some(w => toolContent.includes(w))) return true
-    return false
-  }
-  // If asking about age/count, look for numbers (digits or written-out Arabic)
-  const asksNumber = ["عمر", "عدد", "كم"].some(k => norm.includes(k))
-  if (asksNumber) {
-    const hasNumber = /\d+/.test(toolContent) || /[\u0660-\u0669]+/.test(toolContent)
-    if (hasNumber) return true
-    // Written-out Arabic numbers (e.g., "أربعا وثلاثين سنة")
-    const writtenNums = [
-      "وعشرين", "وثلاثين", "واربعين", "وخمسين", "وستين",
-      "عشر", "احد", "اثن", "ثلاث", "اربع", "خمس", "ست", "سبع", "ثمان", "تسع",
-    ]
-    if (writtenNums.some(w => toolContent.includes(w))) return true
-    return hasNumber
-  }
-  // Generic: if content is substantial, it's evidence enough
-  return toolContent.length > 100
-}
-
-function buildGroundedEvidenceFallback(query: string, evidence: Evidence[]): string | null {
-  if (!evidence || evidence.length === 0) return null
-  if (!evidenceCoversSpecificTokens(query, evidence)) return null
-  if (isOfficeHolderQuery(query) && !evidenceContainsLikelyPersonName(evidence)) return null
-
-  const topConfidence = evidence[0]?.confidence || 0
-  const minimumConfidence = isHardEvidenceSensitive(query) ? 35 : 22
-  if (topConfidence < minimumConfidence && evidence.length < 2) return null
-
-  return formatGroundedAnswer(query, evidence.slice(0, 3))
-}
+// ── Main resolution loop ────────────────────────────────────────────
 
 export async function resolveToolCalls(
   openai: OpenAI,
@@ -1874,171 +570,18 @@ export async function resolveToolCalls(
   const retryCounter = { count: 0 }
   const traceSummary: ResolveTraceSummary = { retry_attempts: 0 }
 
-  // Forced tool intent: deterministic routing for count/metadata/oldest only.
-  const userQueryForIntent = getLastUserMessage(messages)
-  const queryUnderstanding = options.queryUnderstanding || understandQuery(userQueryForIntent)
-  const answerShapeInstruction = buildAnswerShapeInstruction(userQueryForIntent)
-  if (answerShapeInstruction) {
-    currentMessages.push({ role: "system", content: answerShapeInstruction })
-  }
-  const compoundCoverageInstruction = buildCompoundCoverageInstruction(userQueryForIntent)
-  if (compoundCoverageInstruction) {
-    currentMessages.push({ role: "system", content: compoundCoverageInstruction })
-  }
+  const rawUserQuery = getLastUserMessage(messages)
+  const rawUnderstanding = options.queryUnderstanding || understandQuery(rawUserQuery)
+  const userQuery = getResolvedUserQuery(messages, rawUnderstanding)
+  const queryUnderstanding = options.queryUnderstanding || understandQuery(userQuery)
 
-  const needsPriorConversationContext =
-    (requiresPriorConversationContext(userQueryForIntent, queryUnderstanding) ||
-      looksLikePronounOnlyEntityFollowUp(userQueryForIntent)) &&
-    hasPriorAssistantContext(messages)
-  const missingRequiredConversationContext =
-    (requiresPriorConversationContext(userQueryForIntent, queryUnderstanding) ||
-      looksLikePronounOnlyEntityFollowUp(userQueryForIntent)) &&
-    !hasPriorAssistantContext(messages)
+  // Inject answer-shape and compound-coverage instructions
+  const shapeHint = buildAnswerShapeInstruction(userQuery)
+  if (shapeHint) currentMessages.push({ role: "system", content: shapeHint })
+  const coverageHint = buildCompoundCoverageInstruction(userQuery)
+  if (coverageHint) currentMessages.push({ role: "system", content: coverageHint })
 
-  if (missingRequiredConversationContext) {
-    const missingContextAnswer = buildMissingContextAnswer(userQueryForIntent)
-    if (missingContextAnswer) {
-      if (options.traceId) {
-        logChatTrace({
-          trace_id: options.traceId,
-          stage: "missing_conversation_context",
-          normalized_query: normalizeQueryForTrace(userQueryForIntent),
-          details: {
-            operation_intent: queryUnderstanding.operation_intent,
-            content_intent: queryUnderstanding.content_intent
-          }
-        })
-      }
-
-      return {
-        resolvedMessages: currentMessages,
-        needsFinalCall: false,
-        iterations: 0,
-        directAnswer: missingContextAnswer,
-        trace: {
-          ...traceSummary,
-          retry_attempts: retryCounter.count
-        }
-      }
-    }
-  }
-
-  const contextualSafeDirectAnswer =
-    needsPriorConversationContext && !wantsExplicitSources(userQueryForIntent)
-      ? buildContextAwareSafeAnswer(userQueryForIntent, messages)
-      : null
-
-  if (contextualSafeDirectAnswer) {
-    if (options.traceId) {
-      logChatTrace({
-        trace_id: options.traceId,
-        stage: "contextual_safe_direct_answer",
-        normalized_query: normalizeQueryForTrace(userQueryForIntent),
-        details: {
-          operation_intent: queryUnderstanding.operation_intent,
-          content_intent: queryUnderstanding.content_intent
-        }
-      })
-    }
-
-    return {
-      resolvedMessages: currentMessages,
-      needsFinalCall: false,
-      iterations: 0,
-      directAnswer: contextualSafeDirectAnswer,
-      trace: {
-        ...traceSummary,
-        retry_attempts: retryCounter.count
-      }
-    }
-  }
-
-  const isContextualFollowUp =
-    isContextualFollowUpQuery(userQueryForIntent, queryUnderstanding) &&
-    hasPriorAssistantContext(messages)
-
-  if (isContextualFollowUp) {
-    const lastAssistantText = getLastAssistantText(messages)
-    const anchorTitle = extractFirstListedTitle(lastAssistantText)
-    const anchorInstruction = anchorTitle
-      ? `العنصر المرجعي هو: "${anchorTitle}". لا تغيّر العنصر ولا تبحث عن عنصر آخر.`
-      : ""
-
-    if (options.traceId) {
-      logChatTrace({
-        trace_id: options.traceId,
-        stage: "follow_up_context_mode",
-        normalized_query: normalizeQueryForTrace(userQueryForIntent),
-        details: {
-          operation_intent: queryUnderstanding.operation_intent,
-          content_intent: queryUnderstanding.content_intent
-        }
-      })
-    }
-
-    currentMessages.push({
-      role: "system",
-      content:
-        `السؤال الحالي متابعة على نتائج سابقة في نفس المحادثة. لخص أو اشرح اعتماداً على آخر نتيجة سبق أن عرضتها أنت، ولا تبدأ بحثاً جديداً ما دام السياق السابق كافياً. ${anchorInstruction} إذا لم تجد نتيجة سابقة واضحة، اطلب من المستخدم إعادة النتيجة المراد تلخيصها.`
-    })
-
-    return {
-      resolvedMessages: currentMessages,
-      needsFinalCall: true,
-      iterations: 0,
-      trace: {
-        ...traceSummary,
-        retry_attempts: retryCounter.count
-      }
-    }
-  }
-
-  const safeCapabilityDirectAnswer =
-    !wantsExplicitSources(userQueryForIntent) &&
-    shouldAllowSafeCapabilityDirectAnswer(userQueryForIntent, queryUnderstanding)
-      ? getSafeCapabilityDirectAnswer(userQueryForIntent)
-      : null
-
-  if (safeCapabilityDirectAnswer) {
-    if (options.traceId) {
-      logChatTrace({
-        trace_id: options.traceId,
-        stage: "safe_capability_direct_answer",
-        normalized_query: normalizeQueryForTrace(userQueryForIntent),
-        details: {
-          operation_intent: queryUnderstanding.operation_intent,
-          content_intent: queryUnderstanding.content_intent
-        }
-      })
-    }
-
-    return {
-      resolvedMessages: currentMessages,
-      needsFinalCall: false,
-      iterations: 0,
-      directAnswer: safeCapabilityDirectAnswer,
-      trace: {
-        ...traceSummary,
-        retry_attempts: retryCounter.count
-      }
-    }
-  }
-
-  const forcedIntent = detectForcedUtilityIntent(
-    userQueryForIntent,
-    queryUnderstanding,
-    isAbbasBiographyQuery
-  )
   if (options.traceId) {
-    logChatTrace({
-      trace_id: options.traceId,
-      stage: "intent_detected",
-      normalized_query: normalizeQueryForTrace(userQueryForIntent),
-      routed_source: forcedIntent?.args?.source,
-      details: {
-        forced_tool: forcedIntent?.tool || null
-      }
-    })
     logChatTrace({
       trace_id: options.traceId,
       stage: "query_understanding",
@@ -2048,395 +591,148 @@ export async function resolveToolCalls(
         content_intent: queryUnderstanding.content_intent,
         operation_intent: queryUnderstanding.operation_intent,
         route_confidence: queryUnderstanding.route_confidence,
-        extracted_entities: queryUnderstanding.extracted_entities
-      }
+        extracted_entities: queryUnderstanding.extracted_entities,
+      },
     })
   }
 
+  // ── Forced utility intent ───────────────────────────────────────────
+  const forcedIntent = detectForcedUtilityIntent(userQuery, queryUnderstanding, isAbbasBiographyQuery)
   if (forcedIntent) {
-    console.log(`[Tool Resolution] Forced intent: ${forcedIntent.tool}`, forcedIntent.args)
-    if (options.traceId) {
-      logChatTrace({
-        trace_id: options.traceId,
-        stage: "forced_intent_utility",
-        normalized_query: normalizeQueryForTrace(userQueryForIntent),
-        routed_source: forcedIntent.args?.source,
-        details: {
-          forced_tool: forcedIntent.tool
-        }
-      })
-    }
+    if (options.traceId) logChatTrace({ trace_id: options.traceId, stage: "forced_intent_utility", normalized_query: normalizeQueryForTrace(userQuery), routed_source: forcedIntent.args?.source, details: { forced_tool: forcedIntent.tool } })
     const forcedResult = await executeToolByName(forcedIntent.tool, forcedIntent.args)
-    const cleanedForced = cleanResultForGPT(forcedResult)
-    const syntheticToolCallId = `forced_${forcedIntent.tool}_${Date.now()}`
-    currentMessages.push({
-      role: "assistant",
-      content: null,
-      tool_calls: [{
-        id: syntheticToolCallId,
-        type: "function",
-        function: { name: forcedIntent.tool, arguments: JSON.stringify(forcedIntent.args) }
-      }]
-    })
-    // If forced-intent returned empty results, mark for knowledge override
+    const synthId = `forced_${forcedIntent.tool}_${Date.now()}`
+    currentMessages.push({ role: "assistant", content: null, tool_calls: [{ id: synthId, type: "function", function: { name: forcedIntent.tool, arguments: JSON.stringify(forcedIntent.args) } }] })
     const isEmpty = forcedResult.success && isEmptyAPIResponse(forcedResult.data)
-    const toolContent = isEmpty
-      ? JSON.stringify({ success: false, empty_results: true, message: "لا توجد نتائج من هذا المصدر حالياً" })
-      : JSON.stringify(cleanedForced)
-    currentMessages.push({
-      role: "tool",
-      tool_call_id: syntheticToolCallId,
-      content: toolContent
-    })
+    currentMessages.push({ role: "tool", tool_call_id: synthId, content: isEmpty ? JSON.stringify({ success: false, empty_results: true, message: "لا توجد نتائج من هذا المصدر حالياً" }) : JSON.stringify(cleanResultForGPT(forcedResult)) })
 
     if (forcedIntent.tool === "get_latest_by_source" || forcedIntent.tool === "browse_source_page") {
-      const deterministicList = buildDeterministicLatestListAnswer(
-        forcedResult,
-        String(forcedIntent.args?.source || "")
-      )
-      if (deterministicList) {
-        return {
-          resolvedMessages: currentMessages,
-          needsFinalCall: false,
-          iterations: 0,
-          directAnswer: deterministicList,
-          trace: {
-            ...traceSummary,
-            retry_attempts: retryCounter.count,
-            routed_source: forcedIntent.args?.source,
-            result_counts: getResultCountFromData(forcedResult.data),
-            top_score: getTopScoreFromData(forcedResult.data)
-          }
-        }
-      }
+      const det = buildDeterministicLatestListAnswer(forcedResult, String(forcedIntent.args?.source || ""))
+      if (det) return { resolvedMessages: currentMessages, needsFinalCall: false, iterations: 0, directAnswer: det, trace: { ...traceSummary, retry_attempts: retryCounter.count, routed_source: forcedIntent.args?.source, result_counts: getResultCountFromData(forcedResult.data), top_score: getTopScoreFromData(forcedResult.data) } }
     }
 
-    // Augment forced-intent results with deep-text knowledge + evidence guard
-    const forcedEvidence = await injectKnowledgeAndGuard(
-      currentMessages,
-      userQueryForIntent,
-      queryUnderstanding
-    )
+    const forcedEvidence = await injectKnowledgeAndGuard(currentMessages, userQuery, queryUnderstanding)
+    const forcedDirect = tryGenerateDirectAnswer(userQuery, forcedEvidence)
+    if (forcedDirect) return { resolvedMessages: currentMessages, needsFinalCall: false, iterations: 0, directAnswer: forcedDirect, trace: { ...traceSummary, retry_attempts: retryCounter.count, routed_source: forcedIntent.args?.source } }
 
-    // If a single high-confidence evidence item exists, return a direct grounded answer
-    const forcedDirect = tryGenerateDirectAnswer(userQueryForIntent, forcedEvidence)
-    if (forcedDirect) {
-      console.log(`[Grounded Answer] Returning direct answer from forced-intent evidence`)
-      return {
-        resolvedMessages: currentMessages,
-        needsFinalCall: false,
-        iterations: 0,
-        directAnswer: forcedDirect,
-        trace: {
-          ...traceSummary,
-          retry_attempts: retryCounter.count,
-          routed_source: forcedIntent.args?.source,
-          result_counts: getResultCountFromData(forcedResult.data),
-          top_score: getTopScoreFromData(forcedResult.data)
-        }
-      }
-    }
-
-    const forcedFallback = buildGroundedEvidenceFallback(userQueryForIntent, forcedEvidence)
-
-    return {
-      resolvedMessages: currentMessages,
-      needsFinalCall: true,
-      iterations: 0,
-      fallbackAnswer: forcedFallback || groundedFallbackAnswer,
-      trace: {
-        ...traceSummary,
-        retry_attempts: retryCounter.count,
-        routed_source: forcedIntent.args?.source,
-        result_counts: getResultCountFromData(forcedResult.data),
-        top_score: getTopScoreFromData(forcedResult.data)
-      }
-    }
+    return { resolvedMessages: currentMessages, needsFinalCall: true, iterations: 0, fallbackAnswer: buildGroundedEvidenceFallback(userQuery, forcedEvidence) || groundedFallbackAnswer, trace: { ...traceSummary, retry_attempts: retryCounter.count } }
   }
 
-  // Runtime takeover: for general retrieval-style questions,
-  // orchestrator is the primary retrieval policy owner before LLM tool selection.
-  if (looksLikeSiteContentQuery(userQueryForIntent)) {
-    const primaryRetrievalTool = getPrimaryRetrievalToolForQuery(userQueryForIntent, queryUnderstanding)
-    const orchestrated = await orchestrateRetrieval(
-      primaryRetrievalTool,
-      { query: userQueryForIntent, source: "auto" },
-      {
-        traceId: options.traceId,
-        queryUnderstanding
-      }
-    )
+  // ── Orchestrator bootstrap — runs for every real query (not small-talk) ───
+  if (!isSmallTalkQuery(userQuery)) {
+    const primaryTool = getPrimaryRetrievalToolForQuery(userQuery, queryUnderstanding)
+    const orchestrated = await orchestrateRetrieval(primaryTool, { query: userQuery, source: "auto" }, { traceId: options.traceId, queryUnderstanding })
 
     if (orchestrated) {
-      if (options.traceId) {
-        logChatTrace({
-          trace_id: options.traceId,
-          stage: "orchestrator_runtime_takeover",
-          normalized_query: normalizeQueryForTrace(userQueryForIntent),
-          routed_source: orchestrated.routedSource,
-          retry_attempts: Math.max(0, orchestrated.attempts.length - 1),
-          result_counts: orchestrated.resultCount,
-          top_score: orchestrated.topScore,
-          unavailable_reason: orchestrated.exhausted ? orchestrated.unavailableReason : undefined
-        })
-      }
-
+      if (options.traceId) logChatTrace({ trace_id: options.traceId, stage: "orchestrator_runtime_takeover", normalized_query: normalizeQueryForTrace(userQuery), routed_source: orchestrated.routedSource, retry_attempts: Math.max(0, orchestrated.attempts.length - 1), result_counts: orchestrated.resultCount, top_score: orchestrated.topScore, unavailable_reason: orchestrated.exhausted ? orchestrated.unavailableReason : undefined })
       retryCounter.count += Math.max(0, orchestrated.attempts.length - 1)
       traceSummary.routed_source = orchestrated.routedSource || traceSummary.routed_source
       traceSummary.result_counts = orchestrated.resultCount
       traceSummary.top_score = orchestrated.topScore
-      if (orchestrated.exhausted) {
-        traceSummary.unavailable_reason = orchestrated.unavailableReason
-      }
+      if (orchestrated.exhausted) traceSummary.unavailable_reason = orchestrated.unavailableReason
 
-      const cleaned = cleanResultForGPT(orchestrated.finalResult)
-      const syntheticToolCallId = `bootstrap_${primaryRetrievalTool}_${Date.now()}`
-      const routedSourceForSynthetic = orchestrated.routedSource || "auto"
-
-      currentMessages.push({
-        role: "assistant",
-        content: null,
-        tool_calls: [{
-          id: syntheticToolCallId,
-          type: "function",
-          function: {
-            name: primaryRetrievalTool,
-            arguments: JSON.stringify({ query: userQueryForIntent, source: routedSourceForSynthetic })
-          }
-        }]
-      })
-      currentMessages.push({
-        role: "tool",
-        tool_call_id: syntheticToolCallId,
-        content: JSON.stringify(cleaned)
-      })
-
-      const bootstrapEvidence = await injectKnowledgeAndGuard(currentMessages, userQueryForIntent, queryUnderstanding)
-      const bootstrapDirect = tryGenerateDirectAnswer(userQueryForIntent, bootstrapEvidence)
-      if (bootstrapDirect) {
-        console.log(`[Grounded Answer] Returning direct answer from orchestrator bootstrap evidence`)
+      // Search exhausted all sources with no results → refuse the query
+      if (orchestrated.exhausted && orchestrated.unavailableReason === "attempts_exhausted") {
+        if (options.traceId) {
+          logChatTrace({
+            trace_id: options.traceId,
+            stage: "out_of_scope_rejected",
+            normalized_query: normalizeQueryForTrace(userQuery),
+            details: { reason: "no_results_after_search" },
+          })
+        }
         return {
           resolvedMessages: currentMessages,
           needsFinalCall: false,
-          iterations,
-          directAnswer: bootstrapDirect,
-          trace: {
-            ...traceSummary,
-            retry_attempts: retryCounter.count
-          }
+          iterations: 0,
+          directAnswer: getFallbackResponse("no_results"),
+          trace: { ...traceSummary, retry_attempts: retryCounter.count, unavailable_reason: "no_results" },
         }
       }
-      groundedFallbackAnswer =
-        buildGroundedEvidenceFallback(userQueryForIntent, bootstrapEvidence) ||
-        groundedFallbackAnswer
+
+      const synthId = `bootstrap_${primaryTool}_${Date.now()}`
+      currentMessages.push({ role: "assistant", content: null, tool_calls: [{ id: synthId, type: "function", function: { name: primaryTool, arguments: JSON.stringify({ query: userQuery, source: orchestrated.routedSource || "auto" }) } }] })
+      currentMessages.push({ role: "tool", tool_call_id: synthId, content: JSON.stringify(cleanResultForGPT(orchestrated.finalResult)) })
+
+      const bootEvidence = await injectKnowledgeAndGuard(currentMessages, userQuery, queryUnderstanding)
+      const bootDirect = tryGenerateDirectAnswer(userQuery, bootEvidence)
+      if (bootDirect) return { resolvedMessages: currentMessages, needsFinalCall: false, iterations, directAnswer: bootDirect, trace: { ...traceSummary, retry_attempts: retryCounter.count } }
+      groundedFallbackAnswer = buildGroundedEvidenceFallback(userQuery, bootEvidence) || groundedFallbackAnswer
       toolsWereCalled = true
       orchestratorBootstrapped = true
     }
   }
 
+  // ── LLM tool-call loop ──────────────────────────────────────────────
   while (iterations < maxIterations) {
     iterations++
-    console.log(`[Tool Resolution] Iteration ${iterations}`)
+    const loopTools = orchestratorBootstrapped ? getPostBootstrapUtilityTools(tools) : tools
+    const response = await openai.chat.completions.create({ model, messages: currentMessages, ...(loopTools.length > 0 ? { tools: loopTools, tool_choice: "auto" } : {}), temperature: 0.2, max_tokens: 1200 })
+    const assistantMsg = response.choices[0].message
+    currentMessages.push(assistantMsg)
 
-    const toolsForIteration = orchestratorBootstrapped
-      ? getPostBootstrapUtilityTools(tools)
-      : tools
-
-    const response = toolsForIteration.length > 0
-      ? await openai.chat.completions.create({
-          model,
-          messages: currentMessages,
-          tools: toolsForIteration,
-          tool_choice: "auto",
-          temperature: 0.2,
-          max_tokens: 1200
-        })
-      : await openai.chat.completions.create({
-          model,
-          messages: currentMessages,
-          temperature: 0.2,
-          max_tokens: 1200
-        })
-
-    const assistantMessage = response.choices[0].message
-    currentMessages.push(assistantMessage)
-
-    // إذا لم يستدعِ أدوات
-    if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
+    if (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0) {
       if (toolsWereCalled) {
-        // ✅ أدوات استُدعيت سابقاً → حذف الرد غير المتدفق
-        // route.ts سيعمل streaming حقيقي من OpenAI
         currentMessages.pop()
-        console.log(`[Tool Resolution] Tools done, popped answer for streaming`)
-
-        // Augment with knowledge search + evidence guard
-        const loopEvidence = await injectKnowledgeAndGuard(
-          currentMessages,
-          userQueryForIntent,
-          queryUnderstanding
-        )
-
-        // If a single high-confidence evidence item exists, return a direct grounded answer
-        const loopDirect = tryGenerateDirectAnswer(userQueryForIntent, loopEvidence)
-        if (loopDirect) {
-          console.log(`[Grounded Answer] Returning direct answer from loop-iteration evidence`)
-          return {
-            resolvedMessages: currentMessages,
-            needsFinalCall: false,
-            iterations,
-            directAnswer: loopDirect,
-            trace: {
-              ...traceSummary,
-              retry_attempts: retryCounter.count
-            }
-          }
-        }
-
-        const loopFallback =
-          buildGroundedEvidenceFallback(userQueryForIntent, loopEvidence) ||
-          groundedFallbackAnswer
-
-        return {
-          resolvedMessages: currentMessages,
-          needsFinalCall: true,
-          iterations,
-          fallbackAnswer: loopFallback,
-          trace: {
-            ...traceSummary,
-            retry_attempts: retryCounter.count
-          }
-        }
+        const loopEvidence = await injectKnowledgeAndGuard(currentMessages, userQuery, queryUnderstanding)
+        const loopDirect = tryGenerateDirectAnswer(userQuery, loopEvidence)
+        if (loopDirect) return { resolvedMessages: currentMessages, needsFinalCall: false, iterations, directAnswer: loopDirect, trace: { ...traceSummary, retry_attempts: retryCounter.count } }
+        return { resolvedMessages: currentMessages, needsFinalCall: true, iterations, fallbackAnswer: buildGroundedEvidenceFallback(userQuery, loopEvidence) || groundedFallbackAnswer, trace: { ...traceSummary, retry_attempts: retryCounter.count } }
       }
-
-      // سؤال بسيط بدون أدوات → نرجعه كـ directAnswer
-      return {
-        resolvedMessages: currentMessages,
-        needsFinalCall: false,
-        iterations,
-        directAnswer: assistantMessage.content || "",
-        trace: {
-          ...traceSummary,
-          retry_attempts: retryCounter.count
-        }
+      // LLM answered without calling any search tool → block if query is out of scope
+      if (isOutOfScopeQuery(userQuery, queryUnderstanding)) {
+        return { resolvedMessages: currentMessages, needsFinalCall: false, iterations, directAnswer: getFallbackResponse("out_of_scope"), trace: { ...traceSummary, retry_attempts: retryCounter.count, unavailable_reason: "out_of_scope" } }
       }
+      return { resolvedMessages: currentMessages, needsFinalCall: false, iterations, directAnswer: assistantMsg.content || "", trace: { ...traceSummary, retry_attempts: retryCounter.count } }
     }
 
-    // معالجة tool calls
     toolsWereCalled = true
-    console.log(`[Tool Resolution] Processing ${assistantMessage.tool_calls.length} tool call(s)`)
-    const toolResponses = await handleToolCalls(assistantMessage.tool_calls, {
-      traceId: options.traceId,
-      retryCounter,
-      traceSummary,
-      userQuery: userQueryForIntent,
-      queryUnderstanding
-    })
+    const toolResponses = await handleToolCalls(assistantMsg.tool_calls, { traceId: options.traceId, retryCounter, traceSummary, userQuery, queryUnderstanding })
     currentMessages.push(...toolResponses)
   }
 
-  // Max iterations reached — tools were processed, need streaming call
-  // Final knowledge augmentation + evidence guard
-  const finalEvidence = await injectKnowledgeAndGuard(
-    currentMessages,
-    userQueryForIntent,
-    queryUnderstanding
-  )
-
-  // If a single high-confidence evidence item exists, return a direct grounded answer
-  const finalDirect = tryGenerateDirectAnswer(userQueryForIntent, finalEvidence)
-  if (finalDirect) {
-    console.log(`[Grounded Answer] Returning direct answer from max-iteration evidence`)
-    return {
-      resolvedMessages: currentMessages,
-      needsFinalCall: false,
-      iterations,
-      directAnswer: finalDirect,
-      trace: {
-        ...traceSummary,
-        retry_attempts: retryCounter.count
-      }
-    }
-  }
-
-  const finalFallback =
-    buildGroundedEvidenceFallback(userQueryForIntent, finalEvidence) ||
-    groundedFallbackAnswer
-
-  return {
-    resolvedMessages: currentMessages,
-    needsFinalCall: true,
-    iterations,
-    fallbackAnswer: finalFallback,
-    trace: {
-      ...traceSummary,
-      retry_attempts: retryCounter.count,
-      unavailable_reason: "no_high_confidence_evidence"
-    }
-  }
+  // Max iterations reached
+  const finalEvidence = await injectKnowledgeAndGuard(currentMessages, userQuery, queryUnderstanding)
+  const finalDirect = tryGenerateDirectAnswer(userQuery, finalEvidence)
+  if (finalDirect) return { resolvedMessages: currentMessages, needsFinalCall: false, iterations, directAnswer: finalDirect, trace: { ...traceSummary, retry_attempts: retryCounter.count } }
+  return { resolvedMessages: currentMessages, needsFinalCall: true, iterations, fallbackAnswer: buildGroundedEvidenceFallback(userQuery, finalEvidence) || groundedFallbackAnswer, trace: { ...traceSummary, retry_attempts: retryCounter.count } }
 }
 
-/**
- * [Legacy] تدفق كامل بدون streaming — يُستخدم كـ fallback
- */
 export async function executeFunctionCallingFlow(
   openai: OpenAI,
   model: string,
   messages: ChatCompletionMessageParam[],
   tools: OpenAI.Chat.Completions.ChatCompletionTool[],
   maxIterations: number = 3
-): Promise<{
-  finalMessage: string
-  allMessages: ChatCompletionMessageParam[]
-  iterations: number
-}> {
+): Promise<{ finalMessage: string; allMessages: ChatCompletionMessageParam[]; iterations: number }> {
+  const rawUserQuery = getLastUserMessage(messages)
+  const userQuery = getResolvedUserQuery(messages, understandQuery(rawUserQuery))
+  const queryUnderstanding = understandQuery(userQuery)
+
   let currentMessages = [...messages]
   let iterations = 0
   let finalResponse = ""
+  let toolsWereCalled = false
 
   while (iterations < maxIterations) {
     iterations++
-
-    const response = await openai.chat.completions.create({
-      model,
-      messages: currentMessages,
-      tools,
-      tool_choice: "auto",
-      temperature: 0.5,
-      max_tokens: 1200
-    })
-
-    const assistantMessage = response.choices[0].message
-    currentMessages.push(assistantMessage)
-
-    if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
-      finalResponse = assistantMessage.content || ""
+    const response = await openai.chat.completions.create({ model, messages: currentMessages, tools, tool_choice: "auto", temperature: 0.5, max_tokens: 1200 })
+    const assistantMsg = response.choices[0].message
+    currentMessages.push(assistantMsg)
+    if (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0) {
+      if (!toolsWereCalled && isOutOfScopeQuery(userQuery, queryUnderstanding)) {
+        return { finalMessage: getFallbackResponse("out_of_scope"), allMessages: currentMessages, iterations }
+      }
+      finalResponse = assistantMsg.content || ""
       break
     }
-
-    const toolResponses = await handleToolCalls(assistantMessage.tool_calls)
-    currentMessages.push(...toolResponses)
+    toolsWereCalled = true
+    currentMessages.push(...await handleToolCalls(assistantMsg.tool_calls))
   }
 
-  if (!finalResponse && iterations >= maxIterations) {
-    finalResponse = getFallbackResponse("api_error")
-  }
-
-  return {
-    finalMessage: finalResponse,
-    allMessages: currentMessages,
-    iterations
-  }
+  return { finalMessage: finalResponse || getFallbackResponse("api_error"), allMessages: currentMessages, iterations }
 }
 
-/**
- * تبسيط: معالجة سريعة لـ Function Call واحد فقط
- * (للحالات البسيطة)
- * 
- * @param openai - عميل OpenAI
- * @param model - نموذج OpenAI
- * @param messages - رسائل المحادثة
- * @param tools - الأدوات المتاحة
- */
 export async function executeSimpleFunctionCall(
   openai: OpenAI,
   model: string,
@@ -2444,37 +740,19 @@ export async function executeSimpleFunctionCall(
   tools: OpenAI.Chat.Completions.ChatCompletionTool[]
 ): Promise<string> {
   try {
-    // استدعاء أول
-    const firstResponse = await openai.chat.completions.create({
-      model,
-      messages,
-      tools,
-      tool_choice: "auto",
-      temperature: 0.7
-    })
+    const rawUserQuery = getLastUserMessage(messages)
+    const userQuery = getResolvedUserQuery(messages, understandQuery(rawUserQuery))
+    const queryUnderstanding = understandQuery(userQuery)
 
-    const firstMessage = firstResponse.choices[0].message
-
-    // إذا لم يكن هناك tool call، نرجع الرد مباشرة
-    if (!firstMessage.tool_calls || firstMessage.tool_calls.length === 0) {
-      return firstMessage.content || ""
+    const first = await openai.chat.completions.create({ model, messages, tools, tool_choice: "auto", temperature: 0.7 })
+    const firstMsg = first.choices[0].message
+    if (!firstMsg.tool_calls || firstMsg.tool_calls.length === 0) {
+      if (isOutOfScopeQuery(userQuery, queryUnderstanding)) return getFallbackResponse("out_of_scope")
+      return firstMsg.content || ""
     }
-
-    // تنفيذ tool call
-    const toolResponses = await handleToolCalls(firstMessage.tool_calls)
-
-    // استدعاء ثاني مع نتائج الأدوات
-    const secondResponse = await openai.chat.completions.create({
-      model,
-      messages: [
-        ...messages,
-        firstMessage,
-        ...toolResponses
-      ],
-      temperature: 0.7
-    })
-
-    return secondResponse.choices[0].message.content || ""
+    const toolResponses = await handleToolCalls(firstMsg.tool_calls)
+    const second = await openai.chat.completions.create({ model, messages: [...messages, firstMsg, ...toolResponses], temperature: 0.7 })
+    return second.choices[0].message.content || ""
   } catch (error: any) {
     console.error("[Simple Function Call] Error:", error)
     return getFallbackResponse("api_error")
