@@ -42,6 +42,68 @@ export type { APICallResult } from "./site-api-transport"
 const OFFICIAL_NEWS_SEARCH_TIMEOUT_MS = Number(process.env.OFFICIAL_NEWS_SEARCH_TIMEOUT_MS || 12000)
 const OFFICIAL_NEWS_SEARCH_CACHE_MS = Number(process.env.OFFICIAL_NEWS_SEARCH_CACHE_MS || 10 * 60 * 1000)
 const officialNewsSearchCache = new Map<string, { items: any[]; cachedAt: number }>()
+const FILTER_STOP_WORDS = new Set([
+  "في",
+  "من",
+  "عن",
+  "على",
+  "الى",
+  "الي",
+  "للعتبه",
+  "للعتبة",
+  "العتبه",
+  "العتبة",
+  "العباسيه",
+  "العباسية",
+  "المقدسه",
+  "المقدسة",
+  "اليوم",
+  "حاليا",
+  "حالياً",
+  "الان",
+  "الآن",
+  "احدث",
+  "اخر",
+  "آخر",
+  "الاخيره",
+  "الاخيرة",
+  "الجديده",
+  "الجديدة",
+  "منشورات",
+  "المنشورات",
+  "اخبار",
+  "الاخبار",
+  "خبر",
+  "الخبر",
+  "فيديو",
+  "الفيديو",
+  "فيديوهات",
+  "الفيديوهات",
+  "مقاطع",
+  "المقاطع",
+  "اعرض",
+  "هات",
+  "اعطني",
+  "اعطني",
+  "اريد",
+  "لي"
+].map(token => normalizeArabic(token)))
+
+type LatestSourceFetchParams = SourceFetchParams & {
+  query?: string
+}
+
+interface SourceCategoryOption {
+  id: string
+  name: string
+  source: string
+}
+
+interface LatestListingResolution {
+  source: SiteSourceName | "auto"
+  params: SourceFetchParams
+  matchedCategory?: SourceCategoryOption | null
+}
 
 function decodeHtmlEntities(text: string): string {
   return String(text || "")
@@ -118,7 +180,10 @@ function buildOfficialNewsSearchQueries(query: string): string[] {
     queries.add(specificTokens.slice(0, 2).join(" "))
   }
 
-  const asksProjectLookup = /(?:^|\s)(?:مشروع|مشاريع)(?:\s|$)/u.test(normalizeArabic(original))
+  const asksProjectLookup =
+    specificTokens.length > 0 &&
+    /(?:^|\s)(?:هل|يوجد|هناك|هنالك|ما|من)(?:\s|$)/u.test(normOriginal) &&
+    !/(?:^|\s)(?:كم|عدد|اجمالي|إجمالي|مجموع)(?:\s|$)/u.test(normOriginal)
   if (asksProjectLookup) {
     for (const token of specificTokens.slice(0, 2)) {
       queries.add(`مشروع ${token}`)
@@ -254,6 +319,171 @@ export function shouldAllowOfficialNewsSearchFallback(
     capability.singular_project_lookup ||
     looksLikeTitleQuery(query)
   )
+}
+
+function extractSectionFilterCandidates(query: string): string[] {
+  const norm = normalizeArabic(String(query || ""))
+  if (!norm) return []
+
+  const markers = [
+    "من قسم",
+    "في قسم",
+    "بقسم",
+    "قسم",
+    "القسم",
+    "من تصنيف",
+    "في تصنيف",
+    "تصنيف",
+    "التصنيف",
+    "من فئة",
+    "في فئة",
+    "فئة",
+    "الفئة"
+  ].map(marker => normalizeArabic(marker))
+
+  const phrases: string[] = []
+
+  for (const marker of markers) {
+    const idx = norm.indexOf(marker)
+    if (idx === -1) continue
+
+    const tail = norm
+      .slice(idx + marker.length)
+      .trim()
+      .replace(/^(?:الخاص|الخاصة|الخاصه|التابع|التابعه|التابعة|المسمى|المسمي)\s+/u, "")
+
+    if (!tail) continue
+
+    const collected: string[] = []
+    for (const token of tail.split(/\s+/).filter(Boolean)) {
+      if (FILTER_STOP_WORDS.has(token)) {
+        if (collected.length > 0) break
+        continue
+      }
+      collected.push(token)
+      if (collected.length >= 5) break
+    }
+
+    if (collected.length === 0) continue
+    phrases.push(collected.join(" "))
+    for (let len = Math.min(collected.length, 4); len >= 1; len--) {
+      phrases.push(collected.slice(0, len).join(" "))
+    }
+  }
+
+  return [...new Set(phrases.filter(Boolean))]
+}
+
+function scoreCategoryMatch(
+  category: SourceCategoryOption,
+  queryCandidates: string[]
+): number {
+  const normName = normalizeArabic(category.name)
+  if (!normName || queryCandidates.length === 0) return 0
+
+  const nameTokens = tokenizeArabicQuery(category.name)
+  let bestScore = 0
+
+  for (const candidate of queryCandidates) {
+    const normCandidate = normalizeArabic(candidate)
+    if (!normCandidate) continue
+
+    if (normName === normCandidate) {
+      bestScore = Math.max(bestScore, 100)
+      continue
+    }
+
+    if (normName.includes(normCandidate)) {
+      bestScore = Math.max(bestScore, 80 + Math.min(normCandidate.length, 10))
+    }
+
+    if (normCandidate.includes(normName)) {
+      bestScore = Math.max(bestScore, 70 + Math.min(normName.length, 10))
+    }
+
+    const candidateTokens = tokenizeArabicQuery(candidate)
+    const overlap = candidateTokens.filter(token =>
+      nameTokens.some(nameToken => nameToken.includes(token) || token.includes(nameToken))
+    ).length
+
+    if (overlap > 0) {
+      const tokenScore = overlap * 20 + (candidateTokens.length === nameTokens.length ? 10 : 0)
+      bestScore = Math.max(bestScore, tokenScore)
+    }
+  }
+
+  return bestScore
+}
+
+function findBestCategoryMatch(
+  query: string,
+  categories: SourceCategoryOption[]
+): SourceCategoryOption | null {
+  const candidates = extractSectionFilterCandidates(query)
+  if (candidates.length === 0 || categories.length === 0) return null
+
+  let bestMatch: SourceCategoryOption | null = null
+  let bestScore = 0
+
+  for (const category of categories) {
+    const score = scoreCategoryMatch(category, candidates)
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = category
+    }
+  }
+
+  return bestScore >= 40 ? bestMatch : null
+}
+
+export async function resolveLatestListingRequest(
+  source: SiteSourceName | "auto" = "auto",
+  params: LatestSourceFetchParams = {},
+  listCategories: (source: SiteSourceName | "auto") => Promise<APICallResult> = siteListSourceCategories
+): Promise<LatestListingResolution> {
+  const resolvedParams: SourceFetchParams = {
+    category_id: params.category_id,
+    section_id: params.section_id,
+    id: params.id
+  }
+
+  if (!params.query) {
+    return { source, params: resolvedParams, matchedCategory: null }
+  }
+
+  if (source === "videos_latest" && !resolvedParams.category_id) {
+    const categoriesResult = await listCategories("videos_categories")
+    const categories = Array.isArray(categoriesResult.data?.categories)
+      ? categoriesResult.data.categories as SourceCategoryOption[]
+      : []
+    const match = findBestCategoryMatch(params.query, categories)
+
+    if (match) {
+      return {
+        source: "videos_by_category",
+        params: { ...resolvedParams, category_id: match.id },
+        matchedCategory: match
+      }
+    }
+  }
+
+  if (source === "articles_latest" && !resolvedParams.section_id) {
+    const categoriesResult = await listCategories("articles_latest")
+    const categories = Array.isArray(categoriesResult.data?.categories)
+      ? categoriesResult.data.categories as SourceCategoryOption[]
+      : []
+    const match = findBestCategoryMatch(params.query, categories)
+
+    if (match) {
+      return {
+        source,
+        params: { ...resolvedParams, section_id: match.id },
+        matchedCategory: match
+      }
+    }
+  }
+
+  return { source, params: resolvedParams, matchedCategory: null }
 }
 
 /**
@@ -878,17 +1108,30 @@ export async function siteListSourceCategories(
 export async function siteGetLatestBySource(
   source: SiteSourceName | "auto" = "auto",
   limit: number = 5,
-  params: SourceFetchParams = {}
+  params: LatestSourceFetchParams = {}
 ): Promise<APICallResult> {
   const safeLimit = Math.min(Math.max(limit || 5, 1), 20)
-  const candidates = source === "auto"
-    ? (["articles_latest", "videos_latest"] as SiteSourceName[]).filter(s => canFetchSource(s, params))
-    : [source]
+  const resolved = await resolveLatestListingRequest(source, params)
+  const candidates = resolved.source === "auto"
+    ? (["articles_latest", "videos_latest"] as SiteSourceName[]).filter(s => canFetchSource(s, resolved.params))
+    : [resolved.source]
 
-  const results = await Promise.all(candidates.map(s => getSourceDocuments(s, params)))
-  const merged = results
+  const results = await Promise.all(candidates.map(s => getSourceDocuments(s, resolved.params)))
+  let merged = results
     .filter(r => r.success && Array.isArray(r.data))
     .flatMap(r => r.data as any[])
+
+  if (resolved.source === "articles_latest" && resolved.params.section_id) {
+    const normSection = normalizeArabic(resolved.params.section_id)
+    merged = merged.filter(item =>
+      Array.isArray(item?.sections) &&
+      item.sections.some((section: any) => {
+        const sectionId = String(section?.id || "").trim()
+        const sectionName = String(section?.name || "").trim()
+        return sectionId === resolved.params.section_id || normalizeArabic(sectionName) === normSection
+      })
+    )
+  }
 
   merged.sort((a, b) => {
     const dateA = new Date(a?.created_at || 0).getTime()
@@ -903,8 +1146,9 @@ export async function siteGetLatestBySource(
       projects: items,
       total: items.length,
       limit: safeLimit,
-      source_used: source,
-      candidate_sources: candidates
+      source_used: resolved.source,
+      candidate_sources: candidates,
+      matched_category: resolved.matchedCategory?.name
     }
   }
 }
@@ -1086,14 +1330,16 @@ export async function executeToolByName(
         return await siteGetLatestBySource(args.source || "auto", args.limit, {
           category_id: args.category_id,
           section_id: args.section_id,
-          id: args.id
+          id: args.id,
+          query: args.query
         })
 
       case "get_latest_by_source":
         return await siteGetLatestBySource(args.source || "auto", args.limit, {
           category_id: args.category_id,
           section_id: args.section_id,
-          id: args.id
+          id: args.id,
+          query: args.query
         })
 
       case "get_statistics":

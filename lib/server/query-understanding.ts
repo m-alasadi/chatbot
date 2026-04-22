@@ -50,82 +50,95 @@ function uniq(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))]
 }
 
-function containsNormalizedPhrase(norm: string, phrase: string): boolean {
-  return norm.includes(normalizeQueryForTrace(phrase))
+function getGenericContentTokens(text: string): string[] {
+  const norm = normalizeQueryForTrace(text)
+  if (!norm) return []
+
+  // Remove common Arabic question scaffolding while preserving content-bearing tokens.
+  const scaffoldStripped = norm
+    .replace(/\b(?:ما|ماذا|من|هو|هي|هل|هناك|هنالك|عن|في|على|الى|إلى|او|أو|ثم|هذا|هذه|ذلك|تلك|مع|اذا|إذا|لكن|ولاكن|لي|لك|باسم|اسم|بعنوان)\b/gu, " ")
+    .replace(/\b(?:اعطني|اعرض|ابحث|اشرح|حدثني|اخبرني|عرفني|كيف|كم|عدد)\b/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  return scaffoldStripped
+    .split(/\s+/)
+    .filter(token => token.length >= 2)
 }
 
-function containsStandaloneNormalizedToken(norm: string, token: string): boolean {
-  const normalizedToken = normalizeQueryForTrace(token)
-  return norm.split(/\s+/).includes(normalizedToken)
+function isStructuralSingularLookup(understanding: QueryUnderstandingResult, norm: string): boolean {
+  const asksCount =
+    understanding.operation_intent === "count" ||
+    norm.includes(normalizeQueryForTrace("كم")) ||
+    norm.includes(normalizeQueryForTrace("عدد")) ||
+    norm.includes(normalizeQueryForTrace("اجمالي")) ||
+    norm.includes(normalizeQueryForTrace("إجمالي")) ||
+    norm.includes(normalizeQueryForTrace("مجموع"))
+
+  const isLookupShape =
+    understanding.operation_intent === "fact_question" ||
+    understanding.operation_intent === "direct_answer"
+
+  const contentTokens = getGenericContentTokens(norm)
+  const hasEntitySignal =
+    understanding.extracted_entities.person.length > 0 ||
+    understanding.extracted_entities.topic.length > 0 ||
+    understanding.extracted_entities.place.length > 0 ||
+    contentTokens.length > 0
+
+  const looksPluralAggregate = /(?:^|\s)(?:مشاريع|المشاريع|برامج|فعاليات)(?:\s|$)/u.test(norm)
+  const hasExistentialCue =
+    norm.includes(normalizeQueryForTrace("هل")) ||
+    norm.includes(normalizeQueryForTrace("هل يوجد")) ||
+    norm.includes(normalizeQueryForTrace("هل هناك")) ||
+    norm.includes(normalizeQueryForTrace("هل هنالك"))
+
+  return isLookupShape && hasEntitySignal && hasExistentialCue && !asksCount && !looksPluralAggregate
 }
 
 function isHistoricalShrineLifecycleQuery(norm: string): boolean {
-  const shrineSignals = [
-    "العتبه", "العتبة", "العباسيه", "العباسية", "الحرم", "المرقد", "الضريح",
-    "قبر العباس", "ابي الفضل", "أبي الفضل", "ابو الفضل", "أبو الفضل"
-  ]
-  const historicalFrameSignals = ["مراحل", "تاريخ", "تأريخ", "هدم", "عدوان", "اعتداء", "بناء"]
-  const structuralSignals = ["بناء", "هدم", "اعمار", "إعمار", "ترميم", "تشييد", "عدوان", "اعتداء"]
-  const explicitProjectSignals = ["مشاريع", "مشروع", "توسعه", "توسعة"]
+  const hasShrineContext = /(?:العتب[هة]|الحرم|المرقد|الضريح|الصحن)/u.test(norm)
+  const hasHistoricalFrame = /(?:تاريخ|تاري?خ|مراحل|قرن|حقبه|حقبة|قديم)/u.test(norm)
+  const hasStructuralSignal = /(?:بناء|هدم|اعمار|إعمار|ترميم|تشييد|عدوان|اعتداء)/u.test(norm)
+  const explicitProjectLookup = /(?:^|\s)(?:مشروع|مشاريع)(?:\s|$)/u.test(norm)
 
-  const hasShrineContext = shrineSignals.some(signal => norm.includes(normalizeQueryForTrace(signal)))
-  const hasHistoricalFrame = historicalFrameSignals.some(signal => norm.includes(normalizeQueryForTrace(signal)))
-  const hasStructuralSignal = structuralSignals.some(signal => norm.includes(normalizeQueryForTrace(signal)))
-  const explicitProjectLookup = explicitProjectSignals.some(signal => norm.includes(normalizeQueryForTrace(signal)))
-
-  return hasShrineContext && hasHistoricalFrame && hasStructuralSignal && !explicitProjectLookup
+  return hasShrineContext && (hasHistoricalFrame || hasStructuralSignal) && hasStructuralSignal && !explicitProjectLookup
 }
 
 function detectContentIntent(norm: string): QueryContentIntent {
-  const videoHints = ["فيديو", "فديو", "محاضره", "محاضرات", "مرئي", "مقطع", "يوتيوب"]
-  const newsHints = ["خبر", "اخبار", "مقال", "مقالات", "بيان"]
-  const biographyHints = [
-    "من هو", "من هي", "سيره", "سيرة", "لقب", "القاب", "كنيه", "كنية", "استشهاد", "مولد", "ابو الفضل", "العباس بن علي",
-    "زوج", "زوجة", "زوجات", "ابناء", "اولاد", "عمر", "تاريخ وفاه", "تاريخ وفاة", "تاريخ استشهاد", "متي استشهد"
-  ]
-  const officeHolderHints = ["المتولي", "المتولي الشرعي", "الامين العام", "أمين عام", "رئيس القسم", "مسؤول"]
-  const namedProgramHints = ["نداء العقيدة", "أسبوع الإمامة", "اسبوع الامامة", "مبادرة", "برنامج", "حملة", "مهرجان", "ملتقى"]
-  const historyHints = ["تاريخ", "العتبه", "العتبة", "مرقد", "ضريح", "صحن", "رواق"]
-  const wahyHints = ["وحي الجمعه", "وحي الجمعة", "من وحي"]
-  const sermonHints = ["خطبه", "خطبة", "خطب", "جمعه", "جمعة", "خطيب", "منبر"]
-
-  if (wahyHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "wahy"
-  if (videoHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "video"
-  if (sermonHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "sermon"
-  // Office-holder facts are usually published as news/media updates, not shrine-history pages.
-  if (officeHolderHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "news"
-  if (namedProgramHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "news"
-  if (newsHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "news"
-  if (biographyHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "biography"
-  if (historyHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "history"
+  if (/(?:وحي)/u.test(norm)) return "wahy"
+  if (/(?:فيديو|فديو|محاضر|مرئي|مقطع|يوتيوب)/u.test(norm)) return "video"
+  if (/(?:خطب|خطب[هة]?|جمع[هة]|خطيب|منبر)/u.test(norm)) return "sermon"
+  if (/(?:من هو|من هي|سير[هة]|مولد|استشهاد|وفاة|وفاه|لقب|القاب|كنية|كنيه|زوج|ابناء|أبناء|اولاد)/u.test(norm)) return "biography"
+  if (/(?:تاريخ|تاري?خ|مراحل|قرن|حقبه|حقبة|مرقد|ضريح|صحن|رواق|هدم|اعمار|إعمار|ترميم|تشييد|بناء)/u.test(norm)) return "history"
+  if (/(?:خبر|اخبار|مقال|بيان|اعلان|أعلن|نشر|المتولي|الامين العام|أمين عام|مهرجان|فعالي[هة]|برنامج|مبادرة|حملة)/u.test(norm)) return "news"
 
   return "generic"
 }
 
 function detectOperationIntent(norm: string): QueryOperationIntent {
-  const countHints = ["كم", "عدد", "اجمالي", "إجمالي", "مجموع", "احصاء", "إحصاء"]
-  const latestHints = ["احدث", "أحدث", "اخر", "آخر", "الجديد"]
-  const listHints = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
-  const summarizeHints = ["لخص", "تلخيص", "خلاصه", "خلاصة", "ملخص", "اختصر"]
-  const explainHints = ["اشرح", "شرح", "فسر", "تفسير", "وضح", "توضيح", "كيف", "صف", "وصف", "تكلم", "حدثني", "عرفني"]
-  const classifyHints = ["فعاليه ام", "فعالية ام", "برنامج ام", "خبر ام", "صنف", "تصنيف", "هل هو"]
-  const directShapeHints = ["الجواب المباشر", "جواب مباشر", "فقط", "في سطرين", "ما اسمه", "اين يقع", "دون عناوين", "دون روابط"]
-  const browseHints = ["تصفح", "صفحه", "صفحة", "الصفحه", "الصفحة", "اقدم", "اول", "oldest", "first"]
-  const followUpSummaryHints = ["اول نتيجة", "أول نتيجة", "النتيجة التي ذكرتها", "الخبر الذي ذكرته", "التي ذكرتها", "الذي ذكرته"]
+  const hasCount = /(?:^|\s)(?:كم|عدد|اجمالي|إجمالي|مجموع|احصاء|إحصاء)(?:\s|$)/u.test(norm)
+  const hasLatest = /(?:احدث|أحدث|اخر|آخر|الجديد)/u.test(norm)
+  const hasList = /(?:اعرض|عرض|هات|قائمة|لائحه|لائحة|list)/u.test(norm)
+  const hasSummarize = /(?:لخص|تلخيص|خلاصه|خلاصة|ملخص|اختصر)/u.test(norm)
+  const hasExplain = /(?:اشرح|شرح|فسر|تفسير|وضح|توضيح|كيف|صف|وصف|تكلم|حدثني|عرفني)/u.test(norm)
+  const hasClassify = /(?:فعاليه\s+ام|فعالية\s+ام|برنامج\s+ام|خبر\s+ام|صنف|تصنيف)/u.test(norm)
+  const hasDirect = /(?:الجواب\s+المباشر|جواب\s+مباشر|في\s+سطرين|دون\s+عناوين|دون\s+روابط)/u.test(norm)
+  const hasBrowse = /(?:تصفح|صفح[هة]|الصفح[هة]|اقدم|اول|oldest|first)/u.test(norm)
+  const hasFollowUpSummary = /(?:اول\s+نتيجة|أول\s+نتيجة|النتيجة\s+التي\s+ذكرتها|الخبر\s+الذي\s+ذكرته|التي\s+ذكرتها|الذي\s+ذكرته)/u.test(norm)
 
-  if (countHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "count"
-  if (followUpSummaryHints.some(h => norm.includes(normalizeQueryForTrace(h))) &&
-      summarizeHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "summarize"
-  if (latestHints.some(h => norm.includes(normalizeQueryForTrace(h)))) {
-    if (listHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "latest"
+  if (hasCount) return "count"
+  if (hasFollowUpSummary && hasSummarize) return "summarize"
+  if (hasLatest) {
+    if (hasList) return "latest"
     return "list_items"
   }
-  if (listHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "list_items"
-  if (summarizeHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "summarize"
-  if (explainHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "explain"
-  if (classifyHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "classify"
-  if (directShapeHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "direct_answer"
-  if (browseHints.some(h => norm.includes(normalizeQueryForTrace(h)))) return "browse"
+  if (hasList) return "list_items"
+  if (hasSummarize) return "summarize"
+  if (hasExplain) return "explain"
+  if (hasClassify) return "classify"
+  if (hasDirect) return "direct_answer"
+  if (hasBrowse) return "browse"
 
   return "fact_question"
 }
@@ -136,133 +149,38 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
   const place: string[] = []
   const sourceSpecific: string[] = []
 
-  const institutionalAbbasContext =
-    containsNormalizedPhrase(norm, "العتبة العباسية") ||
-    containsNormalizedPhrase(norm, "العتبه العباسيه") ||
-    containsStandaloneNormalizedToken(norm, "العباسية") ||
-    containsStandaloneNormalizedToken(norm, "العباسيه")
+  const institutionalAbbasContext = /(?:العتبة\s+العباسية|العتبه\s+العباسيه|العباسية|العباسيه)/u.test(norm)
+  if (/(?:ابي|أبي|ابو|أبو)\s+الفضل/u.test(norm)) person.push("أبي الفضل")
+  if (/(?:^|\s)العباس(?:\s|$)/u.test(norm) && !institutionalAbbasContext) person.push("العباس")
 
-  const personPatterns = [
-    { value: "الشيخ زمان الحسناوي", standalone: false },
-    { value: "زمان الحسناوي", standalone: false },
-    { value: "ابي الفضل", standalone: false },
-    { value: "أبي الفضل", standalone: false },
-    { value: "ابو الفضل", standalone: false },
-    { value: "أبو الفضل", standalone: false },
-    { value: "العباس", standalone: true },
-  ]
-
-  for (const pattern of personPatterns) {
-    const matched = pattern.standalone
-      ? containsStandaloneNormalizedToken(norm, pattern.value)
-      : containsNormalizedPhrase(norm, pattern.value)
-    if (!matched) continue
-    if (pattern.value === "العباس" && institutionalAbbasContext) continue
-    person.push(pattern.value)
+  const sheikhNameMatch = rawQuery.match(/(?:^|\s)الشيخ\s+([\u0621-\u064A]{2,}(?:\s+[\u0621-\u064A]{2,}){1,2})/u)
+  if (sheikhNameMatch?.[1]) {
+    person.push(`الشيخ ${sheikhNameMatch[1].trim()}`)
   }
 
-  const topicPatterns = [
-    "توسعه", "توسعة", "إعمار", "اعمار", "ترميم", "صيانة", "تشييد", "بناء",
-    "مشاريع", "المشاريع", "مشروع", "محاضرات", "فيديوهات", "اخبار", "خطب", "وحي الجمعة",
-    "نداء العقيدة", "أسبوع الإمامة", "اسبوع الامامة", "المتولي الشرعي", "سدنة الحرم", "سدنة", "السدانة",
-    "زوجات", "ابناء", "القاب", "اخوات", "تعليمي", "زراعي", "انتاجي", "مساعدات",
-    "الزيارة بالنيابة", "خدمة الزيارة بالنيابة", "الخدمات الإلكترونية", "الخدمات الالكترونية", "الزيارات المليونية"
-  ]
-  for (const t of topicPatterns) {
-    const nt = normalizeQueryForTrace(t)
-    if (norm.includes(nt)) topic.push(t)
+  const contentTokens = getGenericContentTokens(rawQuery)
+  if (contentTokens.length >= 2) topic.push(contentTokens.slice(0, 3).join(" "))
+  if (contentTokens.length >= 3) topic.push(contentTokens.slice(0, 2).join(" "))
+
+  const placeMatches = norm.match(/(?:العتب[هة]|كربلاء|المرقد|الحرم|الصحن|الضريح)/gu) || []
+  place.push(...placeMatches)
+
+  const asksBiographyAttribute = /(?:زوج|زوجات|ابناء|أبناء|اولاد|القاب|كنية|كنيه|عمر)/u.test(norm)
+  if (person.length > 0 && asksBiographyAttribute) {
+    sourceSpecific.push("abbas_history_by_id")
+    sourceSpecific.push("shrine_history_sections")
   }
 
-  const placePatterns = ["العتبه", "العتبة", "كربلاء", "المرقد", "الحرم", "الصحن"]
-  for (const p of placePatterns) {
-    const np = normalizeQueryForTrace(p)
-    if (norm.includes(np)) place.push(p)
-  }
-
-  if (norm.includes(normalizeQueryForTrace("وحي"))) sourceSpecific.push("wahy_friday")
-  if (norm.includes(normalizeQueryForTrace("خطب")) || norm.includes(normalizeQueryForTrace("جمعه"))) sourceSpecific.push("friday_sermons")
-  if (norm.includes(normalizeQueryForTrace("فيديو")) || norm.includes(normalizeQueryForTrace("محاضرات"))) sourceSpecific.push("videos_latest")
-  if (norm.includes(normalizeQueryForTrace("اخبار")) || norm.includes(normalizeQueryForTrace("خبر"))) sourceSpecific.push("articles_latest")
-  if (
-    norm.includes(normalizeQueryForTrace("أسبوع الإمامة")) ||
-    norm.includes(normalizeQueryForTrace("اسبوع الامامة"))
-  ) {
-    sourceSpecific.push("articles_latest")
-    sourceSpecific.push("videos_latest")
-  }
-  if (
-    norm.includes(normalizeQueryForTrace("تاريخ")) ||
-    norm.includes(normalizeQueryForTrace("العتبة")) ||
-    norm.includes(normalizeQueryForTrace("سدنة")) ||
-    norm.includes(normalizeQueryForTrace("كلدار")) ||
-    norm.includes(normalizeQueryForTrace("الحرم"))
-  ) {
+  const asksHistoricalContext = /(?:تاريخ|تاري?خ|مراحل|قرن|حقبه|حقبة|هدم|بناء|ترميم|اعمار|إعمار|تشييد)/u.test(norm)
+  if (asksHistoricalContext && place.length > 0) {
     sourceSpecific.push("shrine_history_timeline")
     sourceSpecific.push("shrine_history_sections")
   }
-  if (norm.includes(normalizeQueryForTrace("المتولي")) || norm.includes(normalizeQueryForTrace("الشرعي"))) {
-    sourceSpecific.push("articles_latest")
-    sourceSpecific.push("friday_sermons")
-    sourceSpecific.push("wahy_friday")
-  }
-  if (norm.includes(normalizeQueryForTrace("نداء العقيدة")) || norm.includes(normalizeQueryForTrace("مهرجان")) || norm.includes(normalizeQueryForTrace("فعالية")) || norm.includes(normalizeQueryForTrace("برنامج"))) {
-    sourceSpecific.push("articles_latest")
-    sourceSpecific.push("videos_latest")
-    sourceSpecific.push("wahy_friday")
-    sourceSpecific.push("friday_sermons")
-  }
-  if (norm.includes(normalizeQueryForTrace("زوج")) || norm.includes(normalizeQueryForTrace("زوجات")) || norm.includes(normalizeQueryForTrace("ابناء")) || norm.includes(normalizeQueryForTrace("القاب"))) {
-    sourceSpecific.push("shrine_history_sections")
-    sourceSpecific.push("abbas_history_by_id")
-  }
 
-  if (
-    (
-      norm.includes(normalizeQueryForTrace("مشاريع")) ||
-      norm.includes(normalizeQueryForTrace("مشروع")) ||
-      norm.includes(normalizeQueryForTrace("توسعة")) ||
-      norm.includes(normalizeQueryForTrace("اعمار")) ||
-      norm.includes(normalizeQueryForTrace("إعمار")) ||
-      norm.includes(normalizeQueryForTrace("ترميم")) ||
-      norm.includes(normalizeQueryForTrace("صيانة")) ||
-      norm.includes(normalizeQueryForTrace("تعليمي")) ||
-      norm.includes(normalizeQueryForTrace("زراعي")) ||
-      norm.includes(normalizeQueryForTrace("انتاج")) ||
-      norm.includes(normalizeQueryForTrace("دجاج"))
-    ) &&
-    !isHistoricalShrineLifecycleQuery(norm)
-  ) {
+  const existentialLookup = /(?:^|\s)(?:هل|يوجد|هناك|هنالك)(?:\s|$)/u.test(norm)
+  const isCountQuestion = /(?:^|\s)(?:كم|عدد|اجمالي|إجمالي|مجموع)(?:\s|$)/u.test(norm)
+  if (existentialLookup && !isCountQuestion && contentTokens.length > 0 && !isHistoricalShrineLifecycleQuery(norm)) {
     sourceSpecific.push("projects_query")
-    sourceSpecific.push("articles_latest")
-    sourceSpecific.push("videos_latest")
-  }
-
-  if (
-    norm.includes(normalizeQueryForTrace("الزيارة بالنيابة")) ||
-    norm.includes(normalizeQueryForTrace("خدمة الزيارة بالنيابة")) ||
-    norm.includes(normalizeQueryForTrace("الخدمات الإلكترونية")) ||
-    norm.includes(normalizeQueryForTrace("الخدمات الالكترونية")) ||
-    norm.includes(normalizeQueryForTrace("الزيارات المليونية"))
-  ) {
-    sourceSpecific.push("articles_latest")
-    sourceSpecific.push("videos_latest")
-  }
-
-  if (rawQuery.match(/[\u0621-\u064A]{3,}\s+[\u0621-\u064A]{3,}/)) {
-    const genericTopicTokens = new Set([
-      "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني", "ابحث", "اعطني", "اعرض", "كيف", "صف", "وصف",
-      "لي", "عن", "حول", "باختصار", "خبر", "قديم", "يتحدث", "ما", "من", "هل"
-    ].map(token => normalizeQueryForTrace(token)))
-    const candidateTopicTokens = rawQuery
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .filter(token => !genericTopicTokens.has(normalizeQueryForTrace(token)))
-
-    if (candidateTopicTokens.length >= 2) {
-      // Heuristic for Arabic named entities / multi-word phrases after stripping prompt fillers.
-      topic.push(candidateTopicTokens.slice(0, 3).join(" "))
-    }
   }
 
   return {
@@ -355,34 +273,22 @@ export function deriveRetrievalCapabilitySignals(
     ? normalizeQueryForTrace(rawQuery)
     : understanding.normalized_query
 
-  const officeHolderSignals = ["المتولي", "الشرعي", "الامين العام", "أمين عام"]
-  const namedEventSignals = ["نداء العقيدة", "أسبوع الإمامة", "اسبوع الامامة", "مهرجان", "فعالية", "فعاليات", "برنامج", "مبادرة", "حملة"]
-  const personAttributeSignals = ["زوج", "زوجات", "ابناء", "أبناء", "اولاد", "أولاد", "القاب", "كنيه", "كنية", "عمر", "تاريخ"]
-  const singularProjectSignals = [
-    "مشروع", "دجاج", "انتاج", "إنتاج", "زراعي", "تعليمي", "تربوي",
-    "اعمار", "إعمار", "ترميم", "صيانة", "تشييد", "بناء"
-  ]
-
-  const officeHolderFact = officeHolderSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
-  const namedEventOrProgram = namedEventSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
+  const officeHolderFact = /(?:المتولي|الامين\s+العام|أمين\s+عام|مسؤول|رئيس\s+القسم)/u.test(norm)
+  const namedEventOrProgram = /(?:مهرجان|فعالي[هة]|برنامج|مبادرة|حملة|اسبوع|أسبوع)/u.test(norm)
   const personAttributeFact =
     understanding.extracted_entities.person.length > 0 &&
-    personAttributeSignals.some(s => norm.includes(normalizeQueryForTrace(s)))
+    /(?:زوج|زوجات|ابناء|أبناء|اولاد|أولاد|القاب|كنية|كنيه|عمر|تاريخ)/u.test(norm)
   const historicalShrineLifecycleQuery = isHistoricalShrineLifecycleQuery(norm)
+  const keywordDrivenSingularProjectLookup =
+    /(?:^|\s)(?:مشروع|انتاج|إنتاج|زراعي|تعليمي|ترميم|صيانة|تشييد|بناء)(?:\s|$)/u.test(norm) &&
+    !/(?:^|\s)مشاريع(?:\s|$)/u.test(norm)
+  const structuralSingularLookup = isStructuralSingularLookup(understanding, norm)
   const singularProjectLookup =
-    singularProjectSignals.some(s => norm.includes(normalizeQueryForTrace(s))) &&
-    !norm.includes(normalizeQueryForTrace("مشاريع")) &&
+    (keywordDrivenSingularProjectLookup || structuralSingularLookup) &&
     !historicalShrineLifecycleQuery
   const broadCapabilityOverview =
     understanding.operation_intent === "explain" ||
-    norm.includes(normalizeQueryForTrace("كيف")) ||
-    norm.includes(normalizeQueryForTrace("خطوة")) ||
-    norm.includes(normalizeQueryForTrace("صف")) ||
-    norm.includes(normalizeQueryForTrace("وصف")) ||
-    norm.includes(normalizeQueryForTrace("الخدمات")) ||
-    norm.includes(normalizeQueryForTrace("للزائر")) ||
-    norm.includes(normalizeQueryForTrace("الزيارة بالنيابة")) ||
-    norm.includes(normalizeQueryForTrace("الزيارات المليونية"))
+    /(?:كيف|خطوة|صف|وصف|الخدمات|للزائر|الزيارة\s+بالنيابة|الزيارات\s+المليونية)/u.test(norm)
 
   let entityFirstReason = "general"
   if (broadCapabilityOverview) entityFirstReason = "general"
