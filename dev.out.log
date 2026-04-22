@@ -1,0 +1,51 @@
+
+> alkafeel_chatbot@1.0.0 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 13.6s
+ ○ Compiling /api/chat/site ...
+ ✓ Compiled /api/chat/site in 2s (258 modules)
+[ChatTrace] {"trace_id":"trace_moa0mf5k_6ykpgb","stage":"request_received","normalized_query":"?????? ?????","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa0mf5k_6ykpgb","stage":"tool_resolution_started","normalized_query":"?????? ?????","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa0mf5k_6ykpgb","stage":"query_understanding","normalized_query":"?????? ?????","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.45,"extracted_entities":{"person":[],"topic":[],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa0mf5k_6ykpgb","stage":"orchestrator_plan_created","normalized_query":"?????? ?????","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.45,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa0mf5k_6ykpgb","stage":"orchestrator_attempt_started","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"first_pass","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: '?????? ?????', source: 'auto' }
+[SiteAPI SlowPath] source=videos_latest endpoint=/alkafeel_back_test/api/v1/videos/latest/16?page=1 duration_ms=5918 timeout_ms=14000 retries=0
+[SiteAPI SlowPath] source=articles_latest endpoint=/alkafeel_back_test/api/v1/articles/GetLast/16/all?page=1 duration_ms=5946 timeout_ms=12000 retries=0
+[SiteAPI SlowPath] source=lang_words_ar endpoint=/alkafeel_back_test/api/v1/lang/getWord/ar duration_ms=7029 timeout_ms=7000 retries=0
+[siteSearchContent] Official news search fallback for query="?????? ?????"
+[siteSearchContent] Official news search returned 0 candidate(s)
+[ChatTrace] {"trace_id":"trace_moa0mf5k_6ykpgb","stage":"orchestrator_attempt_finished","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":false,"empty":false,"rejected_low_confidence":false,"duration_ms":18026,"elapsed_ms":18026,"budget_remaining_ms":0}}
+[ChatTrace] {"trace_id":"trace_moa0mf5k_6ykpgb","stage":"orchestrator_slow_source_path","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"duration_ms":18026,"slow_threshold_ms":3000,"reason":"first_pass"}}
+[ChatTrace] {"trace_id":"trace_moa0mf5k_6ykpgb","stage":"orchestrator_budget_exhausted","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"unavailable_reason":"request_budget_exhausted","details":{"elapsed_ms":18026,"request_budget_ms":18000,"attempt_index":1}}
+[ChatTrace] {"trace_id":"trace_moa0mf5k_6ykpgb","stage":"orchestrator_runtime_takeover","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"request_budget_exhausted"}
+[ChatTrace] {"trace_id":"trace_moa0mf5k_6ykpgb","stage":"tool_runtime_degraded","normalized_query":"?????? ?????","answer_mode":"tool_failure_message","unavailable_reason":"Connection error.","details":{"failure_kind":"unknown"}}
+ POST /api/chat/site 200 in 26593ms
+[SiteAPI SlowPath] source=articles_latest endpoint=/alkafeel_back_test/api/v1/articles/GetLast/16/all?page=1 duration_ms=10689 timeout_ms=12000 retries=0
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"request_received","normalized_query":"?????? ?????","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"tool_resolution_started","normalized_query":"?????? ?????","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"query_understanding","normalized_query":"?????? ?????","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.45,"extracted_entities":{"person":[],"topic":[],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"orchestrator_plan_created","normalized_query":"?????? ?????","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.45,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"orchestrator_attempt_started","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"first_pass","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: '?????? ?????', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="?????? ?????"
+[siteSearchContent] Official news search returned 0 candidate(s)
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"orchestrator_attempt_finished","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":5490,"elapsed_ms":5490,"budget_remaining_ms":12510}}
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"orchestrator_slow_source_path","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"duration_ms":5490,"slow_threshold_ms":3000,"reason":"first_pass"}}
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"orchestrator_runtime_takeover","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"out_of_scope_rejected","normalized_query":"?????? ?????","details":{"reason":"no_results_after_search"}}
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"tools_resolved","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"no_results","details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"tool_resolution_finished","normalized_query":"?????? ?????","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"no_results","details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"direct_answer_returned","normalized_query":"?????? ?????","answer_mode":"direct_grounded","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null}
+[ChatTrace] {"trace_id":"trace_moa0nn6w_w1wr6s","stage":"response_ready","normalized_query":"?????? ?????","answer_mode":"direct_grounded","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null}
+ POST /api/chat/site 200 in 5533ms

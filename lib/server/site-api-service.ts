@@ -118,7 +118,10 @@ function buildOfficialNewsSearchQueries(query: string): string[] {
     queries.add(specificTokens.slice(0, 2).join(" "))
   }
 
-  const asksProjectLookup = /(?:^|\s)(?:مشروع|مشاريع)(?:\s|$)/u.test(normalizeArabic(original))
+  const asksProjectLookup =
+    specificTokens.length > 0 &&
+    /(?:^|\s)(?:هل|يوجد|هناك|هنالك|ما|من)(?:\s|$)/u.test(normOriginal) &&
+    !/(?:^|\s)(?:كم|عدد|اجمالي|إجمالي|مجموع)(?:\s|$)/u.test(normOriginal)
   if (asksProjectLookup) {
     for (const token of specificTokens.slice(0, 2)) {
       queries.add(`مشروع ${token}`)
