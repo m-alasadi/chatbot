@@ -232,9 +232,9 @@ function buildSourceConstraint(
     case "biography":
       return {
         intent,
-        hardConstraint: true,
-        preferredSources: ["shrine_history_sections", "auto"],
-        allowedSources: ["shrine_history_sections", "shrine_history_by_section", "abbas_history_by_id", "auto"]
+        hardConstraint: false,
+        preferredSources: ["shrine_history_sections", "shrine_history_by_section", "abbas_history_by_id", "articles_latest", "auto"],
+        allowedSources: ["shrine_history_sections", "shrine_history_by_section", "abbas_history_by_id", "articles_latest", "auto"]
       }
     case "wahy":
       return {

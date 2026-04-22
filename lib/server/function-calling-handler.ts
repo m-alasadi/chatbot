@@ -631,8 +631,10 @@ export async function resolveToolCalls(
       traceSummary.top_score = orchestrated.topScore
       if (orchestrated.exhausted) traceSummary.unavailable_reason = orchestrated.unavailableReason
 
-      // Search exhausted all sources with no results → refuse the query
-      if (orchestrated.exhausted && orchestrated.unavailableReason === "attempts_exhausted") {
+      // Search exhausted all sources with no results → refuse the query,
+      // BUT for knowledge-layer-eligible queries (e.g. Abbas biography), still
+      // push the empty result and let knowledge injection attempt to resolve the gap.
+      if (orchestrated.exhausted && orchestrated.unavailableReason === "attempts_exhausted" && !isAbbasBiographyQuery(userQuery)) {
         if (options.traceId) {
           logChatTrace({
             trace_id: options.traceId,
