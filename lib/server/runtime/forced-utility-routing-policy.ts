@@ -134,6 +134,19 @@ export function detectForcedUtilityIntent(
     return { tool: "get_latest_by_source", args: { source: "videos_latest", limit: 5, query: userText } }
   }
 
+  // 4.3 News listing filtered by a section/category (e.g. "اعرض اخبار من قسم تقارير خبرية")
+  // Mirrors the video rule above — any news request that names a section should go through
+  // get_latest_by_source so resolveLatestListingRequest can resolve and post-filter by section.
+  if (
+    (isNews || understoodNews) &&
+    (hasListingKeyword || hasAnyKeyword(norm, pluralCollectionHints)) &&
+    hasAnyKeyword(norm, sectionFilterHints) &&
+    !(isVideo || understoodVideo)
+  ) {
+    const inferredLimit = hasAnyKeyword(norm, pluralCollectionHints) ? 5 : 1
+    return { tool: "get_latest_by_source", args: { source: "articles_latest", limit: inferredLimit, query: userText } }
+  }
+
   // 5. Explicit top-news requests (e.g. "ما أبرز أخبار العتبة اليوم")
   // must stay on news source and return list-shaped news output.
   if (isExplicitTopNewsRequest) {
