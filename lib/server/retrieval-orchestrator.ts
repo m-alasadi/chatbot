@@ -107,6 +107,15 @@ function detectEntityFirstPriority(
   understanding: QueryUnderstandingResult
 ): { enabled: boolean; reason: string } {
   const capability = deriveRetrievalCapabilitySignals(understanding, query)
+  if (capability.underspecified_query) {
+    return { enabled: false, reason: "clarity_low" }
+  }
+  if (capability.institutional_relation) {
+    return { enabled: false, reason: "institutional_relation" }
+  }
+  if (capability.title_or_phrase_lookup) {
+    return { enabled: false, reason: "title_or_phrase_lookup" }
+  }
   return {
     enabled: capability.entity_first_mode,
     reason: capability.entity_first_reason
@@ -162,6 +171,7 @@ function buildSourceConstraint(
   const explicitSource = typeof args.source === "string" ? args.source : "auto"
   const intent = mapUnderstandingIntent(understanding)
   const capability = deriveRetrievalCapabilitySignals(understanding, query)
+  const underspecified = understanding.clarity === "underspecified"
 
   if (explicitSource !== "auto") {
     return {
@@ -169,6 +179,23 @@ function buildSourceConstraint(
       hardConstraint: false,
       preferredSources: [explicitSource, "auto"],
       allowedSources: [explicitSource, "auto"]
+    }
+  }
+
+  if (underspecified || capability.institutional_relation) {
+    const titleLikePreferred = capability.title_or_phrase_lookup
+      ? ["articles_latest", "friday_sermons", "wahy_friday", "videos_latest"]
+      : []
+    const hinted = understanding.hinted_sources.filter(s => s !== "auto")
+    const preferredBase = hinted.length > 0
+      ? hinted.slice(0, 2)
+      : (titleLikePreferred.length > 0 ? titleLikePreferred : ["articles_latest", "videos_latest"])
+    const preferred = [...new Set(["auto", ...preferredBase, ...titleLikePreferred])]
+    return {
+      intent,
+      hardConstraint: false,
+      preferredSources: preferred,
+      allowedSources: preferred
     }
   }
 
@@ -293,11 +320,19 @@ function buildPlan(
   maxAttempts: number
 ): RetrievalPlan {
   const sourceConstraint = buildSourceConstraint(query, args, understanding)
+  const capability = deriveRetrievalCapabilitySignals(understanding, query)
   const entityPriority = detectEntityFirstPriority(query, understanding)
+  const needsBroadRecall =
+    understanding.clarity === "underspecified" ||
+    capability.institutional_relation ||
+    capability.title_or_phrase_lookup
   const orderedPreferredSources = entityPriority.enabled
     ? sourceConstraint.preferredSources.filter(s => s !== "auto").concat("auto")
     : sourceConstraint.preferredSources
-  const uniqueSources = [...new Set(orderedPreferredSources)].slice(0, maxAttempts)
+  const broadenedSources = needsBroadRecall
+    ? ["auto", ...orderedPreferredSources.filter(s => s !== "auto")]
+    : orderedPreferredSources
+  const uniqueSources = [...new Set(broadenedSources)].slice(0, maxAttempts)
   const attempts = uniqueSources.map((source, idx) => ({
     source,
     reason: idx === 0
@@ -386,7 +421,7 @@ export async function orchestrateRetrieval(
   }
 
   const query = String(args.query || args.searchTerm || args.keyword || "").trim()
-  const maxAttempts = Math.max(1, Math.min(options.maxAttempts || 3, 3))
+  const maxAttempts = Math.max(1, Math.min(options.maxAttempts || 4, 4))
   const requestBudgetMs = clampRequestBudgetMs(options.requestBudgetMs)
   const understanding = options.queryUnderstanding || understandQuery(query)
   const plan = buildPlan(toolName, query, args, understanding, maxAttempts)

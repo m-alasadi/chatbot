@@ -20,6 +20,8 @@ export type QueryOperationIntent =
   | "direct_answer"
   | "browse"
 
+export type QueryClarity = "clear" | "underspecified"
+
 export interface QueryExtractedEntities {
   person: string[]
   topic: string[]
@@ -32,6 +34,7 @@ export interface QueryUnderstandingResult {
   normalized_query: string
   content_intent: QueryContentIntent
   operation_intent: QueryOperationIntent
+  clarity: QueryClarity
   extracted_entities: QueryExtractedEntities
   hinted_sources: string[]
   route_confidence: number
@@ -42,6 +45,9 @@ export interface RetrievalCapabilitySignals {
   named_event_or_program: boolean
   person_attribute_fact: boolean
   singular_project_lookup: boolean
+  institutional_relation: boolean
+  title_or_phrase_lookup: boolean
+  underspecified_query: boolean
   entity_first_mode: boolean
   entity_first_reason: string
 }
@@ -64,6 +70,63 @@ function getGenericContentTokens(text: string): string[] {
   return scaffoldStripped
     .split(/\s+/)
     .filter(token => token.length >= 2)
+}
+
+function isInstitutionalRelationQuery(norm: string): boolean {
+  if (!norm) return false
+
+  const hasRelationCue = /(?:تابع|يتبع|تتبع|ينتمي|تنتمي|ضمن|من\s+مؤسسات|تابعه\s+ل|تابع\s+ل|يتبع\s+ل)/u.test(norm)
+  const hasInstitutionCue = /(?:العتب[هة]|العباسي[هة]|مؤسس[هة]|جامع[هة]|جامعه|جامعة|مؤسسة|مركز|كلية|كليه)/u.test(norm)
+  const hasExistentialCue = /(?:^|\s)(?:هل|يوجد|هناك|هنالك)(?:\s|$)/u.test(norm)
+  const hasInstitutionOwnerCue = /(?:العتب[هة](?:\s+العباسي[هة])?|العباسي[هة])/u.test(norm)
+  const hasOwnershipExistentialCue = /(?:^|\s)هل\s+(?:لدى|لل|توجد\s+ل|يوجد\s+ل)/u.test(norm)
+  const hasOrgObjectCue = /(?:جامع[هة]|جامعة|جامعه|كلية|كليه|مؤسسة|مركز|معهد|مدرسة|مشروع|مشاريع|برامج|نشاطات|خدمات)/u.test(norm)
+
+  return (
+    (hasRelationCue && hasInstitutionCue) ||
+    (hasExistentialCue && hasInstitutionCue && hasOrgObjectCue) ||
+    (hasOwnershipExistentialCue && hasInstitutionOwnerCue && hasOrgObjectCue)
+  )
+}
+
+function isTitleOrPhraseLookup(raw: string, norm: string, operationIntent: QueryOperationIntent): boolean {
+  if (!raw || !norm) return false
+  if (operationIntent !== "fact_question") return false
+  if (hasExplicitQuestionCue(norm)) return false
+
+  const rawTokens = raw.split(/\s+/).filter(Boolean)
+  if (rawTokens.length < 2 || rawTokens.length > 9) return false
+
+  const hasArabicWords = /[\u0621-\u064A]{2,}/u.test(raw)
+  const looksCommand = /(?:^|\s)(?:اعرض|اعطني|ابحث|اشرح|حدثني|اخبرني|عرفني)(?:\s|$)/u.test(norm)
+
+  return hasArabicWords && !looksCommand
+}
+
+function hasExplicitQuestionCue(norm: string): boolean {
+  return /(?:^|\s)(?:ما|ماذا|من|هل|كم|كيف|متى|أين|لماذا|اشر?ح|عرفني|حدثني|اعطني|اعرض|اخبرني)(?:\s|$)/u.test(norm)
+}
+
+function detectQueryClarity(
+  raw: string,
+  norm: string,
+  contentIntent: QueryContentIntent,
+  operationIntent: QueryOperationIntent
+): QueryClarity {
+  const rawTokens = raw.split(/\s+/).filter(Boolean)
+  const contentTokens = getGenericContentTokens(raw)
+  const isBareEntityQuery =
+    operationIntent === "fact_question" &&
+    contentIntent === "generic" &&
+    !hasExplicitQuestionCue(norm) &&
+    rawTokens.length <= 4
+
+  if (contentTokens.length === 0) return "underspecified"
+  if (rawTokens.length <= 2 && contentTokens.length <= 2) return "underspecified"
+  if (contentTokens.length <= 1 && operationIntent === "fact_question") return "underspecified"
+  if (isBareEntityQuery) return "underspecified"
+
+  return "clear"
 }
 
 function isStructuralSingularLookup(understanding: QueryUnderstandingResult, norm: string): boolean {
@@ -179,7 +242,14 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
 
   const existentialLookup = /(?:^|\s)(?:هل|يوجد|هناك|هنالك)(?:\s|$)/u.test(norm)
   const isCountQuestion = /(?:^|\s)(?:كم|عدد|اجمالي|إجمالي|مجموع)(?:\s|$)/u.test(norm)
-  if (existentialLookup && !isCountQuestion && contentTokens.length > 0 && !isHistoricalShrineLifecycleQuery(norm)) {
+  const institutionalRelation = isInstitutionalRelationQuery(norm)
+  if (
+    existentialLookup &&
+    !isCountQuestion &&
+    contentTokens.length > 0 &&
+    !isHistoricalShrineLifecycleQuery(norm) &&
+    !institutionalRelation
+  ) {
     sourceSpecific.push("projects_query")
   }
 
@@ -250,15 +320,20 @@ export function understandQuery(query: string): QueryUnderstandingResult {
 
   const contentIntent = detectContentIntent(norm)
   const operationIntent = detectOperationIntent(norm)
+  const clarity = detectQueryClarity(raw, norm, contentIntent, operationIntent)
   const entities = extractEntities(raw, norm)
   const hintedSources = deriveHintedSources(contentIntent, entities)
-  const routeConfidence = computeConfidence(contentIntent, operationIntent, entities)
+  const baseConfidence = computeConfidence(contentIntent, operationIntent, entities)
+  const routeConfidence = clarity === "underspecified"
+    ? Math.max(0.1, Number((baseConfidence - 0.12).toFixed(2)))
+    : baseConfidence
 
   return {
     raw_query: raw,
     normalized_query: norm,
     content_intent: contentIntent,
     operation_intent: operationIntent,
+    clarity,
     extracted_entities: entities,
     hinted_sources: hintedSources,
     route_confidence: routeConfidence
@@ -279,6 +354,9 @@ export function deriveRetrievalCapabilitySignals(
     understanding.extracted_entities.person.length > 0 &&
     /(?:زوج|زوجات|ابناء|أبناء|اولاد|أولاد|القاب|كنية|كنيه|عمر|تاريخ)/u.test(norm)
   const historicalShrineLifecycleQuery = isHistoricalShrineLifecycleQuery(norm)
+  const institutionalRelation = isInstitutionalRelationQuery(norm)
+  const titleOrPhraseLookup = isTitleOrPhraseLookup(understanding.raw_query, norm, understanding.operation_intent)
+  const underspecifiedQuery = understanding.clarity === "underspecified"
   const keywordDrivenSingularProjectLookup =
     /(?:^|\s)(?:مشروع|انتاج|إنتاج|زراعي|تعليمي|ترميم|صيانة|تشييد|بناء)(?:\s|$)/u.test(norm) &&
     !/(?:^|\s)مشاريع(?:\s|$)/u.test(norm)
@@ -295,7 +373,7 @@ export function deriveRetrievalCapabilitySignals(
   else if (officeHolderFact) entityFirstReason = "office_holder_fact"
   else if (namedEventOrProgram) entityFirstReason = "named_event_or_program"
   else if (personAttributeFact) entityFirstReason = "person_attribute_fact"
-  else if (singularProjectLookup || understanding.extracted_entities.source_specific.includes("projects_query")) {
+  else if (!institutionalRelation && (singularProjectLookup || understanding.extracted_entities.source_specific.includes("projects_query"))) {
     entityFirstReason = "singular_project_lookup"
   } else if (
     (understanding.operation_intent === "fact_question" || understanding.operation_intent === "direct_answer") &&
@@ -304,13 +382,16 @@ export function deriveRetrievalCapabilitySignals(
     entityFirstReason = "entity_fact_query"
   }
 
-  const entityFirstMode = entityFirstReason !== "general"
+  const entityFirstMode = entityFirstReason !== "general" && !institutionalRelation && !underspecifiedQuery
 
   return {
     office_holder_fact: officeHolderFact,
     named_event_or_program: namedEventOrProgram,
     person_attribute_fact: personAttributeFact,
     singular_project_lookup: singularProjectLookup,
+    institutional_relation: institutionalRelation,
+    title_or_phrase_lookup: titleOrPhraseLookup,
+    underspecified_query: underspecifiedQuery,
     entity_first_mode: entityFirstMode,
     entity_first_reason: entityFirstReason
   }

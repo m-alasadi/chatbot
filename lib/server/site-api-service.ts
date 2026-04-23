@@ -105,6 +105,53 @@ interface LatestListingResolution {
   matchedCategory?: SourceCategoryOption | null
 }
 
+function buildArabicTokenVariants(token: string): string[] {
+  const base = normalizeArabic(String(token || "")).trim()
+  if (!base) return []
+
+  const variants = new Set<string>([base])
+  const suffixes = ["يه", "ه", "ات", "ين", "ون"]
+  for (const suffix of suffixes) {
+    if (base.endsWith(suffix) && base.length > suffix.length + 2) {
+      variants.add(base.slice(0, -suffix.length))
+    }
+  }
+
+  return [...variants].filter(value => value.length >= 3)
+}
+
+function buildRelaxedProjectQueries(query: string): string[] {
+  const original = String(query || "").trim()
+  if (!original) return []
+
+  const stopTokens = new Set([
+    "ما", "هو", "هي", "هل", "هناك", "هنالك", "يوجد", "توجد", "لدى", "لل",
+    "عن", "في", "على", "الى", "إلى", "من", "او", "أو",
+    "العتبه", "العتبة", "العباسيه", "العباسية", "المقدسه", "المقدسة",
+    "تابع", "تابعة", "تابعه", "يتبع", "تتبع", "مؤسسة", "مؤسسات"
+  ].map(token => normalizeArabic(token)))
+
+  const tokens = tokenizeArabicQuery(original).filter(token => !stopTokens.has(token))
+  const namedPhrase = extractNamedPhrase(original)
+  const queries = new Set<string>()
+
+  if (namedPhrase) queries.add(namedPhrase)
+  if (tokens.length > 0) {
+    queries.add(tokens.join(" "))
+    queries.add(tokens.slice(0, 3).join(" "))
+    queries.add(tokens.slice(0, 2).join(" "))
+  }
+
+  for (const token of tokens) {
+    for (const variant of buildArabicTokenVariants(token)) {
+      queries.add(variant)
+      queries.add(`مشروع ${variant}`)
+    }
+  }
+
+  return [...queries].map(value => value.trim()).filter(Boolean).slice(0, 8)
+}
+
 function decodeHtmlEntities(text: string): string {
   return String(text || "")
     .replace(/&nbsp;/g, " ")
@@ -154,17 +201,23 @@ async function fetchTextWithTimeout(
   }
 }
 
-function buildOfficialNewsSearchQueries(query: string): string[] {
+function buildOfficialNewsSearchQueries(query: string, preserveEntityTokens: boolean = false): string[] {
   const original = String(query || "").trim()
   const namedPhrase = extractNamedPhrase(original)
   const normOriginal = normalizeArabic(original)
-  const stopTokens = new Set([
+  const baseStopTokens = [
     "ما", "هو", "هي", "هل", "من", "عن", "في", "على", "الى", "إلى", "او", "أو",
     "للعتبه", "للعتبة", "العتبه", "العتبة", "العباسيه", "العباسية",
-    "مشروع", "مشاريع", "المشروع", "المشاريع",
     "ابحث", "بحث", "خبر", "اخبار", "قديم", "قديمة", "يتحدث", "حول", "تكلم", "اشرح",
     "لي", "باختصار", "مختصر", "حدثني", "اخبرني", "عرفني", "اعطني", "اعرض", "عليه", "السلام"
-  ].map(token => normalizeArabic(token)))
+  ]
+  const stopTokens = new Set(baseStopTokens.map(token => normalizeArabic(token)))
+  if (preserveEntityTokens) {
+    const identityTokens = ["للعتبه", "للعتبة", "العتبه", "العتبة", "العباسيه", "العباسية"]
+    for (const token of identityTokens) {
+      stopTokens.delete(normalizeArabic(token))
+    }
+  }
   const specificTokens = tokenizeArabicQuery(original).filter(token => !stopTokens.has(token))
   const queries = new Set<string>()
   const constructionTokens = specificTokens.filter(token =>
@@ -220,19 +273,25 @@ function buildOfficialNewsSearchQueries(query: string): string[] {
     queries.add("خدمة الزيارة بالنيابة")
   }
 
-  if (specificTokens.length > 0 && specificTokens.length <= 3) {
-    for (const token of specificTokens) {
-      queries.add(token)
+  if (specificTokens.length > 0) {
+    for (const token of specificTokens.slice(0, 5)) {
+      for (const variant of buildArabicTokenVariants(token)) {
+        queries.add(variant)
+      }
     }
   }
 
   return [...queries]
     .map(value => value.trim())
     .filter(Boolean)
-    .slice(0, 6)
+    .slice(0, 12)
 }
 
-async function fetchOfficialNewsSearchResults(query: string, limit: number): Promise<any[]> {
+async function fetchOfficialNewsSearchResults(
+  query: string,
+  limit: number,
+  options: { preserveEntityTokens?: boolean } = {}
+): Promise<any[]> {
   const cacheKey = `${query}::${limit}`
   const cached = officialNewsSearchCache.get(cacheKey)
   const now = Date.now()
@@ -245,7 +304,7 @@ async function fetchOfficialNewsSearchResults(query: string, limit: number): Pro
   const blockPattern = /<div id="(\d+)"[\s\S]*?<a[^>]+href="index\?id=(\d+)&lang=ar"[\s\S]*?<div class="ar_title-0[\s\S]*?">([\s\S]*?)<\/div>[\s\S]*?<div class="ar_date-[\s\S]*?">([\s\S]*?)<\/div>/g
   const maxCandidates = Math.max(limit * 8, 40)
   const seenIds = new Set<string>()
-  const searchQueries = buildOfficialNewsSearchQueries(query)
+  const searchQueries = buildOfficialNewsSearchQueries(query, Boolean(options.preserveEntityTokens))
 
   for (const searchQuery of searchQueries) {
     const searchUrl = `${baseUrl}/news/search?search_term=${encodeURIComponent(searchQuery)}&lang=ar`
@@ -316,6 +375,8 @@ export function shouldAllowOfficialNewsSearchFallback(
     scoredCount === 0 ||
     topScore < 8 ||
     capability.named_event_or_program ||
+    capability.institutional_relation ||
+    capability.title_or_phrase_lookup ||
     capability.singular_project_lookup ||
     looksLikeTitleQuery(query)
   )
@@ -838,14 +899,26 @@ export async function siteSearchContent(
 ): Promise<APICallResult> {
   const understanding = understandQuery(query)
   const capability = deriveRetrievalCapabilitySignals(understanding, query)
-  const entityFirstMode = capability.entity_first_mode
+  const entityFirstMode = capability.entity_first_mode &&
+    understanding.clarity !== "underspecified" &&
+    !capability.institutional_relation
 
   const safeLimit = Math.min(Math.max(limit || 5, 1), 20)
   const rawCandidates = source === "auto"
     ? rankCandidateSources(query, params, capability)
     : [source]
+  const widenedCandidates: SiteSourceName[] = source === "auto" && (capability.institutional_relation || capability.title_or_phrase_lookup)
+    ? [...new Set<SiteSourceName>([
+        ...rawCandidates,
+        "articles_latest",
+        "friday_sermons",
+        "wahy_friday",
+        "videos_latest",
+        "shrine_history_sections"
+      ])]
+    : rawCandidates
 
-  const candidates = rawCandidates.filter(s => {
+  const candidates = widenedCandidates.filter(s => {
     if (!canFetchSource(s, params)) return false
     if (CATEGORY_INDEX_SOURCES.includes(s) && !isCategoryIntent(query)) return false
     return true
@@ -859,6 +932,32 @@ export async function siteSearchContent(
   for (const entry of fetched) {
     if (entry.result.success && Array.isArray(entry.result.data)) {
       merged.push(...entry.result.data)
+    }
+  }
+
+  const projectDomainSignals = /(?:^|\s)(?:مشروع|مشاريع|مصنع|مصانع|صناعي|صناعية|زراعي|زراعية|دواجن|لحوم)(?:\s|$)/u.test(normalizeArabic(query))
+  const shouldAugmentFromProjectsDataset =
+    source === "auto" && (capability.institutional_relation || projectDomainSignals)
+
+  if (shouldAugmentFromProjectsDataset) {
+    const projectQueries = [query, ...buildRelaxedProjectQueries(query)]
+    const seenProjectIds = new Set<string>()
+
+    for (const projectQuery of projectQueries) {
+      const projectsAugment = await siteSearch(projectQuery, undefined, Math.min(Math.max(safeLimit * 3, 8), 20))
+      if (!projectsAugment.success || !Array.isArray(projectsAugment.data?.results)) continue
+
+      for (const projectItem of projectsAugment.data.results) {
+        const projectId = String(projectItem?.id || "")
+        if (!projectId || seenProjectIds.has(projectId)) continue
+        seenProjectIds.add(projectId)
+        merged.push({
+          ...projectItem,
+          source_type: projectItem?.source_type || "projects_dataset"
+        })
+      }
+
+      if (seenProjectIds.size >= safeLimit * 2) break
     }
   }
 
@@ -878,7 +977,9 @@ export async function siteSearchContent(
   }
 
   if (merged.length === 0 && source === "auto") {
-    const SAFE_FALLBACK: SiteSourceName[] = ["articles_latest", "videos_latest", "lang_words_ar"]
+    const SAFE_FALLBACK: SiteSourceName[] = capability.title_or_phrase_lookup
+      ? ["articles_latest", "friday_sermons", "wahy_friday", "videos_latest", "shrine_history_sections", "lang_words_ar"]
+      : ["articles_latest", "videos_latest", "lang_words_ar"]
     const fallback = await Promise.all(
       SAFE_FALLBACK.map(async s => ({ source: s, result: await getSourceDocuments(s, params) }))
     )
@@ -900,6 +1001,32 @@ export async function siteSearchContent(
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score)
 
+  if (capability.institutional_relation && scored.length === 0) {
+    const relaxedScoreQueries = [
+      ...buildRelaxedProjectQueries(query),
+      ...tokenizeArabicQuery(query).slice(0, 4)
+    ]
+    const seenRelaxed = new Set<string>()
+    const uniqueRelaxed = relaxedScoreQueries.filter(q => {
+      const key = normalizeArabic(String(q || ""))
+      if (!key || seenRelaxed.has(key)) return false
+      seenRelaxed.add(key)
+      return true
+    }).slice(0, 8)
+
+    if (uniqueRelaxed.length > 0) {
+      scored = Array.from(deduped.values())
+        .map(item => {
+          const best = uniqueRelaxed.reduce((maxScore, relaxedQuery) => {
+            return Math.max(maxScore, scoreUnifiedItem(item, relaxedQuery))
+          }, 0)
+          return { item, score: best }
+        })
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+    }
+  }
+
   const topScore = scored[0]?.score || 0
   const shouldUseOfficialNewsSearch = shouldAllowOfficialNewsSearchFallback(
     source,
@@ -911,7 +1038,9 @@ export async function siteSearchContent(
 
   if (shouldUseOfficialNewsSearch) {
     console.log(`[siteSearchContent] Official news search fallback for query="${query}"`)
-    const officialNewsResults = await fetchOfficialNewsSearchResults(query, safeLimit)
+    const officialNewsResults = await fetchOfficialNewsSearchResults(query, safeLimit, {
+      preserveEntityTokens: capability.institutional_relation
+    })
     console.log(`[siteSearchContent] Official news search returned ${officialNewsResults.length} candidate(s)`)
     for (const item of officialNewsResults) {
       const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
@@ -925,6 +1054,32 @@ export async function siteSearchContent(
         .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
         .filter(x => x.score > 0)
         .sort((a, b) => b.score - a.score)
+
+      if (capability.institutional_relation && scored.length === 0) {
+        const relaxedScoreQueries = [
+          ...buildRelaxedProjectQueries(query),
+          ...tokenizeArabicQuery(query).slice(0, 4)
+        ]
+        const seenRelaxed = new Set<string>()
+        const uniqueRelaxed = relaxedScoreQueries.filter(q => {
+          const key = normalizeArabic(String(q || ""))
+          if (!key || seenRelaxed.has(key)) return false
+          seenRelaxed.add(key)
+          return true
+        }).slice(0, 8)
+
+        if (uniqueRelaxed.length > 0) {
+          scored = Array.from(deduped.values())
+            .map(item => {
+              const best = uniqueRelaxed.reduce((maxScore, relaxedQuery) => {
+                return Math.max(maxScore, scoreUnifiedItem(item, relaxedQuery))
+              }, 0)
+              return { item, score: best }
+            })
+            .filter(x => x.score > 0)
+            .sort((a, b) => b.score - a.score)
+        }
+      }
     }
   }
 
@@ -932,6 +1087,8 @@ export async function siteSearchContent(
     source === "auto" &&
     tokenizeArabicQuery(query).length > 0 &&
     (
+      capability.institutional_relation ||
+      capability.title_or_phrase_lookup ||
       !entityFirstMode ||
       scored.length === 0 ||
       (scored[0]?.score || 0) < 8
@@ -957,7 +1114,7 @@ export async function siteSearchContent(
     console.log("[siteSearchContent] Entity-first mode active, skipping broad expansion")
   }
 
-  const isTitleQ = looksLikeTitleQuery(query)
+  const isTitleQ = looksLikeTitleQuery(query) || capability.title_or_phrase_lookup
   const hasStrongTitleHit = scored.some(s => scoreTitleMatch(s.item, query) >= 50)
   const shouldRunDeepTitleScan =
     isTitleQ &&

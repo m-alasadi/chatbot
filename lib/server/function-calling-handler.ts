@@ -21,7 +21,7 @@ import {
 } from "./smart-suggestions"
 import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace"
 import { orchestrateRetrieval } from "./retrieval-orchestrator"
-import { understandQuery, type QueryUnderstandingResult } from "./query-understanding"
+import { deriveRetrievalCapabilitySignals, understandQuery, type QueryUnderstandingResult } from "./query-understanding"
 import { getLastUserMessage, getResolvedUserQuery } from "./runtime/dialog-context-policy"
 import { isOutOfScopeQuery, isSmallTalkQuery } from "./runtime/query-scope-policy"
 import { buildAnswerShapeInstruction } from "./runtime/answer-shape-policy"
@@ -574,6 +574,7 @@ export async function resolveToolCalls(
   const rawUnderstanding = options.queryUnderstanding || understandQuery(rawUserQuery)
   const userQuery = getResolvedUserQuery(messages, rawUnderstanding)
   const queryUnderstanding = options.queryUnderstanding || understandQuery(userQuery)
+  const capability = deriveRetrievalCapabilitySignals(queryUnderstanding, userQuery)
 
   // Inject answer-shape and compound-coverage instructions
   const shapeHint = buildAnswerShapeInstruction(userQuery)
@@ -634,7 +635,17 @@ export async function resolveToolCalls(
       // Search exhausted all sources with no results → refuse the query,
       // BUT for knowledge-layer-eligible queries (e.g. Abbas biography), still
       // push the empty result and let knowledge injection attempt to resolve the gap.
-      if (orchestrated.exhausted && orchestrated.unavailableReason === "attempts_exhausted" && !isAbbasBiographyQuery(userQuery)) {
+      const allowBroadRecallFallback =
+        queryUnderstanding.clarity === "underspecified" ||
+        capability.institutional_relation ||
+        capability.title_or_phrase_lookup
+
+      if (
+        orchestrated.exhausted &&
+        orchestrated.unavailableReason === "attempts_exhausted" &&
+        !isAbbasBiographyQuery(userQuery) &&
+        !allowBroadRecallFallback
+      ) {
         if (options.traceId) {
           logChatTrace({
             trace_id: options.traceId,
@@ -649,6 +660,60 @@ export async function resolveToolCalls(
           iterations: 0,
           directAnswer: getFallbackResponse("no_results"),
           trace: { ...traceSummary, retry_attempts: retryCounter.count, unavailable_reason: "no_results" },
+        }
+      }
+
+      if (
+        orchestrated.exhausted &&
+        orchestrated.unavailableReason === "attempts_exhausted" &&
+        primaryTool === "search_content" &&
+        (capability.institutional_relation || capability.singular_project_lookup)
+      ) {
+        const secondaryOrchestrated = await orchestrateRetrieval(
+          "search_projects",
+          { query: userQuery, source: "auto" },
+          { traceId: options.traceId, queryUnderstanding }
+        )
+
+        if (secondaryOrchestrated) {
+          retryCounter.count += Math.max(0, secondaryOrchestrated.attempts.length - 1)
+          traceSummary.routed_source = secondaryOrchestrated.routedSource || traceSummary.routed_source
+          traceSummary.result_counts = secondaryOrchestrated.resultCount
+          traceSummary.top_score = secondaryOrchestrated.topScore
+          if (secondaryOrchestrated.exhausted) {
+            traceSummary.unavailable_reason = secondaryOrchestrated.unavailableReason
+          }
+
+          const secondarySynthId = `bootstrap_search_projects_${Date.now()}`
+          currentMessages.push({
+            role: "assistant",
+            content: null,
+            tool_calls: [{
+              id: secondarySynthId,
+              type: "function",
+              function: { name: "search_projects", arguments: JSON.stringify({ query: userQuery, source: secondaryOrchestrated.routedSource || "auto" }) }
+            }]
+          })
+          currentMessages.push({
+            role: "tool",
+            tool_call_id: secondarySynthId,
+            content: JSON.stringify(cleanResultForGPT(secondaryOrchestrated.finalResult))
+          })
+
+          const secondaryEvidence = await injectKnowledgeAndGuard(currentMessages, userQuery, queryUnderstanding)
+          const secondaryDirect = tryGenerateDirectAnswer(userQuery, secondaryEvidence)
+          if (secondaryDirect) {
+            return {
+              resolvedMessages: currentMessages,
+              needsFinalCall: false,
+              iterations,
+              directAnswer: secondaryDirect,
+              trace: { ...traceSummary, retry_attempts: retryCounter.count }
+            }
+          }
+
+          groundedFallbackAnswer = buildGroundedEvidenceFallback(userQuery, secondaryEvidence) || groundedFallbackAnswer
+          toolsWereCalled = true
         }
       }
 

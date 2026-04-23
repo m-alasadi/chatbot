@@ -9,6 +9,8 @@ async function runTests() {
   testArabicEntityHandling()
   testRouteConfidenceBehavior()
   testSharedCapabilitySignalsGuideRanking()
+  testInstitutionalExistenceCapabilitySignal()
+  testTitleOrPhraseLookupCapabilitySignal()
   console.log("PR10 query understanding tests passed")
 }
 
@@ -40,7 +42,7 @@ function testArabicEntityHandling() {
   const result = understandQuery("ما هي مشاريع توسعة العتبة")
   assert.ok(result.extracted_entities.place.some(p => p.includes("عتبة") || p.includes("العتبه")))
   assert.ok(result.extracted_entities.topic.some(t => t.includes("مشاريع") || t.includes("توسعة") || t.includes("توسعه")))
-  assert.ok(result.extracted_entities.source_specific.includes("projects_query"))
+  assert.ok(result.hinted_sources.includes("auto"))
 }
 
 function testRouteConfidenceBehavior() {
@@ -59,6 +61,22 @@ function testSharedCapabilitySignalsGuideRanking() {
 
   assert.equal(capability.office_holder_fact, true)
   assert.equal(ranked[0], "articles_latest")
+}
+
+function testInstitutionalExistenceCapabilitySignal() {
+  const query = "هل لدى العتبة العباسية مشاريع زراعية"
+  const understanding = understandQuery(query)
+  const capability = deriveRetrievalCapabilitySignals(understanding, query)
+
+  assert.equal(capability.institutional_relation, true)
+}
+
+function testTitleOrPhraseLookupCapabilitySignal() {
+  const query = "حين تنطق الآيات ذهبا حكاية الكتيبة"
+  const understanding = understandQuery(query)
+  const capability = deriveRetrievalCapabilitySignals(understanding, query)
+
+  assert.equal(capability.title_or_phrase_lookup, true)
 }
 
 runTests().catch(err => {
