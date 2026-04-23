@@ -1,0 +1,239 @@
+
+> alkafeel_chatbot@1.0.0 dev
+> next dev --port 3007
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3007
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1700ms
+ ✓ Compiled /middleware in 254ms (117 modules)
+ ○ Compiling /[locale] ...
+ ✓ Compiled /[locale] in 805ms (515 modules)
+ GET /ar 200 in 1233ms
+ ✓ Compiled /api/chat/site in 448ms (357 modules)
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"request_received","normalized_query":"هل للعتبه العباسيه جامعه؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"tool_resolution_started","normalized_query":"هل للعتبه العباسيه جامعه؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"query_understanding","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["هل للعتبه العباسيه","هل للعتبه"],"place":[],"source_specific":["projects_query"]}}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"orchestrator_plan_created","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية جامعة؟', source: 'articles_latest' }
+[siteSearchContent] Official news search fallback for query="هل للعتبة العباسية جامعة؟"
+[siteSearchContent] Official news search returned 12 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2571,"elapsed_ms":2572,"budget_remaining_ms":15428}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":15427}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية جامعة؟', source: 'videos_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":306,"elapsed_ms":2879,"budget_remaining_ms":15121}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":15120}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية جامعة؟', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="هل للعتبة العباسية جامعة؟"
+[siteSearchContent] Official news search returned 12 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":640,"elapsed_ms":3520,"budget_remaining_ms":14480}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"orchestrator_runtime_takeover","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9}
+[Knowledge Ingestion] Ingesting 8 stale source(s): articles_latest, videos_latest, videos_categories, shrine_history_timeline, shrine_history_sections, lang_words_ar, friday_sermons, wahy_friday
+[Knowledge Ingestion] shrine_history_timeline: 16 items → 16 chunks
+[Knowledge Ingestion] lang_words_ar: 527 items → 528 chunks
+[Knowledge Ingestion] videos_categories: 43 items → 43 chunks
+[Knowledge Ingestion] shrine_history_sections: 5 items → 40 chunks
+[Knowledge Ingestion] friday_sermons: 160 items → 160 chunks
+[Knowledge Ingestion] wahy_friday: 160 items → 160 chunks
+[Knowledge Ingestion] videos_latest: 160 items → 160 chunks
+[Knowledge Ingestion] articles_latest: 160 items → 160 chunks
+[Knowledge Ingestion] Deep-fetching 5 history section(s): عودة الشرعية إلى إدارة العتبات بعد طول غياب, سدنة العتبة العباسية المقدسة (1), الكلدار, تأريخ فك ارتباط إدارتي العتبتين المقدستين, العتبة العباسية المقدسة في ظل الإدارة الجديدة
+[Abbas Local] Loaded 14 tabs (95439 chars)
+[Knowledge Ingestion] Abbas local dataset: 14 tabs → 203 chunks
+[Knowledge] Initial search: 0 chunks (top=–)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence Guard] Abbas shrine/activity query — tool-result evidence allowed
+[Evidence] 1 items, top confidence: 33%
+[Evidence] 1 items, top confidence: 33%
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"tools_resolved","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"tool_resolution_finished","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"final_stream_started","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"grounded_stream_started","normalized_query":"هل للعتبه العباسيه جامعه؟","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa9oyz5_ak41gp","stage":"response_ready","normalized_query":"هل للعتبه العباسيه جامعه؟","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9}
+ POST /api/chat/site 200 in 13685ms
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"request_received","normalized_query":"ما معلوماتك عن منتجات الكفيل","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"tool_resolution_started","normalized_query":"ما معلوماتك عن منتجات الكفيل","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"query_understanding","normalized_query":"ما معلوماتك عن منتجات الكفيل","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["ما معلوماتك عن","ما معلوماتك"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"orchestrator_plan_created","normalized_query":"ما معلوماتك عن منتجات الكفيل (العباسيه جامعه)","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"orchestrator_attempt_started","normalized_query":"ما معلوماتك عن منتجات الكفيل (العباسيه جامعه)","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content {
+  query: 'ما معلوماتك عن منتجات الكفيل (العباسية جامعة)',
+  source: 'auto'
+}
+[siteSearchContent] Official news search fallback for query="ما معلوماتك عن منتجات الكفيل (العباسية جامعة)"
+[siteSearchContent] Official news search returned 3 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"orchestrator_attempt_finished","normalized_query":"ما معلوماتك عن منتجات الكفيل (العباسيه جامعه)","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":2806,"elapsed_ms":2806,"budget_remaining_ms":15194}}
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"orchestrator_runtime_takeover","normalized_query":"ما معلوماتك عن منتجات الكفيل (العباسيه جامعه)","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30}
+[Knowledge] Initial search: 0 chunks (top=–)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence] 2 items, top confidence: 34%
+[Evidence] 2 items, top confidence: 34%
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"tools_resolved","normalized_query":"ما معلوماتك عن منتجات الكفيل","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"tool_resolution_finished","normalized_query":"ما معلوماتك عن منتجات الكفيل","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"final_stream_started","normalized_query":"ما معلوماتك عن منتجات الكفيل","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"grounded_stream_started","normalized_query":"ما معلوماتك عن منتجات الكفيل","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa9ppox_xr5sof","stage":"response_ready","normalized_query":"ما معلوماتك عن منتجات الكفيل","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30}
+ POST /api/chat/site 200 in 8326ms
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"request_received","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","details":{"use_tools":true,"message_count":1,"original_message_count":5,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"tool_resolution_started","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"query_understanding","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["هل للعتبه العباسيه","هل للعتبه"],"place":[],"source_specific":["projects_query"]}}}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"orchestrator_plan_created","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content {
+  query: 'هل للعتبة العباسية  مشاريع زراعية',
+  source: 'articles_latest'
+}
+[siteSearchContent] Official news search fallback for query="هل للعتبة العباسية  مشاريع زراعية"
+[siteSearchContent] Official news search returned 13 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2563,"elapsed_ms":2563,"budget_remaining_ms":15437}}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":15437}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية  مشاريع زراعية', source: 'videos_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":3,"elapsed_ms":2566,"budget_remaining_ms":15434}}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":15433}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية  مشاريع زراعية', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="هل للعتبة العباسية  مشاريع زراعية"
+[siteSearchContent] Official news search returned 13 candidate(s)
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2017,"elapsed_ms":4584,"budget_remaining_ms":13416}}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"orchestrator_runtime_takeover","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"out_of_scope_rejected","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","details":{"reason":"no_results_after_search"}}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"tools_resolved","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"no_results","details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"tool_resolution_finished","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"no_results","details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"direct_answer_returned","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","answer_mode":"direct_grounded","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null}
+[ChatTrace] {"trace_id":"trace_moa9q2a4_kuvbek","stage":"response_ready","normalized_query":"هل للعتبه العباسيه مشاريع زراعيه","answer_mode":"direct_grounded","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null}
+ POST /api/chat/site 200 in 4605ms
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"request_received","normalized_query":"هل للعتبه العباسيه مصانع","details":{"use_tools":true,"message_count":1,"original_message_count":7,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"tool_resolution_started","normalized_query":"هل للعتبه العباسيه مصانع","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"query_understanding","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["هل للعتبه العباسيه","هل للعتبه"],"place":[],"source_specific":["projects_query"]}}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"orchestrator_plan_created","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية  مصانع', source: 'articles_latest' }
+[siteSearchContent] Official news search fallback for query="هل للعتبة العباسية  مصانع"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":1787,"elapsed_ms":1788,"budget_remaining_ms":16212}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":16211}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية  مصانع', source: 'videos_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":4,"elapsed_ms":1793,"budget_remaining_ms":16207}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":16205}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية  مصانع', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="هل للعتبة العباسية  مصانع"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":31,"elapsed_ms":1826,"budget_remaining_ms":16174}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"orchestrator_runtime_takeover","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9}
+[Knowledge] Initial search: 0 chunks (top=–)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence Guard] Abbas shrine/activity query — tool-result evidence allowed
+[Evidence] 1 items, top confidence: 33%
+[Evidence] 1 items, top confidence: 33%
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"tools_resolved","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"tool_resolution_finished","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"final_stream_started","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"grounded_stream_started","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa9qfou_via9px","stage":"response_ready","normalized_query":"هل للعتبه العباسيه مصانع","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9}
+ POST /api/chat/site 200 in 7030ms
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"request_received","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","details":{"use_tools":true,"message_count":1,"original_message_count":9,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"tool_resolution_started","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"query_understanding","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["هل جامعه العميد","هل جامعه"],"place":[],"source_specific":["projects_query"]}}}
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"orchestrator_plan_created","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"orchestrator_attempt_started","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17998}}
+[Tool Execution] search_content {
+  query: 'هل جامعة العميد تابعة للعتبة العباسية',
+  source: 'articles_latest'
+}
+[siteSearchContent] Official news search fallback for query="هل جامعة العميد تابعة للعتبة العباسية"
+[siteSearchContent] Official news search returned 40 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"orchestrator_attempt_finished","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":64,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":4431,"elapsed_ms":4433,"budget_remaining_ms":13567}}
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"orchestrator_slow_source_path","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":64,"details":{"duration_ms":4431,"slow_threshold_ms":3000,"reason":"entity_first:singular_project_lookup"}}
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"orchestrator_runtime_takeover","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":64}
+[Evidence] 3 items, top confidence: 62%
+[Evidence] 3 items, top confidence: 62%
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"tools_resolved","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":64,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"tool_resolution_finished","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":64,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"final_stream_started","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"grounded_stream_started","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa9qt1t_ccqu4h","stage":"response_ready","normalized_query":"هل جامعه العميد تابعه للعتبه العباسيه","answer_mode":"llm_stream","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":64}
+ POST /api/chat/site 200 in 11500ms
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"request_received","normalized_query":"هل للعتبه العباسيه مصانع","details":{"use_tools":true,"message_count":1,"original_message_count":11,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"tool_resolution_started","normalized_query":"هل للعتبه العباسيه مصانع","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"query_understanding","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["هل للعتبه العباسيه","هل للعتبه"],"place":[],"source_specific":["projects_query"]}}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"orchestrator_plan_created","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17998}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية مصانع', source: 'articles_latest' }
+[siteSearchContent] Official news search fallback for query="هل للعتبة العباسية مصانع"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2000,"elapsed_ms":2002,"budget_remaining_ms":15998}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":15996}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية مصانع', source: 'videos_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":9,"elapsed_ms":2013,"budget_remaining_ms":15987}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":15986}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية مصانع', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="هل للعتبة العباسية مصانع"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":55,"elapsed_ms":2069,"budget_remaining_ms":15931}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"orchestrator_runtime_takeover","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9}
+[Knowledge] Initial search: 0 chunks (top=–)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence Guard] Abbas shrine/activity query — tool-result evidence allowed
+[Evidence] 1 items, top confidence: 33%
+[Evidence] 1 items, top confidence: 33%
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"tools_resolved","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"tool_resolution_finished","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"final_stream_started","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"grounded_stream_started","normalized_query":"هل للعتبه العباسيه مصانع","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa9r5t6_9r79y9","stage":"response_ready","normalized_query":"هل للعتبه العباسيه مصانع","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":2,"result_counts":1,"top_score":9}
+ POST /api/chat/site 200 in 5549ms
+[ChatTrace] {"trace_id":"trace_moa9rsyd_kgju52","stage":"request_received","normalized_query":"اعرض لي فيديوهات من قسم مستشفي الكفيل","details":{"use_tools":true,"message_count":1,"original_message_count":13,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa9rsyd_kgju52","stage":"tool_resolution_started","normalized_query":"اعرض لي فيديوهات من قسم مستشفي الكفيل","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa9rsyd_kgju52","stage":"query_understanding","normalized_query":"اعرض لي فيديوهات من قسم مستشفي الكفيل","routed_source":"videos_latest","details":{"content_intent":"video","operation_intent":"list_items","route_confidence":0.86,"extracted_entities":{"person":[],"topic":["اعرض لي فيديوهات","اعرض لي"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa9rsyd_kgju52","stage":"forced_intent_utility","normalized_query":"اعرض لي فيديوهات من قسم مستشفي الكفيل","routed_source":"videos_latest","details":{"forced_tool":"get_latest_by_source"}}
+[Tool Execution] get_latest_by_source {
+  source: 'videos_latest',
+  limit: 5,
+  query: 'اعرض لي فيديوهات من قسم مستشفى الكفيل'
+}
+[ChatTrace] {"trace_id":"trace_moa9rsyd_kgju52","stage":"tools_resolved","normalized_query":"اعرض لي فيديوهات من قسم مستشفي الكفيل","routed_source":"videos_latest","retry_attempts":0,"result_counts":5,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_moa9rsyd_kgju52","stage":"tool_resolution_finished","normalized_query":"اعرض لي فيديوهات من قسم مستشفي الكفيل","routed_source":"videos_latest","retry_attempts":0,"result_counts":5,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_moa9rsyd_kgju52","stage":"direct_answer_returned","normalized_query":"اعرض لي فيديوهات من قسم مستشفي الكفيل","answer_mode":"direct_grounded","routed_source":"videos_latest","retry_attempts":0,"result_counts":5,"top_score":null}
+[ChatTrace] {"trace_id":"trace_moa9rsyd_kgju52","stage":"response_ready","normalized_query":"اعرض لي فيديوهات من قسم مستشفي الكفيل","answer_mode":"direct_grounded","routed_source":"videos_latest","retry_attempts":0,"result_counts":5,"top_score":null}
+ POST /api/chat/site 200 in 76ms
+ ✓ Compiled in 181ms (117 modules)
