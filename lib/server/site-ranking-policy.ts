@@ -19,8 +19,31 @@ export function normalizeArabic(text: string): string {
 /** Tokenize an Arabic query into meaningful search tokens (≥2 chars) */
 export function tokenizeArabicQuery(query: string): string[] {
   return normalizeArabic(query)
-    .split(/\s+/)
+    .split(/[\s\u060C\u061F\u0021\u003F\u002C\u002E]+/)
+    .map(w => w.replace(/^[\u060C\u061F!?,.‌\u200d]+|[\u060C\u061F!?,.\u200c\u200d]+$/g, "").trim())
     .filter(w => w.length >= 2)
+}
+
+/**
+ * توليد متغيرات مورفولوجية لكلمة عربية:
+ * - حذف اللواحق الشائعة (ات، ين، ون، ه، يه)
+ * - حذف الألف الوسطية (الجمع المكسّر: مصانع → مصنع، مزارع → مزرع)
+ */
+export function buildTokenVariants(token: string): string[] {
+  const base = normalizeArabic(String(token || "")).trim()
+  if (!base || base.length < 3) return [base]
+  const variants = new Set<string>([base])
+  // strip common suffixes (including possessive/pronominal: ها، هم، هن، ك)
+  for (const suffix of ["يه", "ه", "ات", "ين", "ون", "ها", "هم", "هن", "ك"]) {
+    if (base.endsWith(suffix) && base.length > suffix.length + 2) {
+      variants.add(base.slice(0, -suffix.length))
+    }
+  }
+  // broken-plural alef removal: mXAYZ → mXYZ (مصانع → مصنع, مزارع → مزرع)
+  if (base.length >= 5 && base[2] === "ا") {
+    variants.add(base[0] + base[1] + base.slice(3))
+  }
+  return [...variants].filter(v => v.length >= 3)
 }
 
 export function extractNamedPhrase(query: string): string {
@@ -56,14 +79,28 @@ export function extractNamedPhrase(query: string): string {
     "لعتبه", "للعتبه", "العتبه", "العباسيه", "العباسية",
     "ما", "هو", "هي", "من", "عن", "في", "على", "هل", "يوجد", "لي", "حول", "باختصار", "مختصر",
     "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني", "ابحث", "خبر", "قديم", "يتحدث", "كيف", "استخدم", "أستخدم", "صف", "وصف",
-    "عليه", "السلام", "عليها"
+    "عليه", "السلام", "عليها",
+    // أفعال الاستفهام: لا يجوز أن تكون جزءاً من العبارة الاسمية
+    "تمتلك", "يمتلك", "تملك", "يملك", "امتلك",
+    "توجد", "يوجد", "وجد", "هناك", "هنالك", "ثمه", "ثمة",
+    "تتبع", "يتبع", "تابعه", "تابع", "تابعة",
+    "لديها", "لديه", "لدى", "لديهم",
+    "تمتلكها", "تمتلكه",
+    "تشمل", "يشمل",
+    // حروف العطف والوصل
+    "او", "أو", "و", "ثم", "بل", "لكن", "اما", "إما"
   ]
   const tokens = cleaned
     .split(/\s+/)
     .filter(Boolean)
-    .filter(t => !removableFillers.includes(t))
+    .map(t => t.replace(/[؟?!،,.]/g, "").trim())  // strip trailing punctuation
+    .filter(t => t.length > 0 && !removableFillers.includes(t))
 
   if (tokens.length < 2) return ""
+  // إذا كان الناتج يبدو وصفاً (3 كلمات+ متنوعة) وليس اسم كيان محدد → لا نُعيده
+  // الاسم المحدد عادةً كلمتان من النوع: اسم + اسم (مصنع الجود، مزرعة الساقي)
+  // بينما الوصف: مزارع + زراعي + ...
+  if (tokens.length >= 3) return ""
   return tokens.slice(0, 4).join(" ")
 }
 
@@ -313,6 +350,10 @@ export function scoreUnifiedItem(item: any, query: string): number {
 
   const genericTokens = new Set([
     "ماهي", "ماهو",
+    // استفهام + ظروف زمنية
+    "متى", "كيف", "لماذا",
+    // حروف عطف مدمجة مع كلمات وظيفية (و+ما، و+هو...)
+    "وما", "وهو", "وهي", "ومن", "وعن", "وفي", "وكم",
     "ما", "اسم", "من", "هو", "هي", "هل", "اين", "يقام", "كم", "عدد", "لي", "عن", "في", "على",
     "هن", "له", "لها", "لهم", "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع", "خبر", "قديم", "يتحدث",
     "تكلم", "اشرح", "حدثني", "اخبرني", "حول", "باختصار", "اعطني", "اعرض", "عليه", "السلام"
@@ -369,6 +410,10 @@ export function scoreUnifiedItem(item: any, query: string): number {
     return 0
   }
 
+  const isProjectCatalogItem =
+    item?.source_type === "projects_dataset" ||
+    item?.source_type === "project"
+
   for (const { text, weight } of fields) {
     if (!text) continue
     // Full query match — highest boost
@@ -379,9 +424,11 @@ export function scoreUnifiedItem(item: any, query: string): number {
       hasSpecificNamedPhrase = true
     }
 
-    // Per-token matching
+    // Per-token matching (exact + morphological variants for project items)
     for (const tok of tokens) {
-      if (text.includes(tok)) {
+      const tokVariants = (isProjectCatalogItem || isOfficialSearchHit || isHistorySource) ? buildTokenVariants(tok) : [tok]
+      const tokMatched = tokVariants.some(v => text.includes(v))
+      if (tokMatched) {
         score += weight
         matchedTokenCount++
         if (!matchedSpecificToken && specificTokens.includes(tok)) {
@@ -390,8 +437,12 @@ export function scoreUnifiedItem(item: any, query: string): number {
         if (specificTokens.includes(tok)) {
           matchedSpecificTokenCount++
         }
-        if (!matchedProjectDomainToken && requestedProjectDomainTokens.includes(tok)) {
-          matchedProjectDomainToken = true
+        if (!matchedProjectDomainToken && requestedProjectDomainTokens.length > 0) {
+          // مطابقة بالمتغيرات المورفولوجية (مزارع ↔ زراعي، مصانع ↔ صناعي)
+          const tokVars = buildTokenVariants(tok)
+          if (tokVars.some(v => requestedProjectDomainTokens.some(pd => v.startsWith(pd) || pd.startsWith(v.slice(0, 4))))) {
+            matchedProjectDomainToken = true
+          }
         }
       }
     }
@@ -445,22 +496,28 @@ export function scoreUnifiedItem(item: any, query: string): number {
     !hasStrongNamedPhraseTokenCoverage &&
     (!isOfficialSearchHit || namedPhraseTokens.length >= 2)
   ) {
+    if (process.env.DEBUG_SCORING === "1") console.log("[REJECT namedPhrase]", item?.name || item?.title, "phrase:", namedPhrase)
     return 0
   }
 
   if (specificTokens.length > 0 && !matchedSpecificToken && !hasSpecificNamedPhrase && !isOfficialSearchHit) {
+    if (process.env.DEBUG_SCORING === "1") console.log("[REJECT noSpecificMatch]", item?.name || item?.title)
     return 0
   }
 
   if (requiresStrictSpecificCoverage) {
-    const minimumSpecificMatches = Math.min(2, specificTokens.length)
+    // للمشاريع: يكفي توافق كلمة واحدة (أسماء قصيرة).
+    // للمقالات الرسمية: النظام الخارجي صنّفها وفق الاستعلام، يكفي توافق مصطلح واحد.
+    const minimumSpecificMatches = (isProjectCatalogItem || isOfficialSearchHit || isHistorySource) ? 1 : Math.min(2, specificTokens.length)
     if (matchedSpecificTokenCount < minimumSpecificMatches && titleSpecificMatchCount < minimumSpecificMatches && !hasSpecificNamedPhrase) {
+      if (process.env.DEBUG_SCORING === "1") console.log("[REJECT strictCoverage]", item?.name || item?.title, "matched:", matchedSpecificTokenCount, "title:", titleSpecificMatchCount, "min:", minimumSpecificMatches, "specific:", specificTokens, "isOfficial:", isOfficialSearchHit)
       return 0
     }
   }
 
   // Project/business-domain lookups must preserve the requested domain term.
   if (requestedProjectDomainTokens.length > 0 && !matchedProjectDomainToken) {
+    if (process.env.DEBUG_SCORING === "1") console.log("[REJECT projectDomain]", item?.name || item?.title)
     return 0
   }
 

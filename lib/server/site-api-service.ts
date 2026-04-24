@@ -24,6 +24,7 @@ import {
 } from "./site-source-adapters"
 import {
   buildEvidenceSnippet,
+  buildTokenVariants,
   deepTitleSearch,
   expandSearchFromSources,
   extractNamedPhrase,
@@ -287,7 +288,7 @@ function buildOfficialNewsSearchQueries(query: string, preserveEntityTokens: boo
     .slice(0, 12)
 }
 
-async function fetchOfficialNewsSearchResults(
+export async function fetchOfficialNewsSearchResults(
   query: string,
   limit: number,
   options: { preserveEntityTokens?: boolean } = {}
@@ -723,7 +724,9 @@ export async function siteSearch(
       }
 
       for (const word of queryWords) {
-        if (text.includes(word)) {
+        // Match word OR any morphological variant (broken plural, suffix-stripped)
+        const variants = buildTokenVariants(word)
+        if (variants.some(v => text.includes(v))) {
           score += weight
         }
       }
@@ -738,9 +741,15 @@ export async function siteSearch(
   // derivatives without hard-coded synonym lists.
   function scoreProjectRelaxed(project: any): number {
     if (queryWords.length === 0) return 0
-    const stems = queryWords
-      .map(w => w.length >= 4 ? w.slice(0, Math.max(3, w.length - 1)) : w)
-      .filter(s => s.length >= 3)
+    // Build stems from BOTH original tokens AND their morphological variants
+    // so broken plurals (مصانع→مصنع) can stem-match singular project names.
+    const stems: string[] = []
+    for (const w of queryWords) {
+      for (const v of buildTokenVariants(w)) {
+        const stem = v.length >= 4 ? v.slice(0, Math.max(3, v.length - 1)) : v
+        if (stem.length >= 3) stems.push(stem)
+      }
+    }
     if (stems.length === 0) return 0
 
     const searchTexts = getSearchableTexts(project)
@@ -1009,7 +1018,7 @@ export async function siteSearchContent(
   // uses (agricultural / industrial / health / educational / service / cultural
   // / construction / production), without hard-coding answers for any specific
   // example.
-  const projectDomainSignals = /(?:^|\s)(?:مشروع|مشاريع|برنامج|برامج|خدمه|خدمات|مبادره|مبادرات|مصنع|مصانع|معمل|معامل|محطه|محطات|مزرعه|مزارع|بستان|صناعي|صناعيه|زراعي|زراعيه|صحي|صحيه|تعليمي|تعليميه|خدمي|خدميه|انتاجي|انتاجيه|خيري|خيريه|انساني|انسانيه|ثقافي|ثقافيه|عمراني|عمرانيه|اعمار|ترميم|تشييد|بناء|توسعه|دواجن|دجاج|لحوم|اسماك|محاصيل|انتاج|تربيه)(?:\s|$)/u.test(normalizeArabic(query))
+  const projectDomainSignals = /(?:^|\s)(?:مشروع|مشاريع|برنامج|برامج|خدمه|خدمات|مبادره|مبادرات|مصنع|مصانع|معمل|معامل|محطه|محطات|مزرعه|مزارع|بستان|صناعي|صناعيه|زراعي|زراعيه|صحي|صحيه|تعليمي|تعليميه|خدمي|خدميه|انتاجي|انتاجيه|خيري|خيريه|انساني|انسانيه|ثقافي|ثقافيه|عمراني|عمرانيه|اعمار|ترميم|تشييد|بناء|توسعه|دواجن|دجاج|لحوم|اسماك|محاصيل|انتاج|تربيه)(?:\s|$|[؟?!،,.])/u.test(normalizeArabic(query))
   const shouldAugmentFromProjectsDataset =
     source === "auto" && (capability.institutional_relation || projectDomainSignals)
 
@@ -1112,7 +1121,15 @@ export async function siteSearchContent(
 
   if (shouldUseOfficialNewsSearch) {
     console.log(`[siteSearchContent] Official news search fallback for query="${query}"`)
-    const officialNewsResults = await fetchOfficialNewsSearchResults(query, safeLimit, {
+    // للاستعلامات الطويلة: استخرج الكلمات الرئيسية (محتوى) فقط بدلاً من الجملة الكاملة
+    // حتى لا يُعيد الـ API نتائج غير ذات صلة بسبب الكلمات الوظيفية
+    const queryTokensRaw = tokenizeArabicQuery(query)
+    const genericStopSet = new Set(["ماهي","ماهو","ما","اسم","من","هو","هي","هل","اين","يقام","كم","عدد","لي","عن","في","على","هن","له","لها","لهم","العتبه","العتبة","العباسيه","العباسية","مشروع","مشاريع","خبر","قديم","يتحدث","تكلم","اشرح","حدثني","اخبرني","حول","باختصار","اعطني","اعرض","عليه","السلام","تمتلك","يمتلك","تملك","توجد","يوجد","هناك","هنالك","تتبع","تابعه","تابع","لديها","لديه","لدى","او","أو","ثم","بل","لكن","اما","للعتبه","لعتبه"])
+    const keyTokens = queryTokensRaw.filter(t => !genericStopSet.has(normalizeArabic(t)))
+    const officialSearchQuery = keyTokens.length > 0 && keyTokens.length < queryTokensRaw.length
+      ? keyTokens.join(" ")
+      : query
+    const officialNewsResults = await fetchOfficialNewsSearchResults(officialSearchQuery, safeLimit, {
       preserveEntityTokens: capability.institutional_relation
     })
     console.log(`[siteSearchContent] Official news search returned ${officialNewsResults.length} candidate(s)`)
@@ -1575,6 +1592,44 @@ export async function siteBrowseSourcePage(
   }
 }
 
+async function discoverEntities(query: string): Promise<APICallResult> {
+  const projectsResult = await getAllProjects()
+  const projects = projectsResult.success && Array.isArray(projectsResult.data)
+    ? (projectsResult.data as any[])
+    : []
+
+  const entities = projects.map((p: any) => ({
+    name: p.name,
+    type: Array.isArray(p.sections)
+      ? p.sections.map((s: any) => (typeof s === "string" ? s : s.name)).filter(Boolean)
+      : [],
+  }))
+
+  return {
+    success: entities.length > 0,
+    data: { query, total: entities.length, entities },
+    ...(entities.length === 0 && { error: "الفهرس غير متاح حالياً، جرّب البحث المباشر" }),
+  }
+}
+
+/**
+ * بناء مقتطف نصي مضغوط من فهرس الكيانات ليُحقن في system prompt
+ * يعيد سلسلة نصية جاهزة أو سلسلة فارغة إذا لم تكن البيانات محملة بعد
+ */
+export async function buildEntityCatalogSnippet(): Promise<string> {
+  const result = await getAllProjects()
+  if (!result.success || !Array.isArray(result.data) || result.data.length === 0) return ""
+
+  const lines = (result.data as any[]).map((p: any) => {
+    const sections = Array.isArray(p.sections)
+      ? p.sections.map((s: any) => (typeof s === "string" ? s : s.name)).filter(Boolean).join("، ")
+      : ""
+    return sections ? `- ${p.name} [${sections}]` : `- ${p.name}`
+  })
+
+  return `\n\n## فهرس الكيانات المتاحة في قاعدة البيانات\nاستخدم الأسماء الدقيقة أدناه عند صياغة استعلامات البحث:\n${lines.join("\n")}`
+}
+
 /**
  * تنفيذ أداة بناءً على اسمها والمعاملات
  *
@@ -1591,6 +1646,9 @@ export async function executeToolByName(
 
   try {
     switch (toolName) {
+      case "discover_entities":
+        return await discoverEntities(args.query || "")
+
       case "search_projects":
         return await siteSearch(args.query, args.section, args.limit)
 

@@ -5,6 +5,7 @@ import {
 import { getOpenAIModel } from "@/lib/server/site-api-config"
 import { ALL_SITE_TOOLS } from "@/lib/server/site-tools-definitions"
 import { resolveToolCalls } from "@/lib/server/function-calling-handler"
+import { buildEntityCatalogSnippet } from "@/lib/server/site-api-service"
 import {
   applyRateLimit,
   createRateLimitResponse
@@ -367,9 +368,9 @@ export async function POST(request: Request) {
       apiKey: openaiApiKey
     })
 
-    // حقن System Prompt الثابت في بداية المحادثة
-    // ✅ نستخدم sanitizedMessages (الرسائل المنظفة) وليس messages الخام
-    const systemPrompt = getSiteSystemPrompt()
+    // حقن System Prompt مع فهرس الكيانات الديناميكي
+    const entityCatalog = await buildEntityCatalogSnippet()
+    const systemPrompt = getSiteSystemPrompt(entityCatalog)
     const messagesWithSystem: ChatCompletionMessageParam[] = [
       {
         role: "system",

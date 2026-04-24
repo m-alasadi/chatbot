@@ -434,6 +434,15 @@ async function processToolCall(
         if (relaxed.success && !isEmptyAPIResponse(relaxed.data)) result = relaxed
       }
     }
+
+    // Cross-tool fallback: search_projects با zero results → retry via search_content
+    // هذا يضمن الوصول للمقالات والأقسام عندما لا يوجد مشروع بالاسم الحرفي
+    if (toolName === "search_projects" && result.success && isEmptyAPIResponse(result.data) && typeof args.query === "string") {
+      const contentFallback = await executeToolByName("search_content", { query: args.query, source: "auto", limit: args.limit })
+      if (contentFallback.success && !isEmptyAPIResponse(contentFallback.data)) {
+        result = contentFallback
+      }
+    }
   } else {
     result = await executeToolByName(toolName as AllowedToolName, args)
   }
