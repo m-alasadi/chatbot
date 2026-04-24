@@ -640,6 +640,14 @@ export async function resolveToolCalls(
         capability.institutional_relation ||
         capability.title_or_phrase_lookup
 
+      // When the orchestrator exhausts every retrieval source we used to
+      // immediately return FALLBACK_NO_RESULTS for "narrow" queries (anything
+      // that wasn't biography / institutional / underspecified). That short-
+      // circuit prevented the knowledge layer from rescuing answers that were
+      // present in the indexed full-text but missed by the keyword-driven
+      // retrieval. We now always give the knowledge layer + grounded fallback
+      // a chance before declaring "no results"; the apology is only used as a
+      // last resort when knowledge also returns nothing.
       if (
         orchestrated.exhausted &&
         orchestrated.unavailableReason === "attempts_exhausted" &&
@@ -649,17 +657,67 @@ export async function resolveToolCalls(
         if (options.traceId) {
           logChatTrace({
             trace_id: options.traceId,
-            stage: "out_of_scope_rejected",
+            stage: "exhausted_pre_knowledge_rescue",
             normalized_query: normalizeQueryForTrace(userQuery),
-            details: { reason: "no_results_after_search" },
+            details: { reason: "attempting_knowledge_layer_before_fallback" },
           })
         }
-        return {
-          resolvedMessages: currentMessages,
-          needsFinalCall: false,
-          iterations: 0,
-          directAnswer: getFallbackResponse("no_results"),
-          trace: { ...traceSummary, retry_attempts: retryCounter.count, unavailable_reason: "no_results" },
+
+        const exhaustSynthId = `bootstrap_${primaryTool}_exhausted_${Date.now()}`
+        currentMessages.push({
+          role: "assistant",
+          content: null,
+          tool_calls: [{
+            id: exhaustSynthId,
+            type: "function",
+            function: { name: primaryTool, arguments: JSON.stringify({ query: userQuery, source: orchestrated.routedSource || "auto" }) }
+          }]
+        })
+        currentMessages.push({
+          role: "tool",
+          tool_call_id: exhaustSynthId,
+          content: JSON.stringify({ success: false, empty_results: true, message: "لم تُرجع المصادر المُجدولة نتائج كافية." })
+        })
+
+        const rescueEvidence = await injectKnowledgeAndGuard(currentMessages, userQuery, queryUnderstanding)
+        const rescueDirect = tryGenerateDirectAnswer(userQuery, rescueEvidence)
+        if (rescueDirect) {
+          return {
+            resolvedMessages: currentMessages,
+            needsFinalCall: false,
+            iterations: 0,
+            directAnswer: rescueDirect,
+            trace: { ...traceSummary, retry_attempts: retryCounter.count }
+          }
+        }
+
+        const rescueFallback = buildGroundedEvidenceFallback(userQuery, rescueEvidence)
+        if (rescueFallback) {
+          return {
+            resolvedMessages: currentMessages,
+            needsFinalCall: false,
+            iterations: 0,
+            directAnswer: rescueFallback,
+            trace: { ...traceSummary, retry_attempts: retryCounter.count }
+          }
+        }
+
+        // Knowledge had nothing either — let the LLM try one final pass with
+        // the full message history (which now includes the knowledge context
+        // injected by injectKnowledgeAndGuard, if any). This keeps the model
+        // from being silenced when retrieval found weak signal that it might
+        // still be able to surface coherently.
+        toolsWereCalled = true
+        orchestratorBootstrapped = true
+        groundedFallbackAnswer = buildGroundedEvidenceFallback(userQuery, rescueEvidence) || groundedFallbackAnswer
+
+        if (options.traceId) {
+          logChatTrace({
+            trace_id: options.traceId,
+            stage: "out_of_scope_rejected",
+            normalized_query: normalizeQueryForTrace(userQuery),
+            details: { reason: "no_results_after_knowledge_rescue" },
+          })
         }
       }
 

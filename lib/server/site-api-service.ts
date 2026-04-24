@@ -571,8 +571,38 @@ async function getAllProjects(): Promise<APICallResult> {
 
   console.log("[getAllProjects] Cache miss, fetching from API...")
 
-  // جلب البيانات من API
-  const result = await callSiteAPI(config.allProjectsEndpoint)
+  // The canonical projects API is paginated (Laravel-style: { data, current_page,
+  // last_page, ... }). When it returns a single array (legacy/simple endpoints)
+  // we use it as-is. When it's paginated we fetch every page so the search
+  // operates on the full catalog.
+  const firstPage = await callSiteAPI(config.allProjectsEndpoint)
+  const aggregated: any[] = []
+
+  if (firstPage.success) {
+    if (Array.isArray(firstPage.data)) {
+      aggregated.push(...firstPage.data)
+    } else if (firstPage.data && Array.isArray(firstPage.data.data)) {
+      aggregated.push(...firstPage.data.data)
+      const lastPage = Number(firstPage.data.last_page) || 1
+      const isAbsolute = /^https?:\/\//.test(config.allProjectsEndpoint)
+      const separator = config.allProjectsEndpoint.includes("?") ? "&" : "?"
+      for (let page = 2; page <= lastPage; page++) {
+        const pageUrl = isAbsolute
+          ? `${config.allProjectsEndpoint}${separator}page=${page}`
+          : `${config.allProjectsEndpoint}${separator}page=${page}`
+        const pageResult = await callSiteAPI(pageUrl)
+        if (pageResult.success && pageResult.data && Array.isArray(pageResult.data.data)) {
+          aggregated.push(...pageResult.data.data)
+        } else {
+          break
+        }
+      }
+    }
+  }
+
+  const result: APICallResult = aggregated.length > 0
+    ? { success: true, data: aggregated }
+    : firstPage
   const normalizedProjects = result.success
     ? normalizeProjectsDataset(result.data)
     : []
@@ -702,6 +732,36 @@ export async function siteSearch(
     return score
   }
 
+  // Relaxed scorer: matches by morphological stem (≥3-char shared prefix between
+  // query token and any whole word in the project text). Generalizable — handles
+  // feminine/masculine adjective forms, plural ↔ singular, and root-shared
+  // derivatives without hard-coded synonym lists.
+  function scoreProjectRelaxed(project: any): number {
+    if (queryWords.length === 0) return 0
+    const stems = queryWords
+      .map(w => w.length >= 4 ? w.slice(0, Math.max(3, w.length - 1)) : w)
+      .filter(s => s.length >= 3)
+    if (stems.length === 0) return 0
+
+    const searchTexts = getSearchableTexts(project)
+    let score = 0
+    for (const { text, weight } of searchTexts) {
+      const words = text.split(/\s+/).filter(w => w.length >= 3)
+      for (const stem of stems) {
+        const hit = words.some(w => {
+          if (w.startsWith(stem)) return true
+          // bidirectional shared prefix: word starts with stem, or stem starts with word
+          // (handles plural↔singular, masc↔fem morphology). Require ≥4 shared chars.
+          const minLen = Math.min(w.length, stem.length)
+          if (minLen < 4) return false
+          return w.slice(0, minLen) === stem.slice(0, minLen)
+        })
+        if (hit) score += weight
+      }
+    }
+    return score
+  }
+
   let scored = projects.map(project => ({
     project,
     score: scoreProject(project)
@@ -717,7 +777,15 @@ export async function siteSearch(
   }
 
   if (queryWords.length > 0) {
-    scored = scored.filter(({ score }) => score > 0)
+    const exactMatched = scored.filter(({ score }) => score > 0)
+    if (exactMatched.length > 0) {
+      scored = exactMatched
+    } else {
+      // No exact substring matches — relax to morphological/stem matching.
+      scored = projects
+        .map(project => ({ project, score: scoreProjectRelaxed(project) }))
+        .filter(({ score }) => score > 0)
+    }
   }
 
   scored.sort((a, b) => b.score - a.score)
@@ -935,7 +1003,13 @@ export async function siteSearchContent(
     }
   }
 
-  const projectDomainSignals = /(?:^|\s)(?:مشروع|مشاريع|مصنع|مصانع|صناعي|صناعية|زراعي|زراعية|دواجن|لحوم)(?:\s|$)/u.test(normalizeArabic(query))
+  // NOTE: regex literals must be in normalized form (ة → ه, etc.) because
+  // they are matched against normalizeArabic(query). The vocabulary is
+  // intentionally broad to cover the main project-domain adjectives the site
+  // uses (agricultural / industrial / health / educational / service / cultural
+  // / construction / production), without hard-coding answers for any specific
+  // example.
+  const projectDomainSignals = /(?:^|\s)(?:مشروع|مشاريع|برنامج|برامج|خدمه|خدمات|مبادره|مبادرات|مصنع|مصانع|معمل|معامل|محطه|محطات|مزرعه|مزارع|بستان|صناعي|صناعيه|زراعي|زراعيه|صحي|صحيه|تعليمي|تعليميه|خدمي|خدميه|انتاجي|انتاجيه|خيري|خيريه|انساني|انسانيه|ثقافي|ثقافيه|عمراني|عمرانيه|اعمار|ترميم|تشييد|بناء|توسعه|دواجن|دجاج|لحوم|اسماك|محاصيل|انتاج|تربيه)(?:\s|$)/u.test(normalizeArabic(query))
   const shouldAugmentFromProjectsDataset =
     source === "auto" && (capability.institutional_relation || projectDomainSignals)
 
@@ -1152,6 +1226,70 @@ export async function siteSearchContent(
     ...x.item,
     _snippet: buildEvidenceSnippet(x.item, query)
   }))
+
+  // Final-stage rescue: when the unified search has produced no scored results
+  // but the query clearly asks about projects/programs/services owned by the
+  // institution, surface the project section catalog so the LLM can either
+  // identify the correct domain category that matches the user's topic, or
+  // honestly say which categories exist. This is a generic fallback driven by
+  // the project taxonomy itself — no hard-coded answers for any particular
+  // example.
+  if (results.length === 0 && (capability.institutional_relation || projectDomainSignals)) {
+    try {
+      const catalog = await siteListCategories(true)
+      const allCats = Array.isArray(catalog?.data?.categories) ? catalog.data.categories : []
+      const queryTokens = tokenizeArabicQuery(query)
+      const stems = queryTokens
+        .map(t => t.length >= 4 ? t.slice(0, t.length - 1) : t)
+        .filter(s => s.length >= 3)
+
+      const scoredCatalog = allCats
+        .map((c: any) => {
+          const name = normalizeArabic(String(c?.name || ""))
+          if (!name) return { c, s: 0 }
+          let s = 0
+          for (const stem of stems) {
+            if (name.includes(stem)) s += 5
+            const words = name.split(/\s+/).filter((w: string) => w.length >= 3)
+            if (words.some((w: string) => w.startsWith(stem) || stem.startsWith(w))) s += 2
+          }
+          return { c, s }
+        })
+        .sort((a: any, b: any) => b.s - a.s)
+
+      const matched = scoredCatalog.filter((x: any) => x.s > 0).slice(0, 8).map((x: any) => x.c)
+      const browse = allCats.slice(0, 40).map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        count: typeof c.count === "number" ? c.count : undefined
+      }))
+
+      return {
+        success: true,
+        data: {
+          results: [],
+          total: 0,
+          result_count: 0,
+          top_score: null,
+          query,
+          source_used: source,
+          candidate_sources: candidates,
+          source_attempts: candidates,
+          entity_first_mode: entityFirstMode,
+          empty_results: true,
+          rescue_hint: {
+            kind: "project_section_catalog",
+            note: "لم تُرجع المصادر المُجدولة نتائج بحث مباشرة، ولكن المؤسسة تمتلك قائمة أقسام للمشاريع. تحقّق من أقسام المشاريع التالية لمعرفة ما إذا كان أحدها يطابق موضوع السؤال (مثلاً: قسم زراعي، قسم صحي، قسم خدمي…). إذا وجدت قسماً مطابقاً، استخدم get_latest_by_source/list_source_categories للحصول على التفاصيل قبل الاعتذار.",
+            matched_sections: matched,
+            available_sections: browse,
+            total_sections: allCats.length
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[siteSearchContent] catalog rescue failed:", (e as Error)?.message)
+    }
+  }
 
   return {
     success: true,
