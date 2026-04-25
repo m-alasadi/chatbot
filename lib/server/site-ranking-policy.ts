@@ -16,12 +16,14 @@ export function normalizeArabic(text: string): string {
     .toLowerCase()
 }
 
-/** Tokenize an Arabic query into meaningful search tokens (≥2 chars) */
+/** Tokenize an Arabic query into meaningful search tokens (≥3 chars).
+ *  Tokens shorter than 3 characters are almost always Arabic function words
+ *  (في، من، هو، هي، ما، هل…) and carry no content-matching value. */
 export function tokenizeArabicQuery(query: string): string[] {
   return normalizeArabic(query)
     .split(/[\s\u060C\u061F\u0021\u003F\u002C\u002E]+/)
     .map(w => w.replace(/^[\u060C\u061F!?,.‌\u200d]+|[\u060C\u061F!?,.\u200c\u200d]+$/g, "").trim())
-    .filter(w => w.length >= 2)
+    .filter(w => w.length >= 3)
 }
 
 /**
@@ -353,20 +355,23 @@ export function scoreUnifiedItem(item: any, query: string): number {
   let matchedTokenCount = 0
   let hasSpecificNamedPhrase = false
 
-  // Tokens that carry no specific content meaning: question particles, pronouns,
-  // generic prepositions, and the institution name (which is implicit context).
-  // Operation-intent verbs (اشرح, لخص, عدد, نبذة…) are added automatically from
-  // OPERATION_INTENT_TOKENS — the single source of truth in query-understanding.ts.
+  // Tokens that carry no specific content meaning.
+  // Note: 2-char function words (في، من، هو، هي، ما، هل…) are already removed
+  // by tokenizeArabicQuery (≥3 filter), so they don't need listing here.
+  // Operation-intent verbs (اشرح, لخص, عدد…) come from OPERATION_INTENT_TOKENS.
   const genericTokens = new Set([
-    "ماهي", "ماهو",
-    // استفهام + ظروف زمنية
-    "متى", "لماذا",
-    // حروف عطف مدمجة مع كلمات وظيفية (و+ما، و+هو...)
+    // كلمات استفهام مركبة (3+ حروف، لا يُحذفها مرشح الطول)
+    "ماهي", "ماهو", "متى", "لماذا", "اين",
+    // حروف عطف مدمجة
     "وما", "وهو", "وهي", "ومن", "وعن", "وفي", "وكم",
-    "ما", "اسم", "من", "هو", "هي", "هل", "اين", "يقام", "لي", "عن", "في", "على",
-    "هن", "له", "لها", "لهم", "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع", "خبر", "قديم", "يتحدث",
-    "حول", "باختصار", "عليه", "السلام",
-    // Operation-intent verbs (لخص، اشرح، عدد، نبذة…) merged from canonical source
+    // كلمات وظيفية ≥3 حروف
+    "اسم", "يقام", "لها", "لهم", "حول", "عليه",
+    "باختصار", "السلام",
+    // اسم المؤسسة — يظهر في كل استعلام تقريباً وليس محتوى قابلاً للمطابقة
+    "العتبه", "العتبة", "العباسيه", "العباسية",
+    // كلمات إخبارية/تصنيفية عامة جداً
+    "مشروع", "مشاريع", "خبر", "قديم", "يتحدث",
+    // كلمات النية التشغيلية (لخص، اشرح، عدد، نبذة…) — المصدر الوحيد للحقيقة
     ...OPERATION_INTENT_TOKENS
   ])
   const specificTokens = tokens.filter(t => !genericTokens.has(t))

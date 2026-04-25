@@ -43,51 +43,27 @@ export type { APICallResult } from "./site-api-transport"
 const OFFICIAL_NEWS_SEARCH_TIMEOUT_MS = Number(process.env.OFFICIAL_NEWS_SEARCH_TIMEOUT_MS || 12000)
 const OFFICIAL_NEWS_SEARCH_CACHE_MS = Number(process.env.OFFICIAL_NEWS_SEARCH_CACHE_MS || 10 * 60 * 1000)
 const officialNewsSearchCache = new Map<string, { items: any[]; cachedAt: number }>()
-const FILTER_STOP_WORDS = new Set([
-  "في",
-  "من",
-  "عن",
-  "على",
-  "الى",
-  "الي",
-  "للعتبه",
-  "للعتبة",
-  "العتبه",
-  "العتبة",
-  "العباسيه",
-  "العباسية",
-  "المقدسه",
-  "المقدسة",
-  "اليوم",
-  "حاليا",
-  "حالياً",
-  "الان",
-  "الآن",
-  "احدث",
-  "اخر",
-  "آخر",
-  "الاخيره",
-  "الاخيرة",
-  "الجديده",
-  "الجديدة",
-  "منشورات",
-  "المنشورات",
-  "اخبار",
-  "الاخبار",
-  "خبر",
-  "الخبر",
-  "فيديو",
-  "الفيديو",
-  "فيديوهات",
-  "الفيديوهات",
-  "مقاطع",
-  "المقاطع",
-  "اعرض",
-  "هات",
-  "اعطني",
-  "اعطني",
-  "اريد",
-  "لي"
+/** كلمات يجب تصفيتها من الاستعلام قبل البحث — مصدر الحقيقة الوحيد لكلمات الوقف */
+export const FILTER_STOP_WORDS = new Set([
+  // حروف الجر والظروف القصيرة
+  "في", "من", "عن", "على", "الى", "الي",
+  // اسم المؤسسة وصيغه
+  "للعتبه", "للعتبة", "العتبه", "العتبة",
+  "العباسيه", "العباسية", "المقدسه", "المقدسة",
+  // ظروف زمنية عامة جداً
+  "اليوم", "حاليا", "حالياً", "الان", "الآن",
+  "احدث", "اخر", "آخر", "الاخيره", "الاخيرة",
+  "الجديده", "الجديدة",
+  // نوع المحتوى
+  "منشورات", "المنشورات", "اخبار", "الاخبار",
+  "خبر", "الخبر", "فيديو", "الفيديو",
+  "فيديوهات", "الفيديوهات", "مقاطع", "المقاطع",
+  // أفعال الطلب
+  "اعرض", "هات", "اعطني", "اريد", "لي",
+  // كلمات الوجود والانتماء (كانت في stopTokens داخل buildRelaxedProjectQueries)
+  "هناك", "هنالك", "يوجد", "توجد", "لدى",
+  "تابع", "تابعة", "تابعه", "يتبع", "تتبع",
+  "مؤسسة", "مؤسسات"
 ].map(token => normalizeArabic(token)))
 
 type LatestSourceFetchParams = SourceFetchParams & {
@@ -125,14 +101,8 @@ function buildRelaxedProjectQueries(query: string): string[] {
   const original = String(query || "").trim()
   if (!original) return []
 
-  const stopTokens = new Set([
-    "ما", "هو", "هي", "هل", "هناك", "هنالك", "يوجد", "توجد", "لدى", "لل",
-    "عن", "في", "على", "الى", "إلى", "من", "او", "أو",
-    "العتبه", "العتبة", "العباسيه", "العباسية", "المقدسه", "المقدسة",
-    "تابع", "تابعة", "تابعه", "يتبع", "تتبع", "مؤسسة", "مؤسسات"
-  ].map(token => normalizeArabic(token)))
-
-  const tokens = tokenizeArabicQuery(original).filter(token => !stopTokens.has(token))
+  // يُستخدم FILTER_STOP_WORDS (المُصدَّر أعلاه) مصدراً واحداً لكلمات الوقف
+  const tokens = tokenizeArabicQuery(original).filter(token => !FILTER_STOP_WORDS.has(token))
   const namedPhrase = extractNamedPhrase(original)
   const queries = new Set<string>()
 
