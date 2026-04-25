@@ -1,5 +1,44 @@
 import { normalizeQueryForTrace } from "./observability/chat-trace"
 
+// ----------------------------------------------------------------------------
+// Operation-intent vocabulary — SINGLE SOURCE OF TRUTH
+//
+// Every Arabic verb/cue that signals an operation (count, explain, summarize,
+// list, compare, browse…) is declared exactly once here. Two consumers depend
+// on it:
+//   1. detectOperationIntent()  — routes the query to the right pipeline
+//   2. site-ranking-policy.ts   — excludes them from "specific content tokens"
+//      so a query like "اشرح لي نبذة عن مزارع العتبة" still matches items
+//      whose only real content token is "مزارع".
+//
+// Adding a new operation cue here automatically makes both consumers aware of
+// it. Do NOT duplicate this list elsewhere.
+// ----------------------------------------------------------------------------
+export const OPERATION_INTENT_VOCAB: Record<Exclude<QueryOperationIntent, "fact_question" | "latest">, string[]> = {
+  count:        ["كم", "عدد", "اجمالي", "إجمالي", "مجموع", "احصاء", "إحصاء"],
+  list_items:   ["اعرض", "عرض", "هات", "قائمة", "لائحه", "لائحة", "list"],
+  summarize:    ["لخص", "تلخيص", "خلاصه", "خلاصة", "ملخص", "اختصر", "نبذه", "نبذة", "موجز", "إيجاز", "ايجاز"],
+  explain:      ["اشرح", "شرح", "فسر", "تفسير", "وضح", "توضيح", "كيف", "صف", "وصف", "تكلم", "حدثني", "عرفني", "اخبرني"],
+  classify:     ["صنف", "تصنيف"],
+  direct_answer: ["الجواب المباشر", "جواب مباشر", "في سطرين", "دون عناوين", "دون روابط"],
+  browse:       ["تصفح", "صفحة", "الصفحة", "اقدم", "اول", "oldest", "first"]
+}
+
+/** Flat normalized set of all operation-intent tokens, used by ranking to
+ *  exclude them from "specific content tokens" without duplicating the list. */
+export const OPERATION_INTENT_TOKENS: ReadonlySet<string> = new Set(
+  Object.values(OPERATION_INTENT_VOCAB)
+    .flat()
+    .flatMap(phrase => phrase.split(/\s+/))
+    .map(token => normalizeQueryForTrace(token))
+    .filter(token => token.length >= 2)
+)
+
+/** Latest-content cues (kept separate because "latest" composes with list_items). */
+export const LATEST_INTENT_TOKENS: ReadonlySet<string> = new Set(
+  ["احدث", "أحدث", "اخر", "آخر", "الجديد"].map(t => normalizeQueryForTrace(t))
+)
+
 export type QueryContentIntent =
   | "news"
   | "video"
@@ -76,11 +115,11 @@ function isInstitutionalRelationQuery(norm: string): boolean {
   if (!norm) return false
 
   const hasRelationCue = /(?:تابع|يتبع|تتبع|ينتمي|تنتمي|ضمن|من\s+مؤسسات|تابعه\s+ل|تابع\s+ل|يتبع\s+ل)/u.test(norm)
-  const hasInstitutionCue = /(?:العتب[هة]|العباسي[هة]|مؤسس[هة]|جامع[هة]|جامعه|جامعة|مؤسسة|مركز|كلية|كليه)/u.test(norm)
+  const hasInstitutionCue = /(?:العتب[هة]|العباسي[هة]|مؤسس[هة]|جامع[ةه]|جامعات|مؤسسة|مركز|مراكز|كلية|كليه|كليات)/u.test(norm)
   const hasExistentialCue = /(?:^|\s)(?:هل|يوجد|هناك|هنالك)(?:\s|$)/u.test(norm)
   const hasInstitutionOwnerCue = /(?:العتب[هة](?:\s+العباسي[هة])?|العباسي[هة])/u.test(norm)
   const hasOwnershipExistentialCue = /(?:^|\s)هل\s+(?:لدى|لل|توجد\s+ل|يوجد\s+ل)/u.test(norm)
-  const hasOrgObjectCue = /(?:جامع[هة]|جامعة|جامعه|كلية|كليه|مؤسسة|مركز|معهد|مدرسة|مشروع|مشاريع|برامج|نشاطات|خدمات)/u.test(norm)
+  const hasOrgObjectCue = /(?:جامع[ةه]|جامعات|كلية|كليه|كليات|مؤسسة|مؤسسات|مركز|مراكز|معهد|معاهد|مدرسة|مدارس|مشروع|مشاريع|برامج|نشاطات|خدمات)/u.test(norm)
 
   return (
     (hasRelationCue && hasInstitutionCue) ||
@@ -180,14 +219,20 @@ function detectContentIntent(norm: string): QueryContentIntent {
 }
 
 function detectOperationIntent(norm: string): QueryOperationIntent {
-  const hasCount = /(?:^|\s)(?:كم|عدد|اجمالي|إجمالي|مجموع|احصاء|إحصاء)(?:\s|$)/u.test(norm)
-  const hasLatest = /(?:احدث|أحدث|اخر|آخر|الجديد)/u.test(norm)
-  const hasList = /(?:اعرض|عرض|هات|قائمة|لائحه|لائحة|list)/u.test(norm)
-  const hasSummarize = /(?:لخص|تلخيص|خلاصه|خلاصة|ملخص|اختصر)/u.test(norm)
-  const hasExplain = /(?:اشرح|شرح|فسر|تفسير|وضح|توضيح|كيف|صف|وصف|تكلم|حدثني|عرفني)/u.test(norm)
-  const hasClassify = /(?:فعاليه\s+ام|فعالية\s+ام|برنامج\s+ام|خبر\s+ام|صنف|تصنيف)/u.test(norm)
-  const hasDirect = /(?:الجواب\s+المباشر|جواب\s+مباشر|في\s+سطرين|دون\s+عناوين|دون\s+روابط)/u.test(norm)
-  const hasBrowse = /(?:تصفح|صفح[هة]|الصفح[هة]|اقدم|اول|oldest|first)/u.test(norm)
+  const tokens = new Set(norm.split(/\s+/).filter(Boolean))
+  const matchesAny = (vocab: string[]): boolean => vocab.some(phrase =>
+    phrase.includes(" ") ? norm.includes(phrase) : tokens.has(phrase)
+  )
+
+  const hasCount        = matchesAny(OPERATION_INTENT_VOCAB.count)
+  const hasList         = matchesAny(OPERATION_INTENT_VOCAB.list_items)
+  const hasSummarize    = matchesAny(OPERATION_INTENT_VOCAB.summarize)
+  const hasExplain      = matchesAny(OPERATION_INTENT_VOCAB.explain)
+  const hasClassify     = matchesAny(OPERATION_INTENT_VOCAB.classify) ||
+                          /(?:فعاليه\s+ام|فعالية\s+ام|برنامج\s+ام|خبر\s+ام)/u.test(norm)
+  const hasDirect       = matchesAny(OPERATION_INTENT_VOCAB.direct_answer)
+  const hasBrowse       = matchesAny(OPERATION_INTENT_VOCAB.browse)
+  const hasLatest       = [...LATEST_INTENT_TOKENS].some(t => tokens.has(t))
   const hasFollowUpSummary = /(?:اول\s+نتيجة|أول\s+نتيجة|النتيجة\s+التي\s+ذكرتها|الخبر\s+الذي\s+ذكرته|التي\s+ذكرتها|الذي\s+ذكرته)/u.test(norm)
 
   if (hasCount) return "count"

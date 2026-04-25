@@ -66,7 +66,7 @@ function normalizeArticle(raw: any): NormalizedContent {
   const fullText = stripHtml(bodyText)
 
   const domain = SITE_DOMAIN()
-  const tpl = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}"
+  const tpl = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}&lang=ar"
   const url =
     pickText(raw.url, raw.link, raw.permalink, raw.news_url) ||
     `${domain}${tpl.replace("{id}", encodeURIComponent(id))}`

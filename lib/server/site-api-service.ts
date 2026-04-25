@@ -1012,15 +1012,12 @@ export async function siteSearchContent(
     }
   }
 
-  // NOTE: regex literals must be in normalized form (ة → ه, etc.) because
-  // they are matched against normalizeArabic(query). The vocabulary is
-  // intentionally broad to cover the main project-domain adjectives the site
-  // uses (agricultural / industrial / health / educational / service / cultural
-  // / construction / production), without hard-coding answers for any specific
-  // example.
-  const projectDomainSignals = /(?:^|\s)(?:مشروع|مشاريع|برنامج|برامج|خدمه|خدمات|مبادره|مبادرات|مصنع|مصانع|معمل|معامل|محطه|محطات|مزرعه|مزارع|بستان|صناعي|صناعيه|زراعي|زراعيه|صحي|صحيه|تعليمي|تعليميه|خدمي|خدميه|انتاجي|انتاجيه|خيري|خيريه|انساني|انسانيه|ثقافي|ثقافيه|عمراني|عمرانيه|اعمار|ترميم|تشييد|بناء|توسعه|دواجن|دجاج|لحوم|اسماك|محاصيل|انتاج|تربيه)(?:\s|$|[؟?!،,.])/u.test(normalizeArabic(query))
-  const shouldAugmentFromProjectsDataset =
-    source === "auto" && (capability.institutional_relation || projectDomainSignals)
+  // Always attempt to augment from the projects dataset when source is auto.
+  // No hard-coded vocabulary gate: getAllProjects() is cached (30 min) so the
+  // call is cheap, and siteSearch() returns only items with score > 0. The
+  // downstream scoring drops any irrelevant items, so non-project queries
+  // pay near-zero cost and project queries get full coverage automatically.
+  const shouldAugmentFromProjectsDataset = source === "auto"
 
   if (shouldAugmentFromProjectsDataset) {
     const projectQueries = [query, ...buildRelaxedProjectQueries(query)]
@@ -1126,7 +1123,11 @@ export async function siteSearchContent(
     const queryTokensRaw = tokenizeArabicQuery(query)
     const genericStopSet = new Set(["ماهي","ماهو","ما","اسم","من","هو","هي","هل","اين","يقام","كم","عدد","لي","عن","في","على","هن","له","لها","لهم","العتبه","العتبة","العباسيه","العباسية","مشروع","مشاريع","خبر","قديم","يتحدث","تكلم","اشرح","حدثني","اخبرني","حول","باختصار","اعطني","اعرض","عليه","السلام","تمتلك","يمتلك","تملك","توجد","يوجد","هناك","هنالك","تتبع","تابعه","تابع","لديها","لديه","لدى","او","أو","ثم","بل","لكن","اما","للعتبه","لعتبه"])
     const keyTokens = queryTokensRaw.filter(t => !genericStopSet.has(normalizeArabic(t)))
-    const officialSearchQuery = keyTokens.length > 0 && keyTokens.length < queryTokensRaw.length
+    // Strip stop-words only when at least TWO content tokens remain. With a
+    // single content token (e.g. "جامعات") the search loses entity context
+    // and returns generic articles; the full query keeps the discriminating
+    // tokens (e.g. "العباسية") that the API uses for relevance ranking.
+    const officialSearchQuery = keyTokens.length >= 2 && keyTokens.length < queryTokensRaw.length
       ? keyTokens.join(" ")
       : query
     const officialNewsResults = await fetchOfficialNewsSearchResults(officialSearchQuery, safeLimit, {
@@ -1245,13 +1246,12 @@ export async function siteSearchContent(
   }))
 
   // Final-stage rescue: when the unified search has produced no scored results
-  // but the query clearly asks about projects/programs/services owned by the
-  // institution, surface the project section catalog so the LLM can either
-  // identify the correct domain category that matches the user's topic, or
-  // honestly say which categories exist. This is a generic fallback driven by
-  // the project taxonomy itself — no hard-coded answers for any particular
-  // example.
-  if (results.length === 0 && (capability.institutional_relation || projectDomainSignals)) {
+  // and we're in auto-source mode, surface the project section catalog so the
+  // LLM can either identify a relevant domain category or honestly state which
+  // categories exist. The matching is purely data-driven against the live
+  // taxonomy (no hard-coded vocabulary): if no section name shares stems with
+  // the query, `matched` will be empty and the hint stays generic.
+  if (results.length === 0 && source === "auto") {
     try {
       const catalog = await siteListCategories(true)
       const allCats = Array.isArray(catalog?.data?.categories) ? catalog.data.categories : []

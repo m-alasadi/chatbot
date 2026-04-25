@@ -137,7 +137,7 @@ export function normalizeProjectsDataset(rawData: any): any[] {
   }
 
   const siteDomain = (process.env.SITE_DOMAIN || "https://alkafeel.net").replace(/\/+$/, "")
-  const articleUrlTemplate = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}"
+  const articleUrlTemplate = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}&lang=ar"
 
   function resolveArticleUrl(item: any): string {
     const explicitUrl =

@@ -1,4 +1,4 @@
-import { type RetrievalCapabilitySignals } from "./query-understanding"
+import { type RetrievalCapabilitySignals, OPERATION_INTENT_TOKENS } from "./query-understanding"
 import { type SiteSourceName, type SourceFetchParams, EXPANDABLE_SOURCES } from "./site-source-adapters"
 
 // ── Arabic normalization utilities ──────────────────────────────────
@@ -33,6 +33,11 @@ export function buildTokenVariants(token: string): string[] {
   const base = normalizeArabic(String(token || "")).trim()
   if (!base || base.length < 3) return [base]
   const variants = new Set<string>([base])
+  // strip Arabic definite article "ال" so "المشاريع" stems the same as "مشاريع".
+  // Guard against false positives like "الى" / "الذي" (length < 5 after strip is too short).
+  if (base.length >= 5 && base.startsWith("ال")) {
+    variants.add(base.slice(2))
+  }
   // strip common suffixes (including possessive/pronominal: ها، هم، هن، ك)
   for (const suffix of ["يه", "ه", "ات", "ين", "ون", "ها", "هم", "هن", "ك"]) {
     if (base.endsWith(suffix) && base.length > suffix.length + 2) {
@@ -348,15 +353,21 @@ export function scoreUnifiedItem(item: any, query: string): number {
   let matchedTokenCount = 0
   let hasSpecificNamedPhrase = false
 
+  // Tokens that carry no specific content meaning: question particles, pronouns,
+  // generic prepositions, and the institution name (which is implicit context).
+  // Operation-intent verbs (اشرح, لخص, عدد, نبذة…) are added automatically from
+  // OPERATION_INTENT_TOKENS — the single source of truth in query-understanding.ts.
   const genericTokens = new Set([
     "ماهي", "ماهو",
     // استفهام + ظروف زمنية
-    "متى", "كيف", "لماذا",
+    "متى", "لماذا",
     // حروف عطف مدمجة مع كلمات وظيفية (و+ما، و+هو...)
     "وما", "وهو", "وهي", "ومن", "وعن", "وفي", "وكم",
-    "ما", "اسم", "من", "هو", "هي", "هل", "اين", "يقام", "كم", "عدد", "لي", "عن", "في", "على",
+    "ما", "اسم", "من", "هو", "هي", "هل", "اين", "يقام", "لي", "عن", "في", "على",
     "هن", "له", "لها", "لهم", "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع", "خبر", "قديم", "يتحدث",
-    "تكلم", "اشرح", "حدثني", "اخبرني", "حول", "باختصار", "اعطني", "اعرض", "عليه", "السلام"
+    "حول", "باختصار", "عليه", "السلام",
+    // Operation-intent verbs (لخص، اشرح، عدد، نبذة…) merged from canonical source
+    ...OPERATION_INTENT_TOKENS
   ])
   const specificTokens = tokens.filter(t => !genericTokens.has(t))
   const projectDomainTokens = [

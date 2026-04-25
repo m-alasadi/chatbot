@@ -30,6 +30,11 @@ const GENERIC_TOKENS = new Set([
   "تكلم", "اشرح", "حدثني", "اخبرني", "عرفني", "ابحث", "خبر",
   "قديم", "يتحدث", "اعطني", "اعرض", "عليه", "السلام",
   "العتبه", "العتبة", "العباسيه", "العباسية", "مشروع", "مشاريع",
+  // Operation / question words (asking *how many / which / when / where*).
+  // These describe the operation requested, not the entity attribute, so
+  // they must not be treated as content tokens when checking knowledge gaps.
+  "عدد", "كم", "ماذا", "متى", "متي", "اين", "أين", "كيف", "لماذا", "لما",
+  "ايش", "أيش", "ايّ", "اي", "أي", "أيهم", "ايهم",
 ])
 
 export function extractSpecificQueryTokens(text: string): string[] {

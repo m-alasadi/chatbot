@@ -227,6 +227,20 @@ export class KnowledgeIndex {
   }
 
   /**
+   * Get all sibling chunks sharing the same parent_id, ordered by chunk_index.
+   * Useful for re-assembling a long document around a single match so the
+   * model can see the full passage (e.g. an enumeration that spans chunks).
+   */
+  getChunksByParent(parentId: string): ContentChunk[] {
+    const out: ContentChunk[] = []
+    for (const [, chunk] of this.chunkStore) {
+      if (chunk.parent_id === parentId) out.push(chunk)
+    }
+    out.sort((a, b) => (a.chunk_index ?? 0) - (b.chunk_index ?? 0))
+    return out
+  }
+
+  /**
    * Clear entire index.
    */
   clear(): void {

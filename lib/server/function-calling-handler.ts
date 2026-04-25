@@ -50,7 +50,7 @@ function cleanProject(project: any, detailed: boolean = false): any {
   if (!project || typeof project !== "object") return project
 
   const siteDomain = (process.env.SITE_DOMAIN || "https://alkafeel.net").replace(/\/+$/, "")
-  const articleUrlTemplate = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}"
+  const articleUrlTemplate = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}&lang=ar"
   const sourceType = project?.source_type
   const isVideoSource = ["videos_latest", "videos_by_category", "friday_sermons", "wahy_friday"].includes(sourceType)
   const isHistorySource = ["shrine_history_by_section", "shrine_history_sections"].includes(sourceType)
@@ -84,6 +84,12 @@ function cleanProject(project: any, detailed: boolean = false): any {
 
   const fallbackUrl = (() => {
     if (!project.id) return siteDomain
+    // Projects from the projects dataset (projects.alkafeel.net) use a different
+    // URL scheme than news articles. Using the article URL template with a project ID
+    // would point to a completely unrelated news article.
+    if (sourceType === "projects_dataset") {
+      return `https://projects.alkafeel.net/project/${encodeURIComponent(String(project.id))}`
+    }
     const path = articleUrlTemplate.replace("{id}", encodeURIComponent(String(project.id)))
     if (path.startsWith("http://") || path.startsWith("https://")) return path
     return `${siteDomain}${path.startsWith("/") ? path : `/${path}`}`

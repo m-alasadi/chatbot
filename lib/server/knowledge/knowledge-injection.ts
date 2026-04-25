@@ -9,6 +9,7 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import { executeToolByName } from "../site-api-service"
 import { ensureKnowledgeReady } from "./content-ingestion"
 import { searchKnowledgeWithBackfill } from "./knowledge-search"
+import { getKnowledgeIndex } from "./knowledge-index"
 import {
   extractBestEvidence,
   extractEvidenceFromToolResults,
@@ -40,7 +41,7 @@ import { understandQuery, type QueryUnderstandingResult } from "../query-underst
 // ── Knowledge context formatting ────────────────────────────────────
 
 function formatKnowledgeResults(
-  chunks: { chunk: { title: string; section: string; url: string; chunk_text: string; source?: string }; evidence_snippet: string; score: number }[]
+  chunks: { chunk: { title: string; section: string; url: string; chunk_text: string; source?: string; parent_id?: string }; evidence_snippet: string; score: number }[]
 ): string {
   if (!chunks || chunks.length === 0) return ""
 
@@ -48,12 +49,35 @@ function formatKnowledgeResults(
   const evidenceBlock = formatEvidenceForModel(evidence)
 
   const lines: string[] = ["[سياق معرفي إضافي من النصوص الكاملة]"]
+  const seenParents = new Set<string>()
+  const index = getKnowledgeIndex()
+
   for (const r of chunks) {
     const isAbbas = r.chunk.source === "abbas_local_dataset"
-    const maxSnippet = isAbbas ? 550 : 400
-    const snippet = isAbbas
-      ? r.chunk.chunk_text.substring(0, maxSnippet)
-      : (r.evidence_snippet || r.chunk.chunk_text.substring(0, maxSnippet))
+    const parentId = (r.chunk as any).parent_id as string | undefined
+
+    let snippet: string
+    if (isAbbas && parentId) {
+      // For Abbas biographical content, reassemble the full parent tab so
+      // enumerations / lists that span multiple chunks aren't cut. Each
+      // parent is emitted only once even if multiple sibling chunks ranked.
+      if (seenParents.has(parentId)) continue
+      seenParents.add(parentId)
+      const siblings = index.getChunksByParent(parentId)
+      if (siblings.length > 0) {
+        // Reconstruct without re-emitting overlap regions
+        snippet = siblings.map(s => s.chunk_text).join("\n").trim()
+        // Cap to a generous bound so we don't blow the context window
+        if (snippet.length > 4000) snippet = snippet.substring(0, 4000) + "…"
+      } else {
+        snippet = r.evidence_snippet || r.chunk.chunk_text
+      }
+    } else {
+      snippet = (r.evidence_snippet && r.evidence_snippet.length >= 80)
+        ? r.evidence_snippet
+        : r.chunk.chunk_text.substring(0, 400)
+    }
+
     lines.push(`• ${r.chunk.title}${r.chunk.section ? ` — ${r.chunk.section}` : ""}`)
     lines.push(`  ${snippet}`)
     if (r.chunk.url) lines.push(`  ${r.chunk.url}`)

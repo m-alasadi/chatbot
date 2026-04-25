@@ -25,6 +25,12 @@ function buildEvidenceSnippet(
   queryTokens: string[],
   windowSize = 300
 ): string {
+  // Auto-widen the window for chunks longer than the default; ensures the
+  // matched cluster keeps surrounding context (e.g. enumerations that span
+  // multiple sentences after the query keyword).
+  if (chunkText.length > windowSize * 2) {
+    windowSize = Math.min(900, Math.max(windowSize, Math.floor(chunkText.length / 3)))
+  }
   const normText = normalizeArabic(chunkText)
 
   // Find best match position — where the most query tokens cluster
