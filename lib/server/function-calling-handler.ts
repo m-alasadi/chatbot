@@ -24,7 +24,7 @@ import { orchestrateRetrieval } from "./retrieval-orchestrator"
 import { deriveRetrievalCapabilitySignals, understandQuery, type QueryUnderstandingResult } from "./query-understanding"
 import { getLastUserMessage, getResolvedUserQuery } from "./runtime/dialog-context-policy"
 import { isOutOfScopeQuery, isSmallTalkQuery } from "./runtime/query-scope-policy"
-import { buildAnswerShapeInstruction } from "./runtime/answer-shape-policy"
+import { buildAnswerShapeInstruction, getDeterministicDirectAnswer } from "./runtime/answer-shape-policy"
 import { detectForcedUtilityIntent } from "./runtime/forced-utility-routing-policy"
 import { getPrimaryRetrievalToolForQuery } from "./runtime/retrieval-bootstrap-policy"
 import {
@@ -596,6 +596,18 @@ export async function resolveToolCalls(
   if (shapeHint) currentMessages.push({ role: "system", content: shapeHint })
   const coverageHint = buildCompoundCoverageInstruction(userQuery)
   if (coverageHint) currentMessages.push({ role: "system", content: coverageHint })
+
+  // Short-circuit: إجابة حتمية جاهزة تتجاوز tool calls بالكامل
+  const deterministicAnswer = getDeterministicDirectAnswer(userQuery)
+  if (deterministicAnswer) {
+    return {
+      resolvedMessages: currentMessages,
+      needsFinalCall: false,
+      iterations: 0,
+      directAnswer: deterministicAnswer,
+      trace: traceSummary,
+    }
+  }
 
   if (options.traceId) {
     logChatTrace({

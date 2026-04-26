@@ -1,4 +1,4 @@
-import { type RetrievalCapabilitySignals, OPERATION_INTENT_TOKENS } from "./query-understanding"
+import { type RetrievalCapabilitySignals } from "./query-understanding"
 import { type SiteSourceName, type SourceFetchParams, EXPANDABLE_SOURCES } from "./site-source-adapters"
 
 // ── Arabic normalization utilities ──────────────────────────────────
@@ -371,8 +371,13 @@ export function scoreUnifiedItem(item: any, query: string): number {
     "العتبه", "العتبة", "العباسيه", "العباسية",
     // كلمات إخبارية/تصنيفية عامة جداً
     "مشروع", "مشاريع", "خبر", "قديم", "يتحدث",
-    // كلمات النية التشغيلية (لخص، اشرح، عدد، نبذة…) — المصدر الوحيد للحقيقة
-    ...OPERATION_INTENT_TOKENS
+    // كلمات النية التشغيلية (لخص، اشرح، عدد، نبذة…)
+    "اشرح", "شرح", "فسر", "تفسير", "وضح", "توضيح", "صف", "وصف",
+    "تكلم", "حدثني", "اخبرني", "عرفني", "اعطني",
+    "لخص", "تلخيص", "خلاصه", "خلاصة", "ملخص", "اختصر",
+    "اعرض", "عرض", "هات", "قائمه", "قائمة", "لائحه", "لائحة", "اذكر", "اجمل",
+    "عدد", "اجمالي", "إجمالي", "مجموع", "احصاء", "إحصاء",
+    "ابحث", "نبذه", "نبذة"
   ])
   const specificTokens = tokens.filter(t => !genericTokens.has(t))
   const projectDomainTokens = [

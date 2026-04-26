@@ -1585,8 +1585,18 @@ async function discoverEntities(query: string): Promise<APICallResult> {
 /**
  * بناء مقتطف نصي مضغوط من فهرس الكيانات ليُحقن في system prompt
  * يعيد سلسلة نصية جاهزة أو سلسلة فارغة إذا لم تكن البيانات محملة بعد
+ *
+ * Cache: نتيجة النص النهائي تُحفظ مع نفس TTL لكاش المشاريع
+ * (`projectsCache`) لتفادي إعادة بناء النص من الصفر في كل طلب.
  */
+let entityCatalogSnippetCache: { text: string; cachedAt: number } | null = null
+
 export async function buildEntityCatalogSnippet(): Promise<string> {
+  const now = Date.now()
+  if (entityCatalogSnippetCache && now - entityCatalogSnippetCache.cachedAt < CACHE_DURATION) {
+    return entityCatalogSnippetCache.text
+  }
+
   const result = await getAllProjects()
   if (!result.success || !Array.isArray(result.data) || result.data.length === 0) return ""
 
@@ -1597,7 +1607,9 @@ export async function buildEntityCatalogSnippet(): Promise<string> {
     return sections ? `- ${p.name} [${sections}]` : `- ${p.name}`
   })
 
-  return `\n\n## فهرس الكيانات المتاحة في قاعدة البيانات\nاستخدم الأسماء الدقيقة أدناه عند صياغة استعلامات البحث:\n${lines.join("\n")}`
+  const text = `\n\n## فهرس الكيانات المتاحة في قاعدة البيانات\nاستخدم الأسماء الدقيقة أدناه عند صياغة استعلامات البحث:\n${lines.join("\n")}`
+  entityCatalogSnippetCache = { text, cachedAt: now }
+  return text
 }
 
 /**
