@@ -247,6 +247,15 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
     sourceSpecific.push("shrine_history_sections")
   }
 
+  const asksFridaySermon = /(?:خطب[هة]?\s+الجمع[هة]|خطب[هة]\s+جمع[هة]|من\s+وحي\s+الجمع[هة]|خطب\s+جمع[هة])/u.test(norm)
+  if (asksFridaySermon) {
+    sourceSpecific.push("friday_sermons")
+  }
+  const asksWahyFriday = /(?:من\s+وحي\s+الجمع[هة]|وحي\s+الجمع[هة])/u.test(norm)
+  if (asksWahyFriday) {
+    sourceSpecific.push("wahy_friday")
+  }
+
   const existentialLookup = /(?:^|\s)(?:هل|يوجد|هناك|هنالك)(?:\s|$)/u.test(norm)
   const isCountQuestion = /(?:^|\s)(?:كم|عدد|اجمالي|إجمالي|مجموع)(?:\s|$)/u.test(norm)
   const institutionalRelation = isInstitutionalRelationQuery(norm)

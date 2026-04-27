@@ -534,7 +534,6 @@ export function formatGroundedAnswer(
     lines.push(quote)
     const sourceLink = formatSourceLink(top)
     if (sourceLink) {
-      lines.push("")
       lines.push(`📎 ${sourceLink}`)
     }
     return lines.join("\n")
@@ -550,6 +549,8 @@ export function formatGroundedAnswer(
     lines.push("**أبرز مشاريع التوسعة ذات الصلة**")
   } else if (isProjectStyleQuery) {
     lines.push("**أبرز المشاريع ذات الصلة**")
+  } else if (historicalShrineLifecycleQuery) {
+    lines.push("**النتائج الأقرب**")
   }
 
   for (const evidence of ordered.slice(0, 3)) {

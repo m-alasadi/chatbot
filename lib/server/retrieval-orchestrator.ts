@@ -217,15 +217,10 @@ function buildSourceConstraint(
     }
   }
 
-  if (capability.singular_project_lookup || understanding.extracted_entities.source_specific.includes("projects_query")) {
-    return {
-      intent: "generic",
-      hardConstraint: false,
-      preferredSources: ["articles_latest", "videos_latest", "auto"],
-      allowedSources: ["articles_latest", "videos_latest", "auto"]
-    }
-  }
-
+  // Video queries that mention Friday sermon/wahy content should prefer
+  // the sermon sources over generic video sources.
+  // This check must come before singular_project_lookup so that "هل يوجد فيديو
+  // لخطبة الجمعة" routes to friday_sermons, not articles_latest.
   if (
     intent === "video" &&
     (
@@ -238,6 +233,15 @@ function buildSourceConstraint(
       hardConstraint: false,
       preferredSources: ["friday_sermons", "wahy_friday", "videos_latest", "auto"],
       allowedSources: ["friday_sermons", "wahy_friday", "videos_latest", "videos_by_category", "auto"]
+    }
+  }
+
+  if (capability.singular_project_lookup || understanding.extracted_entities.source_specific.includes("projects_query")) {
+    return {
+      intent: "generic",
+      hardConstraint: false,
+      preferredSources: ["articles_latest", "videos_latest", "auto"],
+      allowedSources: ["articles_latest", "videos_latest", "auto"]
     }
   }
 
@@ -277,13 +281,25 @@ function buildSourceConstraint(
         preferredSources: ["friday_sermons", "wahy_friday", "auto"],
         allowedSources: ["friday_sermons", "wahy_friday", "auto"]
       }
-    case "history":
+    case "history": {
+      // Respect the order emitted by query-understanding — it puts
+      // shrine_history_timeline first for lifecycle/construction queries and
+      // shrine_history_sections first for general history queries.
+      const historyHints = understanding.hinted_sources.filter(
+        s => s === "shrine_history_timeline" ||
+             s === "shrine_history_sections" ||
+             s === "shrine_history_by_section"
+      )
+      const preferred = historyHints.length > 0
+        ? [...new Set([...historyHints, "auto"])]
+        : ["shrine_history_sections", "auto"]
       return {
         intent,
         hardConstraint: true,
-        preferredSources: ["shrine_history_sections", "auto"],
-        allowedSources: ["shrine_history_sections", "shrine_history_by_section", "abbas_history_by_id", "auto"]
+        preferredSources: preferred,
+        allowedSources: [...new Set([...preferred, "shrine_history_sections", "shrine_history_by_section", "abbas_history_by_id", "auto"])]
       }
+    }
     case "language":
       return {
         intent,
@@ -322,10 +338,15 @@ function buildPlan(
   const sourceConstraint = buildSourceConstraint(query, args, understanding)
   const capability = deriveRetrievalCapabilitySignals(understanding, query)
   const entityPriority = detectEntityFirstPriority(query, understanding)
+  const explicitSourceRequested = typeof args.source === "string" && args.source !== "auto"
   const needsBroadRecall =
-    understanding.clarity === "underspecified" ||
-    capability.institutional_relation ||
-    capability.title_or_phrase_lookup
+    !sourceConstraint.hardConstraint &&
+    !explicitSourceRequested &&
+    (
+      understanding.clarity === "underspecified" ||
+      capability.institutional_relation ||
+      capability.title_or_phrase_lookup
+    )
   const orderedPreferredSources = entityPriority.enabled
     ? sourceConstraint.preferredSources.filter(s => s !== "auto").concat("auto")
     : sourceConstraint.preferredSources
