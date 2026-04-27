@@ -9,6 +9,8 @@ function normalizeArabicLight(text: string): string {
     .trim()
 }
 
+import { detectAbbasRelationSlot } from "../../ai/paraphrase-intent"
+
 function includesAny(norm: string, candidates: string[]): boolean {
   return candidates.some(c => norm.includes(normalizeArabicLight(c)))
 }
@@ -222,33 +224,61 @@ function isWahySnippetQuestion(norm: string): boolean {
     includesAny(norm, ["مقتطفات", "خطب كاملة", "خطب كامله", "مقتطفات ام", "مقتطفات أم"])
 }
 
-function isAbbasWivesQuery(norm: string): boolean {
-  const asksWives = includesAny(norm, ["زوجة", "زوجه", "زوجات", "كانت له زوجة", "كانت له زوجه"])
-  return asksWives && hasAbbasPersonSignal(norm)
+function isAbbasWivesQuery(query: string): boolean {
+  return detectAbbasRelationSlot(query) === "wife"
 }
 
-function isAbbasWifeNameQuery(norm: string): boolean {
-  return hasAbbasPersonSignal(norm) &&
-    includesAny(norm, ["اسم زوجته", "ما اسم زوجته", "اسم زوجه", "ما اسم زوجه"])
+function isAbbasWifeNameQuery(query: string): boolean {
+  if (detectAbbasRelationSlot(query) !== "wife") return false
+  const norm = normalizeArabicLight(query)
+  return /(?:اسم|ما\s+اسم|من\s+(?:هي|هو))/u.test(norm)
 }
 
 function isAbbasWivesFollowUpQuery(norm: string): boolean {
   return includesAny(norm, ["زوجة واحدة", "زوجه واحده", "ام اكثر", "أم أكثر", "واحدة أم أكثر"])
 }
 
-function isAbbasTitlesQuery(norm: string): boolean {
-  const asksTitles = includesAny(norm, ["القاب", "ألقاب", "لقب", "الكنية", "كنية", "كنيه"])
-  return asksTitles && hasAbbasPersonSignal(norm)
+function isAbbasTitlesQuery(query: string): boolean {
+  const slot = detectAbbasRelationSlot(query)
+  return slot === "titles" || slot === "kunya"
 }
 
-function isAbbasShortDefinitionQuery(norm: string): boolean {
-  return hasAbbasPersonSignal(norm) &&
-    includesAny(norm, ["باختصار", "سطر واحد", "نبذه", "نبذة", "تعريف", "من دون مقدمة", "من دون مقدمه"])
+function isAbbasShortDefinitionQuery(query: string): boolean {
+  if (detectAbbasRelationSlot(query) !== "definition") return false
+  const norm = normalizeArabicLight(query)
+  return /(?:باختصار|سطر\s+واحد|نبذ|تعريف|دون\s+مقدم)/u.test(norm)
 }
 
-function isAbbasMartyrdomQuery(norm: string): boolean {
-  const asksMartyrdom = includesAny(norm, ["شهادة", "شهاده", "استشهاد", "متى كانت"])
-  return asksMartyrdom && hasAbbasPersonSignal(norm)
+function isAbbasMartyrdomQuery(query: string): boolean {
+  return detectAbbasRelationSlot(query) === "martyrdom"
+}
+
+function isAbbasFatherQuery(query: string): boolean {
+  return detectAbbasRelationSlot(query) === "father"
+}
+
+function isAbbasMotherQuery(query: string): boolean {
+  return detectAbbasRelationSlot(query) === "mother"
+}
+
+function isAbbasBrothersQuery(query: string): boolean {
+  return detectAbbasRelationSlot(query) === "brothers"
+}
+
+function isAbbasSistersQuery(query: string): boolean {
+  return detectAbbasRelationSlot(query) === "sisters"
+}
+
+function isAbbasUnclesQuery(query: string): boolean {
+  return detectAbbasRelationSlot(query) === "uncles"
+}
+
+function isAbbasAgeQuery(query: string): boolean {
+  return detectAbbasRelationSlot(query) === "age"
+}
+
+function isAbbasBirthQuery(query: string): boolean {
+  return detectAbbasRelationSlot(query) === "birth"
 }
 
 function isEducationalProjectQuery(norm: string): boolean {
@@ -510,29 +540,14 @@ export function isOfficeHolderFactQuery(text: string): boolean {
 }
 
 export function isAbbasChildrenQuery(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-  const asksChildren = includesAny(norm, ["ابناء", "أبناء", "اولاد", "أولاد"])
-  return asksChildren && hasAbbasPersonSignal(norm)
+  return detectAbbasRelationSlot(text) === "children"
 }
 
 function isAbbasBiographyWhoIsQuery(text: string): boolean {
-  const norm = normalizeArabicLight(text)
-  const asksWho = includesAny(norm, ["من هو", "من هي"])
-  if (!asksWho || !hasAbbasPersonSignal(norm)) return false
-  // Exclude attribute-targeted questions ("من هي زوجة العباس", "من هو والد العباس",
-  // "من هم أبناء العباس", …). These ask about a RELATED person, not about
-  // Abbas himself, so the generic "who is Abbas" canned answer must not fire.
-  const attributeTargets = [
-    "زوج", "زوجه", "زوجة", "زوجات",
-    "والد", "والده", "والدته", "ابو", "ابوه", "ابيه", "ام ", "امه",
-    "ابن", "ابناء", "اولاد", "اخ", "اخوه", "اخوته", "اخت", "اخوات", "اخواته",
-    "عم", "عمه", "اعمام", "خال", "اخوال",
-    "لقب", "القاب", "كنيه", "كنية",
-    "شهاده", "شهادة", "استشهاد", "مقتل",
-    "عمر", "ولاده", "ولادة", "مولد",
-  ]
-  if (attributeTargets.some(t => norm.includes(t))) return false
-  return true
+  // Paraphrase-robust: only the pure "who is Abbas" definition slot.
+  // Attribute-targeted phrasings (wife/father/children/...) resolve to
+  // their own slot via detectAbbasRelationSlot's priority order.
+  return detectAbbasRelationSlot(text) === "definition"
 }
 
 export function getDeterministicDirectAnswer(query: string): string | null {
@@ -785,11 +800,23 @@ export function getDeterministicDirectAnswer(query: string): string | null {
     return "بحسب المصادر التاريخية، من أبناء أبي الفضل العباس (عليه السلام): الفضل، عبيد الله، الحسن، القاسم، ومحمد."
   }
 
-  if (isAbbasTitlesQuery(norm)) {
+  if (isAbbasTitlesQuery(query)) {
     return "من أشهر ألقاب أبي الفضل العباس (عليه السلام): قمر بني هاشم، السقّاء، وحامل اللواء."
   }
 
-  if (isAbbasWivesQuery(norm)) {
+  if (isAbbasFatherQuery(query)) {
+    return "والد أبي الفضل العباس (عليه السلام) هو أمير المؤمنين الإمام علي بن أبي طالب (عليه السلام)."
+  }
+
+  if (isAbbasMotherQuery(query)) {
+    return "والدة أبي الفضل العباس (عليه السلام) هي فاطمة بنت حزام، المعروفة بـأم البنين (عليها السلام)."
+  }
+
+  if (isAbbasWifeNameQuery(query)) {
+    return "اسم زوجته المشهورة هو لُبابة بنت عبيد الله بن العباس."
+  }
+
+  if (isAbbasWivesQuery(query)) {
     return "المشهور تاريخياً أن لأبي الفضل العباس (عليه السلام) زوجة واحدة معروفة هي لُبابة بنت عبيد الله بن العباس."
   }
 
@@ -797,7 +824,7 @@ export function getDeterministicDirectAnswer(query: string): string | null {
     return "المشهور تاريخياً أنه كانت له زوجة واحدة."
   }
 
-  if (isAbbasMartyrdomQuery(norm)) {
+  if (isAbbasMartyrdomQuery(query)) {
     return "استُشهد أبو الفضل العباس (عليه السلام) يوم عاشوراء سنة 61 هـ في واقعة كربلاء."
   }
 
@@ -1050,19 +1077,27 @@ export function getSafeCapabilityDirectAnswer(query: string): string | null {
     return "المشروع يدل على كيان تنفيذي أو إنتاجي أو خدمي، والقسم يدل على وحدة تنظيمية داخل هيكل العتبة، أما المركز فعادةً يكون جهة متخصصة ذات وظيفة معرفية أو إعلامية أو فنية."
   }
 
-  if (isAbbasBiographyWhoIsQuery(query) || isAbbasShortDefinitionQuery(norm)) {
+  if (isAbbasBiographyWhoIsQuery(query) || isAbbasShortDefinitionQuery(query)) {
     return "أبو الفضل العباس بن علي (عليه السلام) هو ابن الإمام علي بن أبي طالب وأخو الإمام الحسين، ويُعرف بالشجاعة والوفاء وحمل لواء كربلاء."
   }
 
-  if (isAbbasTitlesQuery(norm)) {
+  if (isAbbasTitlesQuery(query)) {
     return "من أشهر ألقاب أبي الفضل العباس: قمر بني هاشم، السقاء، وحامل اللواء."
   }
 
-  if (isAbbasWifeNameQuery(norm)) {
+  if (isAbbasFatherQuery(query)) {
+    return "والد أبي الفضل العباس (عليه السلام) هو أمير المؤمنين الإمام علي بن أبي طالب (عليه السلام)."
+  }
+
+  if (isAbbasMotherQuery(query)) {
+    return "والدة أبي الفضل العباس (عليه السلام) هي فاطمة بنت حزام، المعروفة بـأم البنين (عليها السلام)."
+  }
+
+  if (isAbbasWifeNameQuery(query)) {
     return "اسم زوجته المشهورة هو لُبابة بنت عبيد الله بن العباس."
   }
 
-  if (isAbbasWivesQuery(norm)) {
+  if (isAbbasWivesQuery(query)) {
     return "المشهور تاريخيًا أن لأبي الفضل العباس زوجة واحدة معروفة هي لُبابة بنت عبيد الله بن العباس."
   }
 
@@ -1074,7 +1109,7 @@ export function getSafeCapabilityDirectAnswer(query: string): string | null {
     return "من أبناء أبي الفضل العباس: الفضل، وعبيد الله، والحسن، والقاسم، ومحمد."
   }
 
-  if (isAbbasMartyrdomQuery(norm)) {
+  if (isAbbasMartyrdomQuery(query)) {
     return "استُشهد أبو الفضل العباس (عليه السلام) يوم عاشوراء سنة 61 هـ في واقعة كربلاء."
   }
 

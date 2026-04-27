@@ -195,6 +195,36 @@ function buildOfficialNewsSearchQueries(query: string, preserveEntityTokens: boo
     ["اعمار", "ترميم", "صيانه", "توسعه", "توسعة", "بناء", "تشييد"].includes(token)
   )
 
+  // ── Topic-anchor queries ──────────────────────────────────────────
+  // When the user asks about an institutional topic (مصانع/شركات/مستشفى/…),
+  // the full sentence ("هل العتبة العباسية لديها مصانع؟") confuses the
+  // upstream search engine because functional words outweigh the topic
+  // and irrelevant articles bubble up. We synthesize "[topic] العتبة
+  // العباسية" so the engine ranks the actual factory/company/hospital
+  // articles first.
+  const INSTITUTIONAL_TOPIC_TOKENS = new Set([
+    "مصانع", "مصنع", "صناعه", "صناعة", "صناعات", "شركات", "شركه", "شركة",
+    "مستشفى", "مستشفي", "مستشفيات", "مدارس", "مدرسه", "مدرسة",
+    "جامعه", "جامعة", "جامعات", "كليات", "كليه", "كلية", "معهد", "معاهد",
+    "مكتبه", "مكتبة", "مكتبات", "مزارع", "مزرعه", "مزرعة", "مناحل",
+    "صحف", "صحيفه", "صحيفة", "مجلات", "مجله", "مجلة", "اذاعه", "اذاعة",
+    "تلفزيون", "قنوات", "قناه", "قناة", "مراكز", "مركز", "مستوصفات",
+    "دور", "دار", "متاحف", "متحف", "حدائق", "حديقه", "حديقة",
+    "مطابع", "مطبعه", "مطبعة", "مخابز", "مخبز", "مطاعم", "مطعم",
+    "مهرجان", "مهرجانات", "مؤتمر", "مؤتمرات", "معرض", "معارض",
+    "اقسام", "قسم"
+  ].map(token => normalizeArabic(token)))
+
+  const topicTokens = specificTokens.filter(token =>
+    INSTITUTIONAL_TOPIC_TOKENS.has(normalizeArabic(token))
+  )
+
+  // Topic-anchor goes FIRST so its results dominate the candidate pool.
+  for (const topic of topicTokens.slice(0, 3)) {
+    queries.add(`${topic} العتبة العباسية`)
+    queries.add(topic)
+  }
+
   if (namedPhrase) queries.add(namedPhrase)
   if (original) queries.add(original)
   if (specificTokens.length > 0) queries.add(specificTokens.slice(0, 5).join(" "))
