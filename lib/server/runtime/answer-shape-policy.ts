@@ -323,6 +323,18 @@ function isMedicalProjectQuery(norm: string): boolean {
   ])
 }
 
+/**
+ * Returns true when the user explicitly asks for a listing of the latest
+ * posts/news/items (e.g. "اعرض لي آخر منشورين من قسم مستشفى الكفيل").
+ * Such queries must always go through the retrieval pipeline rather than
+ * being short-circuited by a canned definitional answer.
+ */
+function isExplicitLatestListingRequest(norm: string): boolean {
+  const hasLatestPlural = /(?:اخر|آخر|أحدث|احدث)\s+(?:\d+\s+)?(?:منشور|منشورين|منشورات|اخبار|أخبار|خبر|خبرين|مقال|مقاله|مقالات|فيديو|فيديوهات|بيان|بيانات|اعلان|إعلان|اعلانات|إعلانات|تصاريح|تصريح|نشاطات|نشاط|فعاليات|فعاليه)/u.test(norm)
+  const hasNumericLatest = /(?:اخر|آخر|أحدث|احدث)\s+\d+/u.test(norm)
+  return hasLatestPlural || hasNumericLatest
+}
+
 function isProjectListThreeQuery(norm: string): boolean {
   return includesAny(norm, ["3 مشاريع", "ثلاث مشاريع", "اذكر لي 3 مشاريع", "اذكر ثلاث مشاريع"])
 }
@@ -598,6 +610,14 @@ function _getDeterministicDirectAnswerInner(query: string): string | null {
   }
 
   const norm = normalizeArabicLight(query)
+
+  // Guard: when the user explicitly asks to "show / list latest posts/news/items"
+  // we must defer to the retrieval pipeline. Returning a canned definitional
+  // answer here would otherwise hijack queries like
+  // "اعرض لي اخر منشورين من قسم مستشفى الكفيل".
+  if (isExplicitLatestListingRequest(norm)) {
+    return null
+  }
 
   if (isOutOfDomainCelebrityQuery(norm)) {
     return "هذا السؤال خارج نطاق بيانات العتبة العباسية وموقع الكفيل. إذا رغبت، أجيبك ضمن نطاق أخبار العتبة وخدماتها ومشاريعها."
