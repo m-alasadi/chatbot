@@ -9,7 +9,24 @@ function normalizeArabicLight(text: string): string {
     .trim()
 }
 
-import { detectAbbasRelationSlot } from "../../ai/paraphrase-intent"
+import { detectAbbasRelationSlot, type PersonRelationSlot } from "../../ai/paraphrase-intent"
+
+// ── Ambient slot context ─────────────────────────────────────────────
+// getDeterministicDirectAnswer is fully synchronous (no awaits), so it is
+// safe to set a module-level variable for the duration of one invocation.
+// This lets all internal isAbbasXxx() helpers benefit from an LLM-resolved
+// slot without threading the parameter through every call site.
+let _ambientSlot: PersonRelationSlot | null | undefined = undefined
+
+/**
+ * Resolve the Abbas relation slot for a query.
+ * Prefers the LLM-resolved slot from the current invocation context
+ * over re-running the regex detector.
+ */
+function resolveSlot(query: string): PersonRelationSlot | null {
+  if (_ambientSlot !== undefined) return _ambientSlot
+  return detectAbbasRelationSlot(query)
+}
 
 function includesAny(norm: string, candidates: string[]): boolean {
   return candidates.some(c => norm.includes(normalizeArabicLight(c)))
@@ -225,11 +242,11 @@ function isWahySnippetQuestion(norm: string): boolean {
 }
 
 function isAbbasWivesQuery(query: string): boolean {
-  return detectAbbasRelationSlot(query) === "wife"
+  return resolveSlot(query) === "wife"
 }
 
 function isAbbasWifeNameQuery(query: string): boolean {
-  if (detectAbbasRelationSlot(query) !== "wife") return false
+  if (resolveSlot(query) !== "wife") return false
   const norm = normalizeArabicLight(query)
   return /(?:اسم|ما\s+اسم|من\s+(?:هي|هو))/u.test(norm)
 }
@@ -239,46 +256,46 @@ function isAbbasWivesFollowUpQuery(norm: string): boolean {
 }
 
 function isAbbasTitlesQuery(query: string): boolean {
-  const slot = detectAbbasRelationSlot(query)
+  const slot = resolveSlot(query)
   return slot === "titles" || slot === "kunya"
 }
 
 function isAbbasShortDefinitionQuery(query: string): boolean {
-  if (detectAbbasRelationSlot(query) !== "definition") return false
+  if (resolveSlot(query) !== "definition") return false
   const norm = normalizeArabicLight(query)
   return /(?:باختصار|سطر\s+واحد|نبذ|تعريف|دون\s+مقدم)/u.test(norm)
 }
 
 function isAbbasMartyrdomQuery(query: string): boolean {
-  return detectAbbasRelationSlot(query) === "martyrdom"
+  return resolveSlot(query) === "martyrdom"
 }
 
 function isAbbasFatherQuery(query: string): boolean {
-  return detectAbbasRelationSlot(query) === "father"
+  return resolveSlot(query) === "father"
 }
 
 function isAbbasMotherQuery(query: string): boolean {
-  return detectAbbasRelationSlot(query) === "mother"
+  return resolveSlot(query) === "mother"
 }
 
 function isAbbasBrothersQuery(query: string): boolean {
-  return detectAbbasRelationSlot(query) === "brothers"
+  return resolveSlot(query) === "brothers"
 }
 
 function isAbbasSistersQuery(query: string): boolean {
-  return detectAbbasRelationSlot(query) === "sisters"
+  return resolveSlot(query) === "sisters"
 }
 
 function isAbbasUnclesQuery(query: string): boolean {
-  return detectAbbasRelationSlot(query) === "uncles"
+  return resolveSlot(query) === "uncles"
 }
 
 function isAbbasAgeQuery(query: string): boolean {
-  return detectAbbasRelationSlot(query) === "age"
+  return resolveSlot(query) === "age"
 }
 
 function isAbbasBirthQuery(query: string): boolean {
-  return detectAbbasRelationSlot(query) === "birth"
+  return resolveSlot(query) === "birth"
 }
 
 function isEducationalProjectQuery(norm: string): boolean {
@@ -540,17 +557,41 @@ export function isOfficeHolderFactQuery(text: string): boolean {
 }
 
 export function isAbbasChildrenQuery(text: string): boolean {
-  return detectAbbasRelationSlot(text) === "children"
+  return resolveSlot(text) === "children"
 }
 
 function isAbbasBiographyWhoIsQuery(text: string): boolean {
   // Paraphrase-robust: only the pure "who is Abbas" definition slot.
   // Attribute-targeted phrasings (wife/father/children/...) resolve to
   // their own slot via detectAbbasRelationSlot's priority order.
-  return detectAbbasRelationSlot(text) === "definition"
+  return resolveSlot(text) === "definition"
 }
 
-export function getDeterministicDirectAnswer(query: string): string | null {
+/**
+ * Returns a hard-coded direct answer for queries with known answers, or null.
+ *
+ * @param query       Raw user query
+ * @param understanding Optional — when provided and contains a pre-resolved
+ *                    person_relation_slot (e.g. from LLMIntentResolver), that
+ *                    slot is used in place of the regex detector so typo-affected
+ *                    queries are handled correctly.
+ */
+export function getDeterministicDirectAnswer(
+  query: string,
+  understanding?: { person_relation_slot?: PersonRelationSlot | null },
+): string | null {
+  // Set ambient slot for this synchronous invocation.
+  _ambientSlot = understanding?.person_relation_slot !== undefined
+    ? understanding.person_relation_slot
+    : undefined
+  try {
+    return _getDeterministicDirectAnswerInner(query)
+  } finally {
+    _ambientSlot = undefined
+  }
+}
+
+function _getDeterministicDirectAnswerInner(query: string): string | null {
   const safeCapabilityAnswer = getSafeCapabilityDirectAnswer(query)
   if (safeCapabilityAnswer) {
     return safeCapabilityAnswer

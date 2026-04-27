@@ -1,4 +1,5 @@
 import { normalizeQueryForTrace } from "./observability/chat-trace"
+import type { PersonRelationSlot } from "../ai/paraphrase-intent"
 
 export type QueryContentIntent =
   | "news"
@@ -38,6 +39,12 @@ export interface QueryUnderstandingResult {
   extracted_entities: QueryExtractedEntities
   hinted_sources: string[]
   route_confidence: number
+  /**
+   * Set by LLMIntentResolver when the regex layer confidence is low.
+   * Downstream consumers (answer-shape-policy, paraphrase-intent) should
+   * prefer this over re-running detectAbbasRelationSlot when present.
+   */
+  person_relation_slot?: PersonRelationSlot | null
 }
 
 export interface RetrievalCapabilitySignals {
@@ -399,4 +406,47 @@ export function deriveRetrievalCapabilitySignals(
 
 export function getQueryClassKey(understanding: QueryUnderstandingResult): string {
   return `${understanding.operation_intent}:${understanding.content_intent}`
+}
+
+/**
+ * Async version of understandQuery that automatically calls the LLM fallback
+ * when the regex pass returns low confidence (route_confidence < 0.55 or
+ * generic intent on a multi-token query).
+ *
+ * Falls back silently to the regex result if:
+ *  - ENABLE_LLM_INTENT_FALLBACK env is not "true"
+ *  - LLM call fails for any reason
+ *  - openaiApiKey is not provided
+ *
+ * @param query       Raw user query string
+ * @param openaiApiKey  OpenAI API key (pass process.env.OPENAI_API_KEY)
+ * @param model         OpenAI model name (defaults to gpt-4o-mini)
+ */
+export async function understandQueryWithFallback(
+  query: string,
+  openaiApiKey?: string,
+  model?: string,
+): Promise<QueryUnderstandingResult> {
+  const regexResult = understandQuery(query)
+
+  // Dynamic import keeps this file synchronous when LLM is disabled
+  const { shouldUseLLMFallback, resolveIntentWithLLM, mergeWithLLMPatch } =
+    await import("../ai/llm-intent-resolver")
+
+  if (!shouldUseLLMFallback(regexResult) || !openaiApiKey) {
+    return regexResult
+  }
+
+  try {
+    const patch = await resolveIntentWithLLM(
+      query,
+      openaiApiKey,
+      model ?? (process.env.OPENAI_MODEL || "gpt-4o-mini"),
+    )
+    if (!patch) return regexResult
+    return mergeWithLLMPatch(regexResult, patch)
+  } catch {
+    // Degrade gracefully — never block the main pipeline
+    return regexResult
+  }
 }

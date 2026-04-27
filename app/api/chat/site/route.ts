@@ -24,7 +24,7 @@ import {
   startRuntimeRequestMetrics,
   finishRuntimeRequestMetrics
 } from "@/lib/server/observability/runtime-metrics"
-import { understandQuery, getQueryClassKey } from "@/lib/server/query-understanding"
+import { understandQuery, understandQueryWithFallback, getQueryClassKey } from "@/lib/server/query-understanding"
 import { requiresPriorConversationContext } from "@/lib/server/runtime/dialog-context-policy"
 import type { ServerRuntime } from "next"
 import OpenAI from "openai"
@@ -289,7 +289,10 @@ export async function POST(request: Request) {
 
     // التحقق من صحة آخر رسالة (من المستخدم)
     const lastMessage = boundedMessages[boundedMessages.length - 1]
-    const requestUnderstanding = understandQuery(lastMessage?.content || "")
+    const requestUnderstanding = await understandQueryWithFallback(
+      lastMessage?.content || "",
+      process.env.OPENAI_API_KEY,
+    )
     const keepConversationContext =
       lastMessage?.role === "user" &&
       requiresPriorConversationContext(lastMessage.content || "", requestUnderstanding)

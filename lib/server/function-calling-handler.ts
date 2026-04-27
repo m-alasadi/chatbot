@@ -598,7 +598,9 @@ export async function resolveToolCalls(
   if (coverageHint) currentMessages.push({ role: "system", content: coverageHint })
 
   // Short-circuit: إجابة حتمية جاهزة تتجاوز tool calls بالكامل
-  const deterministicAnswer = getDeterministicDirectAnswer(userQuery)
+  // Pass the understanding so the LLM-resolved person_relation_slot (if any)
+  // is used instead of re-running the regex on potentially typo-affected text.
+  const deterministicAnswer = getDeterministicDirectAnswer(userQuery, queryUnderstanding)
   if (deterministicAnswer) {
     return {
       resolvedMessages: currentMessages,
