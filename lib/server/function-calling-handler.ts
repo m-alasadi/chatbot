@@ -365,7 +365,7 @@ function buildToolFailureMessage(kind: ToolFailureKind, traceId?: string): strin
   }
 }
 
-const ALLOWED_UTILITY_TOOLS = new Set([
+const allowedUtilityTools = new Set([
   "get_source_metadata",
   "browse_source_page",
   "get_latest_by_source",
@@ -373,10 +373,10 @@ const ALLOWED_UTILITY_TOOLS = new Set([
   "get_statistics",
 ])
 
-function getPostBootstrapUtilityTools(
+function getPostBootstrapTools(
   tools: OpenAI.Chat.Completions.ChatCompletionTool[]
 ): OpenAI.Chat.Completions.ChatCompletionTool[] {
-  return tools.filter(t => t.type !== "function" || ALLOWED_UTILITY_TOOLS.has(t.function?.name))
+  return tools.filter(t => t.type !== "function" || allowedUtilityTools.has(t.function?.name))
 }
 
 // ── Tool execution ──────────────────────────────────────────────────
@@ -588,7 +588,17 @@ export async function resolveToolCalls(
   const rawUserQuery = getLastUserMessage(messages)
   const rawUnderstanding = options.queryUnderstanding || understandQuery(rawUserQuery)
   const userQuery = getResolvedUserQuery(messages, rawUnderstanding)
-  const queryUnderstanding = options.queryUnderstanding || understandQuery(userQuery)
+  // Compute query understanding from the intent-bearing message (userQueryForIntent).
+  // When no pre-computed understanding is provided by the caller this is the
+  // primary derivation path; otherwise the caller's understanding is used for
+  // any LLM-enhanced slots (e.g. person_relation_slot) while routing signals
+  // are always derived fresh from the normalised query.
+  const userQueryForIntent = userQuery
+  const queryUnderstanding = understandQuery(userQueryForIntent)
+  // Merge LLM-enhanced person_relation_slot from the caller when available.
+  if (options.queryUnderstanding?.person_relation_slot !== undefined) {
+    ;(queryUnderstanding as any).person_relation_slot = options.queryUnderstanding.person_relation_slot
+  }
   const capability = deriveRetrievalCapabilitySignals(queryUnderstanding, userQuery)
 
   // Inject answer-shape and compound-coverage instructions
@@ -600,7 +610,7 @@ export async function resolveToolCalls(
   // Short-circuit: إجابة حتمية جاهزة تتجاوز tool calls بالكامل
   // Pass the understanding so the LLM-resolved person_relation_slot (if any)
   // is used instead of re-running the regex on potentially typo-affected text.
-  const deterministicAnswer = getDeterministicDirectAnswer(userQuery, queryUnderstanding)
+  const deterministicAnswer = getDeterministicDirectAnswer(userQuery, options.queryUnderstanding ?? queryUnderstanding)
   if (deterministicAnswer) {
     return {
       resolvedMessages: currentMessages,
@@ -804,8 +814,11 @@ export async function resolveToolCalls(
         }
       }
 
+      // Preserve the orchestrator's chosen source so the synthetic bootstrap
+      // message faithfully reflects where the results came from.
+      const routedSourceForSynthetic = orchestrated.routedSource || "auto"
       const synthId = `bootstrap_${primaryTool}_${Date.now()}`
-      currentMessages.push({ role: "assistant", content: null, tool_calls: [{ id: synthId, type: "function", function: { name: primaryTool, arguments: JSON.stringify({ query: userQuery, source: orchestrated.routedSource || "auto" }) } }] })
+      currentMessages.push({ role: "assistant", content: null, tool_calls: [{ id: synthId, type: "function", function: { name: primaryTool, arguments: JSON.stringify({ query: userQuery, source: routedSourceForSynthetic }) } }] })
       currentMessages.push({ role: "tool", tool_call_id: synthId, content: JSON.stringify(cleanResultForGPT(orchestrated.finalResult)) })
 
       const bootEvidence = await injectKnowledgeAndGuard(currentMessages, userQuery, queryUnderstanding)
@@ -820,8 +833,8 @@ export async function resolveToolCalls(
   // ── LLM tool-call loop ──────────────────────────────────────────────
   while (iterations < maxIterations) {
     iterations++
-    const loopTools = orchestratorBootstrapped ? getPostBootstrapUtilityTools(tools) : tools
-    const response = await openai.chat.completions.create({ model, messages: currentMessages, ...(loopTools.length > 0 ? { tools: loopTools, tool_choice: "auto" } : {}), temperature: 0.2, max_tokens: 1200 })
+    const toolsForIteration = orchestratorBootstrapped ? getPostBootstrapTools(tools) : tools
+    const response = await openai.chat.completions.create({ model, messages: currentMessages, ...(toolsForIteration.length > 0 ? { tools: toolsForIteration, tool_choice: "auto" } : {}), temperature: 0.2, max_tokens: 1200 })
     const assistantMsg = response.choices[0].message
     currentMessages.push(assistantMsg)
 

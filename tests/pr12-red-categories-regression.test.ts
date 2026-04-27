@@ -146,7 +146,10 @@ function testHistoryQueriesCanFallbackToOfficialNewsSearch() {
     named_event_or_program: false,
     office_holder_fact: false,
     person_attribute_fact: false,
-    singular_project_lookup: false
+    singular_project_lookup: false,
+    institutional_relation: false,
+    title_or_phrase_lookup: false,
+    underspecified_query: false
   }
 
   assert.equal(

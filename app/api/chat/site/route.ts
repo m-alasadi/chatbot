@@ -402,16 +402,15 @@ export async function POST(request: Request) {
         })
 
         // الخطوة 1: حل جميع tool calls (بدون stream)
+        // Pass { traceId } and the pre-computed understanding to the handler.
+        const traceOpts = { traceId }
         toolResult = await resolveToolCalls(
           openai,
           model,
           messagesWithSystem,
           ALL_SITE_TOOLS,
           3,
-          {
-            traceId,
-            queryUnderstanding: requestUnderstanding
-          }
+          { ...traceOpts, queryUnderstanding: requestUnderstanding }
         )
 
         logChatTrace({
