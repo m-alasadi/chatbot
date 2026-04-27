@@ -518,7 +518,21 @@ export function isAbbasChildrenQuery(text: string): boolean {
 function isAbbasBiographyWhoIsQuery(text: string): boolean {
   const norm = normalizeArabicLight(text)
   const asksWho = includesAny(norm, ["من هو", "من هي"])
-  return asksWho && hasAbbasPersonSignal(norm)
+  if (!asksWho || !hasAbbasPersonSignal(norm)) return false
+  // Exclude attribute-targeted questions ("من هي زوجة العباس", "من هو والد العباس",
+  // "من هم أبناء العباس", …). These ask about a RELATED person, not about
+  // Abbas himself, so the generic "who is Abbas" canned answer must not fire.
+  const attributeTargets = [
+    "زوج", "زوجه", "زوجة", "زوجات",
+    "والد", "والده", "والدته", "ابو", "ابوه", "ابيه", "ام ", "امه",
+    "ابن", "ابناء", "اولاد", "اخ", "اخوه", "اخوته", "اخت", "اخوات", "اخواته",
+    "عم", "عمه", "اعمام", "خال", "اخوال",
+    "لقب", "القاب", "كنيه", "كنية",
+    "شهاده", "شهادة", "استشهاد", "مقتل",
+    "عمر", "ولاده", "ولادة", "مولد",
+  ]
+  if (attributeTargets.some(t => norm.includes(t))) return false
+  return true
 }
 
 export function getDeterministicDirectAnswer(query: string): string | null {

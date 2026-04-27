@@ -185,6 +185,35 @@ function injectToolEvidenceBlock(messages: ChatCompletionMessageParam[], userQue
   }
 }
 
+// ── Canonical-source binding for knowledge-grounded answers ────────
+
+/**
+ * When the answer is grounded in the Abbas biographical knowledge layer
+ * (not in retrieved news articles), the LLM must NOT attach a random
+ * news-article URL from tool results as "the source". This pushes an
+ * explicit instruction binding the visible source link to the canonical
+ * knowledge URL (e.g. https://alkafeel.net/abbas?lang=ar) and forbids
+ * citing any other URL from tool results when answering.
+ */
+function bindCanonicalAbbasSource(
+  messages: ChatCompletionMessageParam[],
+  knowledgeEvidence: Evidence[]
+): void {
+  const canonicalUrl =
+    knowledgeEvidence.find(e => e.source_url && /\/abbas(\?|$|\/)/.test(e.source_url))?.source_url ||
+    knowledgeEvidence.find(e => e.source_url)?.source_url ||
+    `${(process.env.SITE_DOMAIN || "https://alkafeel.net").replace(/\/+$/, "")}/abbas?lang=ar`
+
+  messages.push({
+    role: "system",
+    content:
+      `📌 الجواب مبني على [سياق معرفي إضافي من النصوص الكاملة] الخاص بسيرة العباس بن علي (عليه السلام). ` +
+      `إن أردتَ إضافة رابط مصدر بعد الإجابة، استخدم هذا الرابط الرسمي فقط: ${canonicalUrl} — ` +
+      `ولا تقم بإلصاق أي رابط من نتائج الأدوات (مثل روابط أخبار /news/index?id=...) لأنها ليست مصدر الجواب. ` +
+      `إذا لم يوجد رابط ملائم، اكتفِ بالإجابة بدون رابط.`,
+  })
+}
+
 // ── Deep-fetch helper for knowledge gaps ────────────────────────────
 
 async function fetchAndInjectFullArticle(
@@ -363,11 +392,13 @@ export async function injectKnowledgeAndGuard(
       if (knowledgeGap) {
         await resolveKnowledgeGap(messages, extractedEvidence, specificTokens.length > 0 ? specificTokens : ["العباس"], userQuery)
       }
+      if (abbasKnowledgeInjected) bindCanonicalAbbasSource(messages, knowledgeEvidence)
       return extractedEvidence
     }
 
     if (abbasKnowledgeInjected) {
       console.log(`[Evidence Guard] Abbas biography — simple query, suppressing tool results`)
+      bindCanonicalAbbasSource(messages, knowledgeEvidence)
       return knowledgeEvidence.length > 0 ? knowledgeEvidence : []
     }
   }
