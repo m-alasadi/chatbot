@@ -248,8 +248,10 @@ function normalizeSourceDataset(source: SiteSourceName, rawData: any): any[] {
   }
 
   if (source === "videos_categories") {
+    // The getCats API returns items with a `request` field as the category slug/identifier
+    // (e.g. "90a91" for مستشفى الكفيل). `id` and `cat_id` are not present in this API.
     return arr.map((item: any) => ({
-      id: String(item?.id || item?.cat_id || item?.slug || item?.request || ""),
+      id: String(item?.request || item?.id || item?.cat_id || item?.slug || ""),
       name: pickText(item?.title, item?.name, item?.cat_title, "قسم فيديو"),
       description: pickText(item?.description, item?.caption, "قسم من أقسام الفيديو"),
       image: item?.image || item?.photo || item?.icon || null,
