@@ -54,8 +54,12 @@ export function detectForcedUtilityIntent(
   const isListIntent = understanding?.operation_intent === "list_items"
   const isBrowseIntent = understanding?.operation_intent === "browse"
   const latestKeywords = ["احدث", "اخر", "آخر", "الجديد", "احدث ", "اخر "]
-  const explicitListingWords = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list"]
+  const explicitListingWords = ["اعرض", "عرض", "هات", "قائمة", "لائحة", "list", "اعطني", "أعطني", "جيب", "جلب", "اجلب"]
   const pluralCollectionHints = ["فيديوهات", "مقاطع", "محاضرات", "اخبار", "خطب", "نتائج", "مواد"]
+  // Generic content nouns that do not pin a medium (news vs video) by themselves.
+  // Users often write "منشورين من قسم X" without saying فيديو/خبر — we still
+  // want to flow through the section resolver instead of dropping to auto.
+  const genericContentHints = ["منشور", "منشورين", "منشورات", "إصدار", "اصدار", "إصدارات", "اصدارات", "مادة", "مواد", "محتوى", "محتويات"]
   const sectionFilterHints = ["قسم", "القسم", "تصنيف", "التصنيف", "فئه", "فئة"]
   const isExplicitTopNewsRequest =
     (isNews || understoodNews) &&
@@ -145,6 +149,26 @@ export function detectForcedUtilityIntent(
   ) {
     const inferredLimit = hasAnyKeyword(norm, pluralCollectionHints) ? 5 : 1
     return { tool: "get_latest_by_source", args: { source: "articles_latest", limit: inferredLimit, query: userText } }
+  }
+
+  // 4.4 Section-filtered listing without an explicit medium keyword.
+  // Catches queries like "اعرض لي اخر منشورين من قسم مستشفى الكفيل" where the
+  // user names a section but does not say فيديو or خبر. We prefer videos_latest
+  // first because الأقسام في موقع الكفيل تتمحور حول المكتبة المرئية (videos_categories).
+  // resolveLatestListingRequest will then map the section name to the correct
+  // category id; if no video category matches, the fetch still returns latest
+  // videos and downstream auto-fallback handles the rest. Without this rule the
+  // request would otherwise drop to auto and never reach category resolution.
+  if (
+    (hasListingKeyword || hasLatestKeyword) &&
+    hasAnyKeyword(norm, sectionFilterHints) &&
+    hasAnyKeyword(norm, genericContentHints) &&
+    !(isVideo || understoodVideo) &&
+    !(isNews || understoodNews) &&
+    !(isWahyFriday || understoodWahy) &&
+    !(isSermon || understoodSermon)
+  ) {
+    return { tool: "get_latest_by_source", args: { source: "videos_latest", limit: 5, query: userText } }
   }
 
   // 5. Explicit top-news requests (e.g. "ما أبرز أخبار العتبة اليوم")
