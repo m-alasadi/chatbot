@@ -27,6 +27,7 @@ const INGESTION_TTL: Record<ContentSourceId, number> = {
   videos_latest:             15 * 60 * 1000,
   videos_by_category:        20 * 60 * 1000,
   videos_categories:          6 * 60 * 60 * 1000,
+  shrine_history_timeline:   12 * 60 * 60 * 1000,
   shrine_history_sections:   12 * 60 * 60 * 1000,
   shrine_history_by_section: 60 * 60 * 1000,
   abbas_history_by_id:       60 * 60 * 1000,
@@ -41,6 +42,7 @@ const AUTO_INGEST_SOURCES: ContentSourceId[] = [
   "articles_latest",
   "videos_latest",
   "videos_categories",
+  "shrine_history_timeline",
   "shrine_history_sections",
   "lang_words_ar",
   "friday_sermons",
@@ -51,7 +53,7 @@ const AUTO_INGEST_SOURCES: ContentSourceId[] = [
 const EAGER_PAGE_CAP = 10
 
 /** Lazy backfill batch size (pages per request) */
-const BACKFILL_BATCH = 5
+const BACKFILL_BATCH = 3
 
 // ── Ingestion state ─────────────────────────────────────────────────
 
@@ -90,6 +92,10 @@ async function fetchRaw(endpoint: string): Promise<any | null> {
         "Content-Type": "application/json",
         Accept: "application/json",
         "Accept-Language": config.acceptLanguage,
+        "User-Agent": "Mozilla/5.0",
+        "X-Requested-With": "XMLHttpRequest",
+        Origin: new URL(normalizedBase).origin,
+        Referer: `${new URL(normalizedBase).origin}/history?lang=ar`,
         ...(config.token ? { Authorization: `Bearer ${config.token}` } : {}),
       },
       signal: controller.signal,

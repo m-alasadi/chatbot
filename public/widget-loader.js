@@ -255,106 +255,6 @@
       this.setupChatHandlers();
     }
 
-    setupChatHandlers() {
-      const input = document.getElementById('widget-input');
-      const sendBtn = document.getElementById('widget-send-btn');
-      const messages = document.getElementById('widget-messages');
-
-      if (!input || !sendBtn || !messages) return;
-
-      const sendMessage = async () => {
-        const text = input.value.trim();
-        if (!text) return;
-
-        // إضافة رسالة المستخدم
-        this.addMessage('user', text);
-        input.value = '';
-
-        // إضافة loading
-        const loadingId = 'loading-' + Date.now();
-        this.addMessage('assistant', '<div class="loading">جاري الرد...</div>', loadingId);
-
-        try {
-          // إرسال الطلب
-          const response = await fetch(this.config.apiEndpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messages: [{ role: 'user', content: text }],
-              chatSettings: { model: 'gpt-4o', temperature: 0.5 }
-            })
-          });
-
-          const data = await response.json();
-          const reply = data.message || data.reply || 'عذراً، حدث خطأ.';
-
-          // حذف loading وإضافة الرد
-          document.getElementById(loadingId)?.remove();
-          this.addMessage('assistant', reply);
-        } catch (error) {
-          document.getElementById(loadingId)?.remove();
-          this.addMessage('assistant', '⚠️ حدث خطأ في الاتصال');
-        }
-      };
-
-      sendBtn.onclick = sendMessage;
-      input.onkeydown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
-        }
-      };
-    }
-
-    addMessage(role, content, id) {
-      const messages = document.getElementById('widget-messages');
-      if (!messages) return;
-
-      const msgDiv = document.createElement('div');
-      if (id) msgDiv.id = id;
-      msgDiv.style.cssText = `
-        margin-bottom: 15px;
-        display: flex;
-        gap: 10px;
-        animation: fadeInUp 0.3s ease;
-        ${role === 'user' ? 'flex-direction: row-reverse;' : ''}
-      `;
-
-      const avatar = document.createElement('div');
-      avatar.style.cssText = `
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 16px;
-        flex-shrink: 0;
-        background: ${role === 'user' ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' : 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)'};
-      `;
-      avatar.textContent = role === 'user' ? '👤' : '🤖';
-
-      const msgContent = document.createElement('div');
-      msgContent.style.cssText = `
-        max-width: 80%;
-        padding: 10px 14px;
-        border-radius: 12px;
-        line-height: 1.5;
-        font-size: 14px;
-        ${role === 'user' 
-          ? 'background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); color: white; border-bottom-left-radius: 4px;' 
-          : 'background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-bottom-right-radius: 4px;'}
-      `;
-      msgContent.innerHTML = content;
-
-      msgDiv.appendChild(avatar);
-      msgDiv.appendChild(msgContent);
-      messages.appendChild(msgDiv);
-
-      // scroll to bottom
-      messages.scrollTop = messages.scrollHeight;
-    }
-
     toggle() {
       this.isOpen = !this.isOpen;
       
@@ -388,6 +288,194 @@
   }
 
   // تصدير للنطاق العام
+  AlkafeelChatWidget.prototype.setupChatHandlers = function() {
+    const input = document.getElementById('widget-input');
+    const sendBtn = document.getElementById('widget-send-btn');
+    const messages = document.getElementById('widget-messages');
+
+    if (!input || !sendBtn || !messages) return;
+
+    const sendMessage = async () => {
+      const text = input.value.trim();
+      if (!text || this.isLoading) return;
+
+      const welcome = messages.firstElementChild;
+      if (welcome && !this.messages.length) {
+        welcome.remove();
+      }
+
+      this.addMessage('user', text);
+      input.value = '';
+      this.isLoading = true;
+      sendBtn.disabled = true;
+
+      const loadingId = 'loading-' + Date.now();
+      this.addMessage('assistant', 'جاري الرد...', loadingId, false);
+
+      try {
+        const response = await fetch(this.config.apiEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: this.messages,
+            temperature: 0.2,
+            max_tokens: 1200,
+            use_tools: true
+          })
+        });
+
+        this.removeMessageById(loadingId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorMessage = 'عذرًا، حدث خطأ.';
+
+          try {
+            const data = JSON.parse(errorText);
+            errorMessage = data.fallback || data.error || errorMessage;
+          } catch (parseError) {
+            errorMessage = errorText || errorMessage;
+          }
+
+          this.addMessage('assistant', errorMessage);
+          return;
+        }
+
+        if (response.body) {
+          await this.readStreamResponse(response);
+          return;
+        }
+
+        const reply = await response.text();
+        this.addMessage('assistant', reply || 'لم يتم استلام رد.');
+      } catch (error) {
+        this.removeMessageById(loadingId);
+        const offline = typeof navigator !== 'undefined' && !navigator.onLine;
+        this.addMessage(
+          'assistant',
+          offline
+            ? 'لا يوجد اتصال بالإنترنت. يرجى التحقق من الشبكة والمحاولة مرة أخرى.'
+            : 'حدث خطأ في الاتصال.'
+        );
+      } finally {
+        this.isLoading = false;
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    };
+
+    sendBtn.onclick = sendMessage;
+    input.onkeydown = e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    };
+  };
+
+  AlkafeelChatWidget.prototype.readStreamResponse = async function(response) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const replyId = 'reply-' + Date.now();
+    const replyNode = this.addMessage('assistant', '', replyId, false);
+    const contentNode = replyNode && replyNode.querySelector('[data-message-content]');
+    let fullReply = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        fullReply += decoder.decode(value, { stream: true });
+        if (contentNode) {
+          contentNode.textContent = fullReply;
+        }
+        this.scrollMessagesToBottom();
+      }
+
+      fullReply += decoder.decode();
+      if (contentNode) {
+        contentNode.textContent = fullReply;
+      }
+    } catch (error) {
+      if (!fullReply) {
+        fullReply = 'حدث خطأ أثناء استلام الرد.';
+        if (contentNode) {
+          contentNode.textContent = fullReply;
+        }
+      }
+    }
+
+    this.messages.push({ role: 'assistant', content: fullReply });
+  };
+
+  AlkafeelChatWidget.prototype.removeMessageById = function(id) {
+    document.getElementById(id)?.remove();
+  };
+
+  AlkafeelChatWidget.prototype.scrollMessagesToBottom = function() {
+    const messages = document.getElementById('widget-messages');
+    if (messages) {
+      messages.scrollTop = messages.scrollHeight;
+    }
+  };
+
+  AlkafeelChatWidget.prototype.addMessage = function(role, content, id, persist = true) {
+    const messages = document.getElementById('widget-messages');
+    if (!messages) return null;
+
+    const msgDiv = document.createElement('div');
+    if (id) msgDiv.id = id;
+    msgDiv.style.cssText = `
+      margin-bottom: 15px;
+      display: flex;
+      gap: 10px;
+      animation: fadeInUp 0.3s ease;
+      ${role === 'user' ? 'flex-direction: row-reverse;' : ''}
+    `;
+
+    const avatar = document.createElement('div');
+    avatar.style.cssText = `
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+      background: ${role === 'user' ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' : 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)'};
+    `;
+    avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+    const msgContent = document.createElement('div');
+    msgContent.style.cssText = `
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      line-height: 1.5;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      ${role === 'user'
+        ? 'background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); color: white; border-bottom-left-radius: 4px;'
+        : 'background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-bottom-right-radius: 4px;'}
+    `;
+    msgContent.setAttribute('data-message-content', 'true');
+    msgContent.textContent = content;
+
+    msgDiv.appendChild(avatar);
+    msgDiv.appendChild(msgContent);
+    messages.appendChild(msgDiv);
+
+    if (persist) {
+      this.messages.push({ role, content });
+    }
+
+    this.scrollMessagesToBottom();
+    return msgDiv;
+  };
+
   window.AlkafeelChatWidget = AlkafeelChatWidget;
 
   // Auto-init إذا كان هناك config في window

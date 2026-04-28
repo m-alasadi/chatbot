@@ -55,8 +55,8 @@ export default function ChatWidget({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: newMessages,
-          temperature: 0.7,
-          max_tokens: 2000,
+          temperature: 0.2,
+          max_tokens: 1200,
           use_tools: true
         })
       })
@@ -131,7 +131,7 @@ export default function ChatWidget({
       .replace(/^[-•]\s+(.+)$/gm, "<li>$1</li>")
       .replace(/^### (.+)$/gm, "<h3>$1</h3>")
       .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-      // —— Suggestion divider: سطر يحتوي على --- فقط ——
+      // Suggestion divider: line containing only ---
       .replace(/^---$/gm,
         '<hr class="chat-suggestion-divider"><span class="chat-suggestion-label">📎 قد يهمك أيضاً</span>')
       .replace(/\n/g, "<br>")

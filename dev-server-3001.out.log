@@ -1,0 +1,626 @@
+
+> alkafeel_chatbot@1.0.0 dev
+> next dev --port 3001
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3001
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 3.3s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 834ms (117 modules)
+ ○ Compiling /[locale] ...
+ ✓ Compiled /[locale] in 5.8s (538 modules)
+ GET /ar 200 in 720ms
+ ○ Compiling /api/chat/site ...
+ ✓ Compiled /api/chat/site in 1505ms (354 modules)
+[ChatTrace] {"trace_id":"trace_mo2y5any_9vjac0","stage":"request_received","normalized_query":"ما هي القابه المشهوره؟","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo2y5any_9vjac0","stage":"tool_resolution_started","normalized_query":"ما هي القابه المشهوره؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2y5any_9vjac0","stage":"contextual_safe_direct_answer","normalized_query":"ما هي القابه المشهوره؟","details":{"operation_intent":"fact_question","content_intent":"biography"}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"request_received","normalized_query":"ما هي القابه المشهوره؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"tool_resolution_started","normalized_query":"ما هي القابه المشهوره؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"intent_detected","normalized_query":"ما هي القابه المشهوره؟","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"query_understanding","normalized_query":"ما هي القابه المشهوره؟","routed_source":"abbas_history_by_id","details":{"content_intent":"biography","operation_intent":"fact_question","route_confidence":0.78,"extracted_entities":{"person":[],"topic":["القاب","هي ألقابه المشهورة؟"],"place":[],"source_specific":["shrine_history_sections","abbas_history_by_id"]}}}
+[Tool Resolution] Iteration 1
+[ChatTrace] {"trace_id":"trace_mo2y5any_9vjac0","stage":"tools_resolved","normalized_query":"ما هي القابه المشهوره؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2y5any_9vjac0","stage":"tool_resolution_finished","normalized_query":"ما هي القابه المشهوره؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2y5any_9vjac0","stage":"direct_answer_returned","normalized_query":"ما هي القابه المشهوره؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2y5any_9vjac0","stage":"response_ready","normalized_query":"ما هي القابه المشهوره؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 1551ms
+[ChatTrace] {"trace_id":"trace_mo2y5aqv_57i81g","stage":"request_received","normalized_query":"كم كانت زوجاته؟","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo2y5aqv_57i81g","stage":"tool_resolution_started","normalized_query":"كم كانت زوجاته؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2y5aqv_57i81g","stage":"contextual_safe_direct_answer","normalized_query":"كم كانت زوجاته؟","details":{"operation_intent":"count","content_intent":"biography"}}
+[ChatTrace] {"trace_id":"trace_mo2y5aqv_57i81g","stage":"tools_resolved","normalized_query":"كم كانت زوجاته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2y5aqv_57i81g","stage":"tool_resolution_finished","normalized_query":"كم كانت زوجاته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2y5aqv_57i81g","stage":"direct_answer_returned","normalized_query":"كم كانت زوجاته؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2y5aqv_57i81g","stage":"response_ready","normalized_query":"كم كانت زوجاته؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 12ms
+[ChatTrace] {"trace_id":"trace_mo2y5ara_7yd1q6","stage":"request_received","normalized_query":"من هم ابناؤه؟","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo2y5ara_7yd1q6","stage":"tool_resolution_started","normalized_query":"من هم ابناؤه؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2y5ara_7yd1q6","stage":"contextual_safe_direct_answer","normalized_query":"من هم ابناؤه؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2y5ara_7yd1q6","stage":"tools_resolved","normalized_query":"من هم ابناؤه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2y5ara_7yd1q6","stage":"tool_resolution_finished","normalized_query":"من هم ابناؤه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2y5ara_7yd1q6","stage":"direct_answer_returned","normalized_query":"من هم ابناؤه؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2y5ara_7yd1q6","stage":"response_ready","normalized_query":"من هم ابناؤه؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 11ms
+[ChatTrace] {"trace_id":"trace_mo2y5aro_a6gkby","stage":"request_received","normalized_query":"ما اسم زوجته؟","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo2y5aro_a6gkby","stage":"tool_resolution_started","normalized_query":"ما اسم زوجته؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2y5aro_a6gkby","stage":"contextual_safe_direct_answer","normalized_query":"ما اسم زوجته؟","details":{"operation_intent":"fact_question","content_intent":"biography"}}
+[ChatTrace] {"trace_id":"trace_mo2y5aro_a6gkby","stage":"tools_resolved","normalized_query":"ما اسم زوجته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2y5aro_a6gkby","stage":"tool_resolution_finished","normalized_query":"ما اسم زوجته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2y5aro_a6gkby","stage":"direct_answer_returned","normalized_query":"ما اسم زوجته؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2y5aro_a6gkby","stage":"response_ready","normalized_query":"ما اسم زوجته؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 9ms
+[ChatTrace] {"trace_id":"trace_mo2y5as0_ouyexk","stage":"request_received","normalized_query":"متي كانت شهادته؟","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo2y5as0_ouyexk","stage":"tool_resolution_started","normalized_query":"متي كانت شهادته؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2y5as0_ouyexk","stage":"contextual_safe_direct_answer","normalized_query":"متي كانت شهادته؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2y5as0_ouyexk","stage":"tools_resolved","normalized_query":"متي كانت شهادته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2y5as0_ouyexk","stage":"tool_resolution_finished","normalized_query":"متي كانت شهادته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2y5as0_ouyexk","stage":"direct_answer_returned","normalized_query":"متي كانت شهادته؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2y5as0_ouyexk","stage":"response_ready","normalized_query":"متي كانت شهادته؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 8ms
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_rElRmEjPnHMeW5YIb6OezFfl
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"orchestrator_plan_created","normalized_query":"القاب العباس بن علي","routed_source":"shrine_history_sections","details":{"tool_name":"search_content","max_attempts":3,"intent":"biography","operation_intent":"fact_question","route_confidence":0.78,"hard_constraint":true,"attempt_sources":["shrine_history_sections","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"orchestrator_attempt_started","normalized_query":"القاب العباس بن علي","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'ألقاب العباس بن علي', source: 'shrine_history_sections' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"orchestrator_attempt_finished","normalized_query":"القاب العباس بن علي","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":6,"elapsed_ms":6,"budget_remaining_ms":17994}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"orchestrator_fallback_applied","normalized_query":"القاب العباس بن علي","routed_source":"auto","retry_attempts":1,"details":{"from_source":"shrine_history_sections","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"orchestrator_attempt_started","normalized_query":"القاب العباس بن علي","routed_source":"auto","retry_attempts":1,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":2,"budget_remaining_ms":17994}}
+[Tool Execution] search_content { query: 'ألقاب العباس بن علي', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="ألقاب العباس بن علي"
+[siteSearchContent] Official news search returned 30 candidate(s)
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"orchestrator_attempt_finished","normalized_query":"القاب العباس بن علي","routed_source":"auto","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":8550,"elapsed_ms":8556,"budget_remaining_ms":9444}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"orchestrator_slow_source_path","normalized_query":"القاب العباس بن علي","routed_source":"auto","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"duration_ms":8550,"slow_threshold_ms":3000,"reason":"broaden_search"}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"tool_result","normalized_query":"القاب العباس بن علي","routed_source":"auto","result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Empty results detected after retries, generating suggestions
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"empty_results_fallback","normalized_query":"القاب العباس بن علي","routed_source":"auto","retry_attempts":1,"unavailable_reason":"empty_results_after_retries","details":{"tool_name":"search_content","attempted_action":"search_content"}}
+[Tool Resolution] Iteration 2
+[Tool Resolution] Tools done, popped answer for streaming
+[Knowledge Ingestion] Ingesting 7 stale source(s): articles_latest, videos_latest, videos_categories, shrine_history_sections, lang_words_ar, friday_sermons, wahy_friday
+[Knowledge Ingestion] lang_words_ar: 527 items → 528 chunks
+[Knowledge Ingestion] videos_categories: 43 items → 43 chunks
+[Knowledge Ingestion] shrine_history_sections: 5 items → 40 chunks
+[Knowledge Ingestion] wahy_friday: 160 items → 160 chunks
+[Knowledge Ingestion] friday_sermons: 160 items → 160 chunks
+[Knowledge Ingestion] videos_latest: 160 items → 160 chunks
+[Knowledge Ingestion] articles_latest: 160 items → 160 chunks
+[Knowledge Ingestion] Deep-fetching 5 history section(s): عودة الشرعية إلى إدارة العتبات بعد طول غياب, سدنة العتبة العباسية المقدسة (1), الكلدار, تأريخ فك ارتباط إدارتي العتبتين المقدستين, العتبة العباسية المقدسة في ظل الإدارة الجديدة
+[Abbas Local] Loaded 14 tabs (95439 chars)
+[Knowledge Ingestion] Abbas local dataset: 14 tabs → 203 chunks
+[Knowledge] Initial search: 2 chunks (top=4.1)
+[Knowledge] Found 1 context block(s) for: "ما هي ألقابه المشهورة؟"
+[Knowledge] Tool returned empty — overriding with knowledge context
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"tools_resolved","normalized_query":"ما هي القابه المشهوره؟","routed_source":"auto","retry_attempts":1,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"tool_resolution_finished","normalized_query":"ما هي القابه المشهوره؟","routed_source":"auto","retry_attempts":1,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"final_stream_started","normalized_query":"ما هي القابه المشهوره؟","routed_source":"auto","retry_attempts":1,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"grounded_stream_started","normalized_query":"ما هي القابه المشهوره؟","routed_source":"auto","retry_attempts":1,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo2y5ao0_o1gygw","stage":"response_ready","normalized_query":"ما هي القابه المشهوره؟","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":1,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 30336ms
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"request_received","normalized_query":"كم كانت زوجاته؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"tool_resolution_started","normalized_query":"كم كانت زوجاته؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"intent_detected","normalized_query":"كم كانت زوجاته؟","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"query_understanding","normalized_query":"كم كانت زوجاته؟","routed_source":"abbas_history_by_id","details":{"content_intent":"biography","operation_intent":"count","route_confidence":0.93,"extracted_entities":{"person":[],"topic":["زوجات","كم كانت زوجاته؟"],"place":[],"source_specific":["shrine_history_sections","abbas_history_by_id"]}}}
+[Tool Resolution] Iteration 1
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_pb2QKClOdMFg8aG0Dv48jCJJ
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"orchestrator_plan_created","normalized_query":"زوجات العباس بن علي","routed_source":"shrine_history_sections","details":{"tool_name":"search_content","max_attempts":3,"intent":"biography","operation_intent":"count","route_confidence":0.93,"hard_constraint":true,"attempt_sources":["shrine_history_sections","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"orchestrator_attempt_started","normalized_query":"زوجات العباس بن علي","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"tool_name":"search_content","reason":"first_pass","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'زوجات العباس بن علي', source: 'shrine_history_sections' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"orchestrator_attempt_finished","normalized_query":"زوجات العباس بن علي","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":1,"elapsed_ms":1,"budget_remaining_ms":17999}}
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"orchestrator_fallback_applied","normalized_query":"زوجات العباس بن علي","routed_source":"auto","retry_attempts":1,"details":{"from_source":"shrine_history_sections","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"orchestrator_attempt_started","normalized_query":"زوجات العباس بن علي","routed_source":"auto","retry_attempts":1,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":2,"budget_remaining_ms":17998}}
+[Tool Execution] search_content { query: 'زوجات العباس بن علي', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="زوجات العباس بن علي"
+[siteSearchContent] Official news search returned 28 candidate(s)
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"orchestrator_attempt_finished","normalized_query":"زوجات العباس بن علي","routed_source":"auto","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":6182,"elapsed_ms":6184,"budget_remaining_ms":11816}}
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"orchestrator_slow_source_path","normalized_query":"زوجات العباس بن علي","routed_source":"auto","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"duration_ms":6182,"slow_threshold_ms":3000,"reason":"broaden_search"}}
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"tool_result","normalized_query":"زوجات العباس بن علي","routed_source":"auto","result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Empty results detected after retries, generating suggestions
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"empty_results_fallback","normalized_query":"زوجات العباس بن علي","routed_source":"auto","retry_attempts":1,"unavailable_reason":"empty_results_after_retries","details":{"tool_name":"search_content","attempted_action":"search_content"}}
+[Tool Resolution] Iteration 2
+[Tool Resolution] Tools done, popped answer for streaming
+[Knowledge] Initial search: 6 chunks (top=5.2)
+[Knowledge] Found 1 context block(s) for: "كم كانت زوجاته؟"
+[Knowledge] Tool returned empty — overriding with knowledge context
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"tools_resolved","normalized_query":"كم كانت زوجاته؟","routed_source":"auto","retry_attempts":1,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"tool_resolution_finished","normalized_query":"كم كانت زوجاته؟","routed_source":"auto","retry_attempts":1,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"final_stream_started","normalized_query":"كم كانت زوجاته؟","routed_source":"auto","retry_attempts":1,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"grounded_stream_started","normalized_query":"كم كانت زوجاته؟","routed_source":"auto","retry_attempts":1,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo2y5wr0_mf1t3g","stage":"response_ready","normalized_query":"كم كانت زوجاته؟","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":1,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 12801ms
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"request_received","normalized_query":"من هم ابناؤه؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"tool_resolution_started","normalized_query":"من هم ابناؤه؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"intent_detected","normalized_query":"من هم ابناؤه؟","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"query_understanding","normalized_query":"من هم ابناؤه؟","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.45,"extracted_entities":{"person":[],"topic":[],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_1Ou2DSeIferJUfSoRP7tjEog
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"orchestrator_plan_created","normalized_query":"ابناء العباس بن علي","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.45,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"orchestrator_attempt_started","normalized_query":"ابناء العباس بن علي","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'أبناء العباس بن علي', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="أبناء العباس بن علي"
+[siteSearchContent] Official news search returned 34 candidate(s)
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"orchestrator_attempt_finished","normalized_query":"ابناء العباس بن علي","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":6062,"elapsed_ms":6062,"budget_remaining_ms":11938}}
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"orchestrator_slow_source_path","normalized_query":"ابناء العباس بن علي","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"duration_ms":6062,"slow_threshold_ms":3000,"reason":"entity_first:singular_project_lookup"}}
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"tool_result","normalized_query":"ابناء العباس بن علي","routed_source":"auto","result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Empty results detected after retries, generating suggestions
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"empty_results_fallback","normalized_query":"ابناء العباس بن علي","routed_source":"auto","retry_attempts":0,"unavailable_reason":"empty_results_after_retries","details":{"tool_name":"search_content","attempted_action":"search_content"}}
+[Tool Resolution] Iteration 2
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"tools_resolved","normalized_query":"من هم ابناؤه؟","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"tool_resolution_finished","normalized_query":"من هم ابناؤه؟","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"final_stream_started","normalized_query":"من هم ابناؤه؟","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"grounded_stream_started","normalized_query":"من هم ابناؤه؟","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo2y66mq_t6763n","stage":"response_ready","normalized_query":"من هم ابناؤه؟","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 10761ms
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"request_received","normalized_query":"متي كانت شهادته؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"tool_resolution_started","normalized_query":"متي كانت شهادته؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"intent_detected","normalized_query":"متي كانت شهادته؟","details":{"forced_tool":null}}
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"query_understanding","normalized_query":"متي كانت شهادته؟","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["متى كانت شهادته؟"],"place":[],"source_specific":[]}}}
+[Tool Resolution] Iteration 1
+[Tool Resolution] Processing 1 tool call(s)
+[Function Call] Tool: search_content, ID: call_Wa35Us1y54BCcZFNsvam7eNg
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"orchestrator_plan_created","normalized_query":"شهاده العباس","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"orchestrator_attempt_started","normalized_query":"شهاده العباس","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'شهادة العباس', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="شهادة العباس"
+[siteSearchContent] Official news search returned 31 candidate(s)
+[SiteAPI SlowPath] source=videos_latest endpoint=/alkafeel_back_test/api/v1/videos/latest/16?page=1 duration_ms=3728 timeout_ms=14000 retries=0
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"orchestrator_attempt_finished","normalized_query":"شهاده العباس","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":17687,"elapsed_ms":17687,"budget_remaining_ms":313}}
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"orchestrator_slow_source_path","normalized_query":"شهاده العباس","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"duration_ms":17687,"slow_threshold_ms":3000,"reason":"entity_first:entity_fact_query"}}
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"tool_result","normalized_query":"شهاده العباس","routed_source":"auto","result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true}}
+[Function Call] Empty results detected after retries, generating suggestions
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"empty_results_fallback","normalized_query":"شهاده العباس","routed_source":"auto","retry_attempts":0,"unavailable_reason":"empty_results_after_retries","details":{"tool_name":"search_content","attempted_action":"search_content"}}
+[Tool Resolution] Iteration 2
+[Tool Resolution] Tools done, popped answer for streaming
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"tools_resolved","normalized_query":"متي كانت شهادته؟","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"tool_resolution_finished","normalized_query":"متي كانت شهادته؟","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":2,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 2 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"final_stream_started","normalized_query":"متي كانت شهادته؟","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"grounded_stream_started","normalized_query":"متي كانت شهادته؟","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_mo2y6exu_6m2t0l","stage":"response_ready","normalized_query":"متي كانت شهادته؟","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 23054ms
+[ChatTrace] {"trace_id":"trace_mo2y6wq9_kxg0od","stage":"request_received","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2y6wq9_kxg0od","stage":"tool_resolution_started","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2y6wq9_kxg0od","stage":"intent_detected","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","routed_source":"articles_latest","details":{"forced_tool":"get_latest_by_source"}}
+[ChatTrace] {"trace_id":"trace_mo2y6wq9_kxg0od","stage":"query_understanding","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","routed_source":"articles_latest","details":{"content_intent":"news","operation_intent":"list_items","route_confidence":0.97,"extracted_entities":{"person":[],"topic":["أحدث العتبة العباسية."],"place":["العتبه","العتبة"],"source_specific":["articles_latest","shrine_history_sections"]}}}
+[Tool Resolution] Forced intent: get_latest_by_source { source: 'articles_latest', limit: 1 }
+[ChatTrace] {"trace_id":"trace_mo2y6wq9_kxg0od","stage":"forced_intent_utility","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","routed_source":"articles_latest","details":{"forced_tool":"get_latest_by_source"}}
+[Tool Execution] get_latest_by_source { source: 'articles_latest', limit: 1 }
+[ChatTrace] {"trace_id":"trace_mo2y6wq9_kxg0od","stage":"tools_resolved","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","routed_source":"articles_latest","retry_attempts":0,"result_counts":1,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2y6wq9_kxg0od","stage":"tool_resolution_finished","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","routed_source":"articles_latest","retry_attempts":0,"result_counts":1,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2y6wq9_kxg0od","stage":"direct_answer_returned","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","answer_mode":"direct_grounded","routed_source":"articles_latest","retry_attempts":0,"result_counts":1,"top_score":null}
+[ChatTrace] {"trace_id":"trace_mo2y6wq9_kxg0od","stage":"response_ready","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","answer_mode":"direct_grounded","routed_source":"articles_latest","retry_attempts":0,"result_counts":1,"top_score":null}
+ POST /api/chat/site 200 in 8ms
+ ✓ Compiled in 427ms (117 modules)
+ ✓ Compiled /api/chat/site in 287ms (354 modules)
+ POST /api/chat/site 200 in 471ms
+ POST /api/chat/site 200 in 29ms
+ POST /api/chat/site 200 in 11ms
+ POST /api/chat/site 200 in 9ms
+[ChatTrace] {"trace_id":"trace_mo2yapmw_zad5hl","stage":"request_received","normalized_query":"ما هي القابه المشهوره؟","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yapmw_zad5hl","stage":"tool_resolution_started","normalized_query":"ما هي القابه المشهوره؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yapmw_zad5hl","stage":"contextual_safe_direct_answer","normalized_query":"ما هي القابه المشهوره؟","details":{"operation_intent":"fact_question","content_intent":"biography"}}
+[ChatTrace] {"trace_id":"trace_mo2yapmw_zad5hl","stage":"tools_resolved","normalized_query":"ما هي القابه المشهوره؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yapmw_zad5hl","stage":"tool_resolution_finished","normalized_query":"ما هي القابه المشهوره؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yapmw_zad5hl","stage":"direct_answer_returned","normalized_query":"ما هي القابه المشهوره؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yapmw_zad5hl","stage":"response_ready","normalized_query":"ما هي القابه المشهوره؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 22ms
+[ChatTrace] {"trace_id":"trace_mo2yapo1_nyk4qi","stage":"request_received","normalized_query":"كم كانت زوجاته؟","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yapo1_nyk4qi","stage":"tool_resolution_started","normalized_query":"كم كانت زوجاته؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yapo1_nyk4qi","stage":"contextual_safe_direct_answer","normalized_query":"كم كانت زوجاته؟","details":{"operation_intent":"count","content_intent":"biography"}}
+[ChatTrace] {"trace_id":"trace_mo2yapo1_nyk4qi","stage":"tools_resolved","normalized_query":"كم كانت زوجاته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yapo1_nyk4qi","stage":"tool_resolution_finished","normalized_query":"كم كانت زوجاته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yapo1_nyk4qi","stage":"direct_answer_returned","normalized_query":"كم كانت زوجاته؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yapo1_nyk4qi","stage":"response_ready","normalized_query":"كم كانت زوجاته؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 12ms
+[ChatTrace] {"trace_id":"trace_mo2yapoh_q5kaoy","stage":"request_received","normalized_query":"من هم ابناؤه؟","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yapoh_q5kaoy","stage":"tool_resolution_started","normalized_query":"من هم ابناؤه؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yapoh_q5kaoy","stage":"contextual_safe_direct_answer","normalized_query":"من هم ابناؤه؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yapoh_q5kaoy","stage":"tools_resolved","normalized_query":"من هم ابناؤه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yapoh_q5kaoy","stage":"tool_resolution_finished","normalized_query":"من هم ابناؤه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yapoh_q5kaoy","stage":"direct_answer_returned","normalized_query":"من هم ابناؤه؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yapoh_q5kaoy","stage":"response_ready","normalized_query":"من هم ابناؤه؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 11ms
+[ChatTrace] {"trace_id":"trace_mo2yapoz_neixhh","stage":"request_received","normalized_query":"ما اسم زوجته؟","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yapoz_neixhh","stage":"tool_resolution_started","normalized_query":"ما اسم زوجته؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yapoz_neixhh","stage":"contextual_safe_direct_answer","normalized_query":"ما اسم زوجته؟","details":{"operation_intent":"fact_question","content_intent":"biography"}}
+[ChatTrace] {"trace_id":"trace_mo2yapoz_neixhh","stage":"tools_resolved","normalized_query":"ما اسم زوجته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yapoz_neixhh","stage":"tool_resolution_finished","normalized_query":"ما اسم زوجته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yapoz_neixhh","stage":"direct_answer_returned","normalized_query":"ما اسم زوجته؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yapoz_neixhh","stage":"response_ready","normalized_query":"ما اسم زوجته؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 11ms
+[ChatTrace] {"trace_id":"trace_mo2yappe_636zud","stage":"request_received","normalized_query":"متي كانت شهادته؟","details":{"use_tools":true,"message_count":3,"original_message_count":3,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (3 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yappe_636zud","stage":"tool_resolution_started","normalized_query":"متي كانت شهادته؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yappe_636zud","stage":"contextual_safe_direct_answer","normalized_query":"متي كانت شهادته؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yappe_636zud","stage":"tools_resolved","normalized_query":"متي كانت شهادته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yappe_636zud","stage":"tool_resolution_finished","normalized_query":"متي كانت شهادته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yappe_636zud","stage":"direct_answer_returned","normalized_query":"متي كانت شهادته؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yappe_636zud","stage":"response_ready","normalized_query":"متي كانت شهادته؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 11ms
+[ChatTrace] {"trace_id":"trace_mo2yhap7_rcbn9x","stage":"request_received","normalized_query":"من المسؤول الشرعي الحالي عن العتبه العباسيه؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhap7_rcbn9x","stage":"tool_resolution_started","normalized_query":"من المسؤول الشرعي الحالي عن العتبه العباسيه؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhap7_rcbn9x","stage":"safe_capability_direct_answer","normalized_query":"من المسؤول الشرعي الحالي عن العتبه العباسيه؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhap7_rcbn9x","stage":"tools_resolved","normalized_query":"من المسؤول الشرعي الحالي عن العتبه العباسيه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhap7_rcbn9x","stage":"tool_resolution_finished","normalized_query":"من المسؤول الشرعي الحالي عن العتبه العباسيه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhap7_rcbn9x","stage":"direct_answer_returned","normalized_query":"من المسؤول الشرعي الحالي عن العتبه العباسيه؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhap7_rcbn9x","stage":"response_ready","normalized_query":"من المسؤول الشرعي الحالي عن العتبه العباسيه؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 15ms
+[ChatTrace] {"trace_id":"trace_mo2yhapu_tfkygr","stage":"request_received","normalized_query":"اريد الاسم فقط، من هو المتولي الشرعي؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhapu_tfkygr","stage":"tool_resolution_started","normalized_query":"اريد الاسم فقط، من هو المتولي الشرعي؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhapu_tfkygr","stage":"safe_capability_direct_answer","normalized_query":"اريد الاسم فقط، من هو المتولي الشرعي؟","details":{"operation_intent":"direct_answer","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhapu_tfkygr","stage":"tools_resolved","normalized_query":"اريد الاسم فقط، من هو المتولي الشرعي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhapu_tfkygr","stage":"tool_resolution_finished","normalized_query":"اريد الاسم فقط، من هو المتولي الشرعي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhapu_tfkygr","stage":"direct_answer_returned","normalized_query":"اريد الاسم فقط، من هو المتولي الشرعي؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhapu_tfkygr","stage":"response_ready","normalized_query":"اريد الاسم فقط، من هو المتولي الشرعي؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 9ms
+[ChatTrace] {"trace_id":"trace_mo2yhaq5_uynh2w","stage":"request_received","normalized_query":"هل المتولي الشرعي هو نفسه رئيس قسم او مجرد منصب اشرافي اعلي؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhaq5_uynh2w","stage":"tool_resolution_started","normalized_query":"هل المتولي الشرعي هو نفسه رئيس قسم او مجرد منصب اشرافي اعلي؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhaq5_uynh2w","stage":"safe_capability_direct_answer","normalized_query":"هل المتولي الشرعي هو نفسه رئيس قسم او مجرد منصب اشرافي اعلي؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhaq5_uynh2w","stage":"tools_resolved","normalized_query":"هل المتولي الشرعي هو نفسه رئيس قسم او مجرد منصب اشرافي اعلي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhaq5_uynh2w","stage":"tool_resolution_finished","normalized_query":"هل المتولي الشرعي هو نفسه رئيس قسم او مجرد منصب اشرافي اعلي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhaq5_uynh2w","stage":"direct_answer_returned","normalized_query":"هل المتولي الشرعي هو نفسه رئيس قسم او مجرد منصب اشرافي اعلي؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhaq5_uynh2w","stage":"response_ready","normalized_query":"هل المتولي الشرعي هو نفسه رئيس قسم او مجرد منصب اشرافي اعلي؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhaqj_7dyot8","stage":"request_received","normalized_query":"ما الفرق بين المتولي الشرعي ومكتب المتولي الشرعي؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhaqj_7dyot8","stage":"tool_resolution_started","normalized_query":"ما الفرق بين المتولي الشرعي ومكتب المتولي الشرعي؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhaqj_7dyot8","stage":"safe_capability_direct_answer","normalized_query":"ما الفرق بين المتولي الشرعي ومكتب المتولي الشرعي؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhaqj_7dyot8","stage":"tools_resolved","normalized_query":"ما الفرق بين المتولي الشرعي ومكتب المتولي الشرعي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhaqj_7dyot8","stage":"tool_resolution_finished","normalized_query":"ما الفرق بين المتولي الشرعي ومكتب المتولي الشرعي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhaqj_7dyot8","stage":"direct_answer_returned","normalized_query":"ما الفرق بين المتولي الشرعي ومكتب المتولي الشرعي؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhaqj_7dyot8","stage":"response_ready","normalized_query":"ما الفرق بين المتولي الشرعي ومكتب المتولي الشرعي؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 12ms
+[ChatTrace] {"trace_id":"trace_mo2yhaqv_08ftbg","stage":"request_received","normalized_query":"اذا قلت لك “منو المسؤول الاعلي بالعتبه العباسيه؟” هل ستفهم اني اقصد المتولي الشرعي؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhaqv_08ftbg","stage":"tool_resolution_started","normalized_query":"اذا قلت لك “منو المسؤول الاعلي بالعتبه العباسيه؟” هل ستفهم اني اقصد المتولي الشرعي؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhaqv_08ftbg","stage":"safe_capability_direct_answer","normalized_query":"اذا قلت لك “منو المسؤول الاعلي بالعتبه العباسيه؟” هل ستفهم اني اقصد المتولي الشرعي؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhaqv_08ftbg","stage":"tools_resolved","normalized_query":"اذا قلت لك “منو المسؤول الاعلي بالعتبه العباسيه؟” هل ستفهم اني اقصد المتولي الشرعي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhaqv_08ftbg","stage":"tool_resolution_finished","normalized_query":"اذا قلت لك “منو المسؤول الاعلي بالعتبه العباسيه؟” هل ستفهم اني اقصد المتولي الشرعي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhaqv_08ftbg","stage":"direct_answer_returned","normalized_query":"اذا قلت لك “منو المسؤول الاعلي بالعتبه العباسيه؟” هل ستفهم اني اقصد المتولي الشرعي؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhaqv_08ftbg","stage":"response_ready","normalized_query":"اذا قلت لك “منو المسؤول الاعلي بالعتبه العباسيه؟” هل ستفهم اني اقصد المتولي الشرعي؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 8ms
+[ChatTrace] {"trace_id":"trace_mo2yhar7_13dut5","stage":"request_received","normalized_query":"هل “مكتب المتولي الشرعي للشؤون النسويه” جهه مستقله ام جزء من مكتب المتولي؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhar7_13dut5","stage":"tool_resolution_started","normalized_query":"هل “مكتب المتولي الشرعي للشؤون النسويه” جهه مستقله ام جزء من مكتب المتولي؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhar7_13dut5","stage":"safe_capability_direct_answer","normalized_query":"هل “مكتب المتولي الشرعي للشؤون النسويه” جهه مستقله ام جزء من مكتب المتولي؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhar7_13dut5","stage":"tools_resolved","normalized_query":"هل “مكتب المتولي الشرعي للشؤون النسويه” جهه مستقله ام جزء من مكتب المتولي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhar7_13dut5","stage":"tool_resolution_finished","normalized_query":"هل “مكتب المتولي الشرعي للشؤون النسويه” جهه مستقله ام جزء من مكتب المتولي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhar7_13dut5","stage":"direct_answer_returned","normalized_query":"هل “مكتب المتولي الشرعي للشؤون النسويه” جهه مستقله ام جزء من مكتب المتولي؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhar7_13dut5","stage":"response_ready","normalized_query":"هل “مكتب المتولي الشرعي للشؤون النسويه” جهه مستقله ام جزء من مكتب المتولي؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 9ms
+[ChatTrace] {"trace_id":"trace_mo2yhari_1ncjrf","stage":"request_received","normalized_query":"ما وظيفه هذه الجهه بالضبط، لا تعطيني خبرا عنها فقط.","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhari_1ncjrf","stage":"tool_resolution_started","normalized_query":"ما وظيفه هذه الجهه بالضبط، لا تعطيني خبرا عنها فقط.","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhari_1ncjrf","stage":"missing_conversation_context","normalized_query":"ما وظيفه هذه الجهه بالضبط، لا تعطيني خبرا عنها فقط.","details":{"operation_intent":"direct_answer","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhari_1ncjrf","stage":"tools_resolved","normalized_query":"ما وظيفه هذه الجهه بالضبط، لا تعطيني خبرا عنها فقط.","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhari_1ncjrf","stage":"tool_resolution_finished","normalized_query":"ما وظيفه هذه الجهه بالضبط، لا تعطيني خبرا عنها فقط.","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhari_1ncjrf","stage":"direct_answer_returned","normalized_query":"ما وظيفه هذه الجهه بالضبط، لا تعطيني خبرا عنها فقط.","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhari_1ncjrf","stage":"response_ready","normalized_query":"ما وظيفه هذه الجهه بالضبط، لا تعطيني خبرا عنها فقط.","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhart_kfafil","stage":"request_received","normalized_query":"ما المقصود ب اذاعه الكفيل؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhart_kfafil","stage":"tool_resolution_started","normalized_query":"ما المقصود ب اذاعه الكفيل؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhart_kfafil","stage":"safe_capability_direct_answer","normalized_query":"ما المقصود ب اذاعه الكفيل؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhart_kfafil","stage":"tools_resolved","normalized_query":"ما المقصود ب اذاعه الكفيل؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhart_kfafil","stage":"tool_resolution_finished","normalized_query":"ما المقصود ب اذاعه الكفيل؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhart_kfafil","stage":"direct_answer_returned","normalized_query":"ما المقصود ب اذاعه الكفيل؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhart_kfafil","stage":"response_ready","normalized_query":"ما المقصود ب اذاعه الكفيل؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 8ms
+[ChatTrace] {"trace_id":"trace_mo2yhas3_dqr0dx","stage":"request_received","normalized_query":"هل اذاعه الكفيل مشروع اعلامي ام اذاعه فعليه ام مجرد قسم في الموقع؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhas3_dqr0dx","stage":"tool_resolution_started","normalized_query":"هل اذاعه الكفيل مشروع اعلامي ام اذاعه فعليه ام مجرد قسم في الموقع؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhas3_dqr0dx","stage":"safe_capability_direct_answer","normalized_query":"هل اذاعه الكفيل مشروع اعلامي ام اذاعه فعليه ام مجرد قسم في الموقع؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhas3_dqr0dx","stage":"tools_resolved","normalized_query":"هل اذاعه الكفيل مشروع اعلامي ام اذاعه فعليه ام مجرد قسم في الموقع؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhas3_dqr0dx","stage":"tool_resolution_finished","normalized_query":"هل اذاعه الكفيل مشروع اعلامي ام اذاعه فعليه ام مجرد قسم في الموقع؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhas3_dqr0dx","stage":"direct_answer_returned","normalized_query":"هل اذاعه الكفيل مشروع اعلامي ام اذاعه فعليه ام مجرد قسم في الموقع؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhas3_dqr0dx","stage":"response_ready","normalized_query":"هل اذاعه الكفيل مشروع اعلامي ام اذاعه فعليه ام مجرد قسم في الموقع؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 8ms
+[ChatTrace] {"trace_id":"trace_mo2yhasd_p1uc3n","stage":"request_received","normalized_query":"اين اجد محتوي اذاعه الكفيل داخل الموقع؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhasd_p1uc3n","stage":"tool_resolution_started","normalized_query":"اين اجد محتوي اذاعه الكفيل داخل الموقع؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhasd_p1uc3n","stage":"safe_capability_direct_answer","normalized_query":"اين اجد محتوي اذاعه الكفيل داخل الموقع؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhasd_p1uc3n","stage":"tools_resolved","normalized_query":"اين اجد محتوي اذاعه الكفيل داخل الموقع؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhasd_p1uc3n","stage":"tool_resolution_finished","normalized_query":"اين اجد محتوي اذاعه الكفيل داخل الموقع؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhasd_p1uc3n","stage":"direct_answer_returned","normalized_query":"اين اجد محتوي اذاعه الكفيل داخل الموقع؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhasd_p1uc3n","stage":"response_ready","normalized_query":"اين اجد محتوي اذاعه الكفيل داخل الموقع؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhasl_xzzbjz","stage":"request_received","normalized_query":"هل اذاعه الكفيل تقدم برامج دينيه فقط ام متنوعه؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhasl_xzzbjz","stage":"tool_resolution_started","normalized_query":"هل اذاعه الكفيل تقدم برامج دينيه فقط ام متنوعه؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhasl_xzzbjz","stage":"safe_capability_direct_answer","normalized_query":"هل اذاعه الكفيل تقدم برامج دينيه فقط ام متنوعه؟","details":{"operation_intent":"direct_answer","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhasl_xzzbjz","stage":"tools_resolved","normalized_query":"هل اذاعه الكفيل تقدم برامج دينيه فقط ام متنوعه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhasl_xzzbjz","stage":"tool_resolution_finished","normalized_query":"هل اذاعه الكفيل تقدم برامج دينيه فقط ام متنوعه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhasl_xzzbjz","stage":"direct_answer_returned","normalized_query":"هل اذاعه الكفيل تقدم برامج دينيه فقط ام متنوعه؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhasl_xzzbjz","stage":"response_ready","normalized_query":"هل اذاعه الكفيل تقدم برامج دينيه فقط ام متنوعه؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 8ms
+[ChatTrace] {"trace_id":"trace_mo2yhasw_pllniu","stage":"request_received","normalized_query":"اعطني تعريفا قصيرا جدا: ما هي اذاعه الكفيل؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhasw_pllniu","stage":"tool_resolution_started","normalized_query":"اعطني تعريفا قصيرا جدا: ما هي اذاعه الكفيل؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhasw_pllniu","stage":"safe_capability_direct_answer","normalized_query":"اعطني تعريفا قصيرا جدا: ما هي اذاعه الكفيل؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhasw_pllniu","stage":"tools_resolved","normalized_query":"اعطني تعريفا قصيرا جدا: ما هي اذاعه الكفيل؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhasw_pllniu","stage":"tool_resolution_finished","normalized_query":"اعطني تعريفا قصيرا جدا: ما هي اذاعه الكفيل؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhasw_pllniu","stage":"direct_answer_returned","normalized_query":"اعطني تعريفا قصيرا جدا: ما هي اذاعه الكفيل؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhasw_pllniu","stage":"response_ready","normalized_query":"اعطني تعريفا قصيرا جدا: ما هي اذاعه الكفيل؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhat5_ul1a50","stage":"request_received","normalized_query":"ما هو نداء العقيده؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhat5_ul1a50","stage":"tool_resolution_started","normalized_query":"ما هو نداء العقيده؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhat5_ul1a50","stage":"safe_capability_direct_answer","normalized_query":"ما هو نداء العقيده؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhat5_ul1a50","stage":"tools_resolved","normalized_query":"ما هو نداء العقيده؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhat5_ul1a50","stage":"tool_resolution_finished","normalized_query":"ما هو نداء العقيده؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhat5_ul1a50","stage":"direct_answer_returned","normalized_query":"ما هو نداء العقيده؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhat5_ul1a50","stage":"response_ready","normalized_query":"ما هو نداء العقيده؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhate_lamxt4","stage":"request_received","normalized_query":"هل نداء العقيده فعاليه ميدانيه ام عنوان اعلامي فقط؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhate_lamxt4","stage":"tool_resolution_started","normalized_query":"هل نداء العقيده فعاليه ميدانيه ام عنوان اعلامي فقط؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhate_lamxt4","stage":"safe_capability_direct_answer","normalized_query":"هل نداء العقيده فعاليه ميدانيه ام عنوان اعلامي فقط؟","details":{"operation_intent":"direct_answer","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhate_lamxt4","stage":"tools_resolved","normalized_query":"هل نداء العقيده فعاليه ميدانيه ام عنوان اعلامي فقط؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhate_lamxt4","stage":"tool_resolution_finished","normalized_query":"هل نداء العقيده فعاليه ميدانيه ام عنوان اعلامي فقط؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhate_lamxt4","stage":"direct_answer_returned","normalized_query":"هل نداء العقيده فعاليه ميدانيه ام عنوان اعلامي فقط؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhate_lamxt4","stage":"response_ready","normalized_query":"هل نداء العقيده فعاليه ميدانيه ام عنوان اعلامي فقط؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhato_s826b5","stage":"request_received","normalized_query":"اين يقام نداء العقيده بالتحديد؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhato_s826b5","stage":"tool_resolution_started","normalized_query":"اين يقام نداء العقيده بالتحديد؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhato_s826b5","stage":"safe_capability_direct_answer","normalized_query":"اين يقام نداء العقيده بالتحديد؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhato_s826b5","stage":"tools_resolved","normalized_query":"اين يقام نداء العقيده بالتحديد؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhato_s826b5","stage":"tool_resolution_finished","normalized_query":"اين يقام نداء العقيده بالتحديد؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhato_s826b5","stage":"direct_answer_returned","normalized_query":"اين يقام نداء العقيده بالتحديد؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhato_s826b5","stage":"response_ready","normalized_query":"اين يقام نداء العقيده بالتحديد؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 8ms
+[ChatTrace] {"trace_id":"trace_mo2yhaty_0wnd6z","stage":"request_received","normalized_query":"متي يقام عاده نداء العقيده؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhaty_0wnd6z","stage":"tool_resolution_started","normalized_query":"متي يقام عاده نداء العقيده؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhaty_0wnd6z","stage":"safe_capability_direct_answer","normalized_query":"متي يقام عاده نداء العقيده؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhaty_0wnd6z","stage":"tools_resolved","normalized_query":"متي يقام عاده نداء العقيده؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhaty_0wnd6z","stage":"tool_resolution_finished","normalized_query":"متي يقام عاده نداء العقيده؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhaty_0wnd6z","stage":"direct_answer_returned","normalized_query":"متي يقام عاده نداء العقيده؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhaty_0wnd6z","stage":"response_ready","normalized_query":"متي يقام عاده نداء العقيده؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhau9_f90vng","stage":"request_received","normalized_query":"هل “نداء العقيده” تابع للعتبه العباسيه مباشره ام لجهه اخري مرتبطه بها؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhau9_f90vng","stage":"tool_resolution_started","normalized_query":"هل “نداء العقيده” تابع للعتبه العباسيه مباشره ام لجهه اخري مرتبطه بها؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhau9_f90vng","stage":"safe_capability_direct_answer","normalized_query":"هل “نداء العقيده” تابع للعتبه العباسيه مباشره ام لجهه اخري مرتبطه بها؟","details":{"operation_intent":"list_items","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhau9_f90vng","stage":"tools_resolved","normalized_query":"هل “نداء العقيده” تابع للعتبه العباسيه مباشره ام لجهه اخري مرتبطه بها؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhau9_f90vng","stage":"tool_resolution_finished","normalized_query":"هل “نداء العقيده” تابع للعتبه العباسيه مباشره ام لجهه اخري مرتبطه بها؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhau9_f90vng","stage":"direct_answer_returned","normalized_query":"هل “نداء العقيده” تابع للعتبه العباسيه مباشره ام لجهه اخري مرتبطه بها؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhau9_f90vng","stage":"response_ready","normalized_query":"هل “نداء العقيده” تابع للعتبه العباسيه مباشره ام لجهه اخري مرتبطه بها؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 8ms
+[ChatTrace] {"trace_id":"trace_mo2yhaui_kwmnql","stage":"request_received","normalized_query":"ما الفرق بين نداء العقيده واسبوع الامامه؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhaui_kwmnql","stage":"tool_resolution_started","normalized_query":"ما الفرق بين نداء العقيده واسبوع الامامه؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhaui_kwmnql","stage":"safe_capability_direct_answer","normalized_query":"ما الفرق بين نداء العقيده واسبوع الامامه؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhaui_kwmnql","stage":"tools_resolved","normalized_query":"ما الفرق بين نداء العقيده واسبوع الامامه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhaui_kwmnql","stage":"tool_resolution_finished","normalized_query":"ما الفرق بين نداء العقيده واسبوع الامامه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhaui_kwmnql","stage":"direct_answer_returned","normalized_query":"ما الفرق بين نداء العقيده واسبوع الامامه؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhaui_kwmnql","stage":"response_ready","normalized_query":"ما الفرق بين نداء العقيده واسبوع الامامه؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhaus_r1iu2j","stage":"request_received","normalized_query":"هل نداء العقيده برنامج مستمر ام مناسبه مؤقته؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhaus_r1iu2j","stage":"tool_resolution_started","normalized_query":"هل نداء العقيده برنامج مستمر ام مناسبه مؤقته؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhaus_r1iu2j","stage":"safe_capability_direct_answer","normalized_query":"هل نداء العقيده برنامج مستمر ام مناسبه مؤقته؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhaus_r1iu2j","stage":"tools_resolved","normalized_query":"هل نداء العقيده برنامج مستمر ام مناسبه مؤقته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhaus_r1iu2j","stage":"tool_resolution_finished","normalized_query":"هل نداء العقيده برنامج مستمر ام مناسبه مؤقته؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhaus_r1iu2j","stage":"direct_answer_returned","normalized_query":"هل نداء العقيده برنامج مستمر ام مناسبه مؤقته؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhaus_r1iu2j","stage":"response_ready","normalized_query":"هل نداء العقيده برنامج مستمر ام مناسبه مؤقته؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhav1_xe94b9","stage":"request_received","normalized_query":"هل لدي العتبه العباسيه مشروع تعليمي؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhav1_xe94b9","stage":"tool_resolution_started","normalized_query":"هل لدي العتبه العباسيه مشروع تعليمي؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhav1_xe94b9","stage":"safe_capability_direct_answer","normalized_query":"هل لدي العتبه العباسيه مشروع تعليمي؟","details":{"operation_intent":"fact_question","content_intent":"history"}}
+[ChatTrace] {"trace_id":"trace_mo2yhav1_xe94b9","stage":"tools_resolved","normalized_query":"هل لدي العتبه العباسيه مشروع تعليمي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhav1_xe94b9","stage":"tool_resolution_finished","normalized_query":"هل لدي العتبه العباسيه مشروع تعليمي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhav1_xe94b9","stage":"direct_answer_returned","normalized_query":"هل لدي العتبه العباسيه مشروع تعليمي؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhav1_xe94b9","stage":"response_ready","normalized_query":"هل لدي العتبه العباسيه مشروع تعليمي؟","answer_mode":"direct_grounded","retry_attempts":0}
+[RuntimeMetrics] {"total_requests":25,"avg_request_latency_ms":2,"avg_orchestrator_latency_ms":0,"avg_source_fetch_latency_ms":0,"retry_count_total":0,"timeout_count_total":0,"budget_exhaustion_count":0,"unavailable_response_rate":0,"source_selection_distribution":{},"query_class_distribution":{"fact_question:biography":2,"count:biography":1,"fact_question:generic":6,"fact_question:news":10,"direct_answer:news":3,"direct_answer:generic":1,"list_items:news":1,"fact_question:history":1},"unavailable_reason_distribution":{}}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhava_hb2mtx","stage":"request_received","normalized_query":"هل يوجد للعتبه مشروع جامعي غير المدارس؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhava_hb2mtx","stage":"tool_resolution_started","normalized_query":"هل يوجد للعتبه مشروع جامعي غير المدارس؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhava_hb2mtx","stage":"safe_capability_direct_answer","normalized_query":"هل يوجد للعتبه مشروع جامعي غير المدارس؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhava_hb2mtx","stage":"tools_resolved","normalized_query":"هل يوجد للعتبه مشروع جامعي غير المدارس؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhava_hb2mtx","stage":"tool_resolution_finished","normalized_query":"هل يوجد للعتبه مشروع جامعي غير المدارس؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhava_hb2mtx","stage":"direct_answer_returned","normalized_query":"هل يوجد للعتبه مشروع جامعي غير المدارس؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhava_hb2mtx","stage":"response_ready","normalized_query":"هل يوجد للعتبه مشروع جامعي غير المدارس؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 6ms
+[ChatTrace] {"trace_id":"trace_mo2yhavi_iiyij2","stage":"request_received","normalized_query":"ما الفرق بين جامعه الكفيل ومدارس العميد من حيث النوع؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhavi_iiyij2","stage":"tool_resolution_started","normalized_query":"ما الفرق بين جامعه الكفيل ومدارس العميد من حيث النوع؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhavi_iiyij2","stage":"safe_capability_direct_answer","normalized_query":"ما الفرق بين جامعه الكفيل ومدارس العميد من حيث النوع؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhavi_iiyij2","stage":"tools_resolved","normalized_query":"ما الفرق بين جامعه الكفيل ومدارس العميد من حيث النوع؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhavi_iiyij2","stage":"tool_resolution_finished","normalized_query":"ما الفرق بين جامعه الكفيل ومدارس العميد من حيث النوع؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhavi_iiyij2","stage":"direct_answer_returned","normalized_query":"ما الفرق بين جامعه الكفيل ومدارس العميد من حيث النوع؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhavi_iiyij2","stage":"response_ready","normalized_query":"ما الفرق بين جامعه الكفيل ومدارس العميد من حيث النوع؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhavr_4fcaam","stage":"request_received","normalized_query":"هل يمكن اعتبار جامعه العميد مشروعا تعليميا تابعا للعتبه؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhavr_4fcaam","stage":"tool_resolution_started","normalized_query":"هل يمكن اعتبار جامعه العميد مشروعا تعليميا تابعا للعتبه؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhavr_4fcaam","stage":"safe_capability_direct_answer","normalized_query":"هل يمكن اعتبار جامعه العميد مشروعا تعليميا تابعا للعتبه؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhavr_4fcaam","stage":"tools_resolved","normalized_query":"هل يمكن اعتبار جامعه العميد مشروعا تعليميا تابعا للعتبه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhavr_4fcaam","stage":"tool_resolution_finished","normalized_query":"هل يمكن اعتبار جامعه العميد مشروعا تعليميا تابعا للعتبه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhavr_4fcaam","stage":"direct_answer_returned","normalized_query":"هل يمكن اعتبار جامعه العميد مشروعا تعليميا تابعا للعتبه؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhavr_4fcaam","stage":"response_ready","normalized_query":"هل يمكن اعتبار جامعه العميد مشروعا تعليميا تابعا للعتبه؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 6ms
+[ChatTrace] {"trace_id":"trace_mo2yhaw0_hgl1e8","stage":"request_received","normalized_query":"هل عندهم مشروع زراعي او انتاجي؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhaw0_hgl1e8","stage":"tool_resolution_started","normalized_query":"هل عندهم مشروع زراعي او انتاجي؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhaw0_hgl1e8","stage":"safe_capability_direct_answer","normalized_query":"هل عندهم مشروع زراعي او انتاجي؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhaw0_hgl1e8","stage":"tools_resolved","normalized_query":"هل عندهم مشروع زراعي او انتاجي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhaw0_hgl1e8","stage":"tool_resolution_finished","normalized_query":"هل عندهم مشروع زراعي او انتاجي؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhaw0_hgl1e8","stage":"direct_answer_returned","normalized_query":"هل عندهم مشروع زراعي او انتاجي؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhaw0_hgl1e8","stage":"response_ready","normalized_query":"هل عندهم مشروع زراعي او انتاجي؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 6ms
+[ChatTrace] {"trace_id":"trace_mo2yhaw9_1kf0qx","stage":"request_received","normalized_query":"هل عندهم شيء متعلق بالدجاج او الثروه الحيوانيه او الغذاء؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhaw9_1kf0qx","stage":"tool_resolution_started","normalized_query":"هل عندهم شيء متعلق بالدجاج او الثروه الحيوانيه او الغذاء؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhaw9_1kf0qx","stage":"safe_capability_direct_answer","normalized_query":"هل عندهم شيء متعلق بالدجاج او الثروه الحيوانيه او الغذاء؟","details":{"operation_intent":"fact_question","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhaw9_1kf0qx","stage":"tools_resolved","normalized_query":"هل عندهم شيء متعلق بالدجاج او الثروه الحيوانيه او الغذاء؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhaw9_1kf0qx","stage":"tool_resolution_finished","normalized_query":"هل عندهم شيء متعلق بالدجاج او الثروه الحيوانيه او الغذاء؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhaw9_1kf0qx","stage":"direct_answer_returned","normalized_query":"هل عندهم شيء متعلق بالدجاج او الثروه الحيوانيه او الغذاء؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhaw9_1kf0qx","stage":"response_ready","normalized_query":"هل عندهم شيء متعلق بالدجاج او الثروه الحيوانيه او الغذاء؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 8ms
+[ChatTrace] {"trace_id":"trace_mo2yhawl_c2j1l9","stage":"request_received","normalized_query":"ما الفرق بين مشروع وقسم ومركز في اخبار العتبه؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhawl_c2j1l9","stage":"tool_resolution_started","normalized_query":"ما الفرق بين مشروع وقسم ومركز في اخبار العتبه؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhawl_c2j1l9","stage":"safe_capability_direct_answer","normalized_query":"ما الفرق بين مشروع وقسم ومركز في اخبار العتبه؟","details":{"operation_intent":"fact_question","content_intent":"news"}}
+[ChatTrace] {"trace_id":"trace_mo2yhawl_c2j1l9","stage":"tools_resolved","normalized_query":"ما الفرق بين مشروع وقسم ومركز في اخبار العتبه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhawl_c2j1l9","stage":"tool_resolution_finished","normalized_query":"ما الفرق بين مشروع وقسم ومركز في اخبار العتبه؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhawl_c2j1l9","stage":"direct_answer_returned","normalized_query":"ما الفرق بين مشروع وقسم ومركز في اخبار العتبه؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhawl_c2j1l9","stage":"response_ready","normalized_query":"ما الفرق بين مشروع وقسم ومركز في اخبار العتبه؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 8ms
+[ChatTrace] {"trace_id":"trace_mo2yhawt_vmqqvq","stage":"request_received","normalized_query":"من هو ابو الفضل العباس باختصار من دون مقدمه طويله؟","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhawt_vmqqvq","stage":"tool_resolution_started","normalized_query":"من هو ابو الفضل العباس باختصار من دون مقدمه طويله؟","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhawt_vmqqvq","stage":"safe_capability_direct_answer","normalized_query":"من هو ابو الفضل العباس باختصار من دون مقدمه طويله؟","details":{"operation_intent":"fact_question","content_intent":"biography"}}
+[ChatTrace] {"trace_id":"trace_mo2yhawt_vmqqvq","stage":"tools_resolved","normalized_query":"من هو ابو الفضل العباس باختصار من دون مقدمه طويله؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhawt_vmqqvq","stage":"tool_resolution_finished","normalized_query":"من هو ابو الفضل العباس باختصار من دون مقدمه طويله؟","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhawt_vmqqvq","stage":"direct_answer_returned","normalized_query":"من هو ابو الفضل العباس باختصار من دون مقدمه طويله؟","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhawt_vmqqvq","stage":"response_ready","normalized_query":"من هو ابو الفضل العباس باختصار من دون مقدمه طويله؟","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhax2_qbws75","stage":"request_received","normalized_query":"اريد سطر واحد فقط عن ابي الفضل العباس.","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhax2_qbws75","stage":"tool_resolution_started","normalized_query":"اريد سطر واحد فقط عن ابي الفضل العباس.","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhax2_qbws75","stage":"safe_capability_direct_answer","normalized_query":"اريد سطر واحد فقط عن ابي الفضل العباس.","details":{"operation_intent":"direct_answer","content_intent":"generic"}}
+[ChatTrace] {"trace_id":"trace_mo2yhax2_qbws75","stage":"tools_resolved","normalized_query":"اريد سطر واحد فقط عن ابي الفضل العباس.","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhax2_qbws75","stage":"tool_resolution_finished","normalized_query":"اريد سطر واحد فقط عن ابي الفضل العباس.","retry_attempts":0,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhax2_qbws75","stage":"direct_answer_returned","normalized_query":"اريد سطر واحد فقط عن ابي الفضل العباس.","answer_mode":"direct_grounded","retry_attempts":0}
+[ChatTrace] {"trace_id":"trace_mo2yhax2_qbws75","stage":"response_ready","normalized_query":"اريد سطر واحد فقط عن ابي الفضل العباس.","answer_mode":"direct_grounded","retry_attempts":0}
+ POST /api/chat/site 200 in 7ms
+[ChatTrace] {"trace_id":"trace_mo2yhaxb_u51tk5","stage":"request_received","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_mo2yhaxb_u51tk5","stage":"tool_resolution_started","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_mo2yhaxb_u51tk5","stage":"intent_detected","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","routed_source":"articles_latest","details":{"forced_tool":"get_latest_by_source"}}
+[ChatTrace] {"trace_id":"trace_mo2yhaxb_u51tk5","stage":"query_understanding","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","routed_source":"articles_latest","details":{"content_intent":"news","operation_intent":"list_items","route_confidence":0.97,"extracted_entities":{"person":[],"topic":["أحدث العتبة العباسية."],"place":["العتبه","العتبة"],"source_specific":["articles_latest","shrine_history_sections"]}}}
+[Tool Resolution] Forced intent: get_latest_by_source { source: 'articles_latest', limit: 1 }
+[ChatTrace] {"trace_id":"trace_mo2yhaxb_u51tk5","stage":"forced_intent_utility","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","routed_source":"articles_latest","details":{"forced_tool":"get_latest_by_source"}}
+[Tool Execution] get_latest_by_source { source: 'articles_latest', limit: 1 }
+[ChatTrace] {"trace_id":"trace_mo2yhaxb_u51tk5","stage":"tools_resolved","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","routed_source":"articles_latest","retry_attempts":0,"result_counts":1,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_mo2yhaxb_u51tk5","stage":"tool_resolution_finished","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","routed_source":"articles_latest","retry_attempts":0,"result_counts":1,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_mo2yhaxb_u51tk5","stage":"direct_answer_returned","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","answer_mode":"direct_grounded","routed_source":"articles_latest","retry_attempts":0,"result_counts":1,"top_score":null}
+[ChatTrace] {"trace_id":"trace_mo2yhaxb_u51tk5","stage":"response_ready","normalized_query":"اعطني احدث خبر عن العتبه العباسيه.","answer_mode":"direct_grounded","routed_source":"articles_latest","retry_attempts":0,"result_counts":1,"top_score":null}
+ POST /api/chat/site 200 in 1001ms
+ GET /ar 200 in 131ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 817ms (519 modules)
+ GET /_next/static/css/app/%5Blocale%5D/layout.css?v=1776433246857 404 in 1072ms
+ GET /_next/static/chunks/webpack.js?v=1776433246857 404 in 1082ms
+ GET /_next/static/chunks/main-app.js?v=1776433246857 404 in 1047ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 35ms
+ GET /_next/static/chunks/app/%5Blocale%5D/page.js 404 in 59ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 2.4s (746 modules)
+ GET /ar 500 in 3035ms
+ ✓ Compiled in 492ms (354 modules)
+ GET /ar 200 in 122ms
+ GET /_next/static/css/app/%5Blocale%5D/layout.css?v=1776433295768 404 in 32ms
+ GET /_next/static/chunks/main-app.js?v=1776433295768 404 in 51ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 35ms
+ GET /_next/static/chunks/app/%5Blocale%5D/page.js 404 in 34ms
+ ✓ Compiled in 147ms (117 modules)

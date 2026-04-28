@@ -13,6 +13,7 @@ const SOURCE_ENUM = [
   "videos_latest",
   "videos_categories",
   "videos_by_category",
+  "shrine_history_timeline",
   "shrine_history_sections",
   "shrine_history_by_section",
   "abbas_history_by_id",
@@ -67,7 +68,7 @@ export const TOOL_SEARCH_CONTENT: ChatCompletionTool = {
   type: "function",
   function: {
     name: "search_content",
-    description: "بحث اتحادي متعدد المصادر مع fallback ذكي للحفاظ على الدقة.",
+    description: "بحث اتحادي متعدد المصادر مع fallback ذكي للحفاظ على الدقة. للأسئلة التاريخية (متى تأسست؟ ما تاريخ؟ من أسّس؟) استخدم source=shrine_history_sections. للأسئلة عن شخصية العباس (ع) استخدم source=abbas_history_by_id.",
     parameters: {
       type: "object",
       properties: {
@@ -222,6 +223,10 @@ export const TOOL_GET_LATEST_PROJECTS: ChatCompletionTool = {
           enum: SOURCE_ENUM,
           description: "المصدر"
         },
+        query: {
+          type: "string",
+          description: "نص المستخدم الأصلي للمطابقة الدلالية (مثل تحديد قسم فيديو)"
+        },
         category_id: {
           type: "string",
           description: "تصنيف الفيديو"
@@ -254,6 +259,10 @@ export const TOOL_GET_LATEST_BY_SOURCE: ChatCompletionTool = {
           minimum: 1,
           maximum: 20,
           description: "عدد النتائج"
+        },
+        query: {
+          type: "string",
+          description: "نص المستخدم الأصلي للمطابقة الدلالية (مثل تحديد قسم فيديو)"
         },
         category_id: {
           type: "string",
@@ -345,9 +354,32 @@ export const TOOL_BROWSE_SOURCE_PAGE: ChatCompletionTool = {
 }
 
 /**
+ * أداة اكتشاف الكيانات الموجودة في قاعدة البيانات
+ * يستخدمها GPT-4o عند الأسئلة ذات المصطلحات العامة ليعرف الأسماء الدقيقة ثم يبحث بها
+ */
+export const TOOL_DISCOVER_ENTITIES: ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "discover_entities",
+    description: "استرجاع فهرس بأسماء جميع الكيانات المتاحة (المشاريع، المؤسسات، المراكز...). استخدم هذه الأداة أولاً عندما يسأل المستخدم بمصطلح عام كـ(مصانع، جامعات، مستشفيات، مزارع، معاهد...) ولا تعرف الأسماء الدقيقة الموجودة في قاعدة البيانات. ستحصل على قائمة الكيانات الحقيقية ثم تبحث عنها بأسمائها الصريحة.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "المصطلح العام الذي ذكره المستخدم (مثال: مصانع، جامعات، مستشفيات)"
+        }
+      },
+      required: ["query"]
+    }
+  }
+}
+
+/**
  * قائمة جميع الأدوات المتاحة
  */
 export const ALL_SITE_TOOLS: ChatCompletionTool[] = [
+  TOOL_DISCOVER_ENTITIES,
   TOOL_SEARCH_PROJECTS,
   TOOL_SEARCH_CONTENT,
   TOOL_GET_PROJECT_BY_ID,
@@ -365,6 +397,7 @@ export const ALL_SITE_TOOLS: ChatCompletionTool[] = [
  * Whitelist: أسماء الأدوات المسموحة فقط
  */
 export const ALLOWED_TOOL_NAMES = [
+  "discover_entities",
   "search_projects",
   "search_content",
   "get_project_by_id",

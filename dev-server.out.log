@@ -1,0 +1,778 @@
+
+> alkafeel_chatbot@1.0.0 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 14.4s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 1275ms (117 modules)
+ ○ Compiling /[locale] ...
+ ✓ Compiled /[locale] in 12.9s (538 modules)
+ GET /ar 200 in 14800ms
+ ○ Compiling /api/chat/site ...
+ ✓ Compiled /api/chat/site in 2.4s (357 modules)
+[ChatTrace] {"trace_id":"trace_moa4hvth_cjype8","stage":"request_received","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","details":{"use_tools":true,"message_count":1,"original_message_count":1,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4hvth_cjype8","stage":"tool_resolution_started","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4hvth_cjype8","stage":"query_understanding","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","routed_source":"articles_latest","details":{"content_intent":"news","operation_intent":"list_items","route_confidence":0.9,"extracted_entities":{"person":[],"topic":["اعطني اخر الاخبار","اعطني اخر"],"place":["العتبه"],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4hvth_cjype8","stage":"forced_intent_utility","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","routed_source":"articles_latest","details":{"forced_tool":"get_latest_by_source"}}
+[Tool Execution] get_latest_by_source {
+  source: 'articles_latest',
+  limit: 5,
+  query: 'اعطني آخر الأخبار من العتبة العباسية'
+}
+[ChatTrace] {"trace_id":"trace_moa4hvth_cjype8","stage":"tools_resolved","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_moa4hvth_cjype8","stage":"tool_resolution_finished","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_moa4hvth_cjype8","stage":"direct_answer_returned","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","answer_mode":"direct_grounded","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":null}
+[ChatTrace] {"trace_id":"trace_moa4hvth_cjype8","stage":"response_ready","normalized_query":"اعطني اخر الاخبار من العتبه العباسيه","answer_mode":"direct_grounded","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":null}
+ POST /api/chat/site 200 in 3843ms
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"request_received","normalized_query":"من هم اخوه العباس من امه","details":{"use_tools":true,"message_count":1,"original_message_count":3,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"tool_resolution_started","normalized_query":"من هم اخوه العباس من امه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"query_understanding","normalized_query":"من هم اخوه العباس من امه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.59,"extracted_entities":{"person":["العباس"],"topic":["من هم اخوه","من هم"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"orchestrator_plan_created","normalized_query":"من هم اخوه العباس من امه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.59,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"orchestrator_attempt_started","normalized_query":"من هم اخوه العباس من امه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'من هم اخوة العباس من امه', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هم اخوة العباس من امه"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"orchestrator_attempt_finished","normalized_query":"من هم اخوه العباس من امه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":4160,"elapsed_ms":4161,"budget_remaining_ms":13839}}
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"orchestrator_slow_source_path","normalized_query":"من هم اخوه العباس من امه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"duration_ms":4160,"slow_threshold_ms":3000,"reason":"entity_first:entity_fact_query"}}
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"orchestrator_runtime_takeover","normalized_query":"من هم اخوه العباس من امه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50}
+[Knowledge Ingestion] Ingesting 8 stale source(s): articles_latest, videos_latest, videos_categories, shrine_history_timeline, shrine_history_sections, lang_words_ar, friday_sermons, wahy_friday
+[Knowledge Ingestion] lang_words_ar: 527 items → 528 chunks
+[Knowledge Ingestion] shrine_history_timeline: 16 items → 16 chunks
+[Knowledge Ingestion] videos_categories: 43 items → 43 chunks
+[Knowledge Ingestion] shrine_history_sections: 5 items → 40 chunks
+[Knowledge Ingestion] wahy_friday: 160 items → 160 chunks
+[Knowledge Ingestion] friday_sermons: 160 items → 160 chunks
+[Knowledge Ingestion] videos_latest: 160 items → 160 chunks
+[Knowledge Ingestion] articles_latest: 160 items → 160 chunks
+[Knowledge Ingestion] Deep-fetching 5 history section(s): عودة الشرعية إلى إدارة العتبات بعد طول غياب, سدنة العتبة العباسية المقدسة (1), الكلدار, تأريخ فك ارتباط إدارتي العتبتين المقدستين, العتبة العباسية المقدسة في ظل الإدارة الجديدة
+[Abbas Local] Loaded 14 tabs (95439 chars)
+[Knowledge Ingestion] Abbas local dataset: 14 tabs → 203 chunks
+[Knowledge] Initial search: 4 chunks (top=13.7)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence Guard] Abbas biography — simple query, suppressing tool results
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 2 items, top confidence: 48%
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "من هم اخوة العباس من امه"
+[Tool Execution] search_content { query: 'من هم اخوة العباس من امه', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هم اخوة العباس من امه"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"tools_resolved","normalized_query":"من هم اخوه العباس من امه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"tool_resolution_finished","normalized_query":"من هم اخوه العباس من امه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"final_stream_started","normalized_query":"من هم اخوه العباس من امه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"grounded_stream_started","normalized_query":"من هم اخوه العباس من امه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4i26o_xo70ul","stage":"response_ready","normalized_query":"من هم اخوه العباس من امه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50}
+ POST /api/chat/site 200 in 18866ms
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"request_received","normalized_query":"اسبوع الامامه","details":{"use_tools":true,"message_count":1,"original_message_count":5,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"tool_resolution_started","normalized_query":"اسبوع الامامه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"query_understanding","normalized_query":"اسبوع الامامه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["اسبوع الامامه"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"orchestrator_plan_created","normalized_query":"اسبوع الامامه","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"news","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","wahy_friday"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"orchestrator_attempt_started","normalized_query":"اسبوع الامامه","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:named_event_or_program","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'اسبوع الامامة', source: 'articles_latest' }
+[siteSearchContent] Official news search fallback for query="اسبوع الامامة"
+[siteSearchContent] Official news search returned 33 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"orchestrator_attempt_finished","normalized_query":"اسبوع الامامه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":152,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":4322,"elapsed_ms":4323,"budget_remaining_ms":13677}}
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"orchestrator_slow_source_path","normalized_query":"اسبوع الامامه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":152,"details":{"duration_ms":4322,"slow_threshold_ms":3000,"reason":"entity_first:named_event_or_program"}}
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"orchestrator_runtime_takeover","normalized_query":"اسبوع الامامه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":152}
+[Knowledge] Initial search: 4 chunks (top=14.3)
+[Evidence Guard] Abbas biography — simple query, suppressing tool results
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 3 items, top confidence: 80%
+[Evidence Guard] Fetching full article id=31553
+[Tool Execution] get_content_by_id { id: '31553', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=31553
+[Tool Execution] get_content_by_id { id: '31553', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "اسبوع الامامة"
+[Tool Execution] search_content { query: 'اسبوع الامامة', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="اسبوع الامامة"
+[siteSearchContent] Official news search returned 33 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[Evidence Guard] Fetching full article id=31553
+[Tool Execution] get_content_by_id { id: '31553', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"tools_resolved","normalized_query":"اسبوع الامامه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":152,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"tool_resolution_finished","normalized_query":"اسبوع الامامه","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":152,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"final_stream_started","normalized_query":"اسبوع الامامه","routed_source":"articles_latest","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"grounded_stream_started","normalized_query":"اسبوع الامامه","routed_source":"articles_latest","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4infx_0h92yj","stage":"response_ready","normalized_query":"اسبوع الامامه","answer_mode":"llm_stream","routed_source":"articles_latest","retry_attempts":0,"result_counts":5,"top_score":152}
+ POST /api/chat/site 200 in 18098ms
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"request_received","normalized_query":"من هم اخوه العباس من ابيه","details":{"use_tools":true,"message_count":1,"original_message_count":7,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"tool_resolution_started","normalized_query":"من هم اخوه العباس من ابيه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"query_understanding","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.59,"extracted_entities":{"person":["العباس"],"topic":["من هم اخوه","من هم"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"orchestrator_plan_created","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.59,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"orchestrator_attempt_started","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17991}}
+[Tool Execution] search_content { query: 'من هم اخوة العباس  من ابية', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هم اخوة العباس  من ابية"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"orchestrator_attempt_finished","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":3244,"elapsed_ms":3253,"budget_remaining_ms":14747}}
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"orchestrator_slow_source_path","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"duration_ms":3244,"slow_threshold_ms":3000,"reason":"entity_first:entity_fact_query"}}
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"orchestrator_runtime_takeover","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50}
+[Knowledge] Initial search: 4 chunks (top=13.7)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence Guard] Abbas biography — simple query, suppressing tool results
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 2 items, top confidence: 48%
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "من هم اخوة العباس  من ابية"
+[Tool Execution] search_content { query: 'من هم اخوة العباس  من ابية', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هم اخوة العباس  من ابية"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"tools_resolved","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"tool_resolution_finished","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"final_stream_started","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"grounded_stream_started","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4j2m8_boii0y","stage":"response_ready","normalized_query":"من هم اخوه العباس من ابيه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50}
+ POST /api/chat/site 200 in 11461ms
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"request_received","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","details":{"use_tools":true,"message_count":1,"original_message_count":9,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"tool_resolution_started","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"query_understanding","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["هل للعتبه العباسيه","هل للعتبه"],"place":[],"source_specific":["projects_query"]}}}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"orchestrator_plan_created","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية مشاريع دواجن', source: 'articles_latest' }
+[siteSearchContent] Official news search fallback for query="هل للعتبة العباسية مشاريع دواجن"
+[siteSearchContent] Official news search returned 15 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2707,"elapsed_ms":2708,"budget_remaining_ms":15292}}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":15291}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية مشاريع دواجن', source: 'videos_latest' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":11,"elapsed_ms":2720,"budget_remaining_ms":15280}}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"orchestrator_fallback_applied","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"orchestrator_attempt_started","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":15279}}
+[Tool Execution] search_content { query: 'هل للعتبة العباسية مشاريع دواجن', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="هل للعتبة العباسية مشاريع دواجن"
+[siteSearchContent] Official news search returned 15 candidate(s)
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"orchestrator_attempt_finished","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2227,"elapsed_ms":4948,"budget_remaining_ms":13052}}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"orchestrator_runtime_takeover","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"out_of_scope_rejected","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","details":{"reason":"no_results_after_search"}}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"tools_resolved","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"no_results","details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"tool_resolution_finished","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"no_results","details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"direct_answer_returned","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","answer_mode":"direct_grounded","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null}
+[ChatTrace] {"trace_id":"trace_moa4jruh_awz3n9","stage":"response_ready","normalized_query":"هل للعتبه العباسيه مشاريع دواجن","answer_mode":"direct_grounded","routed_source":"auto","retry_attempts":2,"result_counts":0,"top_score":null}
+ POST /api/chat/site 200 in 5015ms
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"request_received","normalized_query":"هل هنالك منتج باسم الكفيل","details":{"use_tools":true,"message_count":1,"original_message_count":11,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"tool_resolution_started","normalized_query":"هل هنالك منتج باسم الكفيل","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"query_understanding","normalized_query":"هل هنالك منتج باسم الكفيل","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["هل هنالك منتج","هل هنالك"],"place":[],"source_specific":["projects_query"]}}}
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"orchestrator_plan_created","normalized_query":"هل هنالك منتج باسم الكفيل","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"orchestrator_attempt_started","normalized_query":"هل هنالك منتج باسم الكفيل","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'هل هنالك منتج باسم الكفيل', source: 'articles_latest' }
+[siteSearchContent] Official news search fallback for query="هل هنالك منتج باسم الكفيل"
+[siteSearchContent] Official news search returned 3 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"orchestrator_attempt_finished","normalized_query":"هل هنالك منتج باسم الكفيل","routed_source":"articles_latest","retry_attempts":0,"result_counts":3,"top_score":30,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":2685,"elapsed_ms":2685,"budget_remaining_ms":15315}}
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"orchestrator_runtime_takeover","normalized_query":"هل هنالك منتج باسم الكفيل","routed_source":"articles_latest","retry_attempts":0,"result_counts":3,"top_score":30}
+[Knowledge] Initial search: 1 chunks (top=1.8)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge Ingestion] Backfill articles_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 1 chunks (top=1.8) [+48]
+[Knowledge Ingestion] Backfill videos_latest: pages 11–13 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 1 chunks (top=1.8) [+48]
+[Knowledge] After backfill: 1 chunks (top=1.8) [+96 items]
+[Evidence] 3 items, top confidence: 40%
+[Evidence] 3 items, top confidence: 40%
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"tools_resolved","normalized_query":"هل هنالك منتج باسم الكفيل","routed_source":"articles_latest","retry_attempts":0,"result_counts":3,"top_score":30,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"tool_resolution_finished","normalized_query":"هل هنالك منتج باسم الكفيل","routed_source":"articles_latest","retry_attempts":0,"result_counts":3,"top_score":30,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"final_stream_started","normalized_query":"هل هنالك منتج باسم الكفيل","routed_source":"articles_latest","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"grounded_stream_started","normalized_query":"هل هنالك منتج باسم الكفيل","routed_source":"articles_latest","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4kab8_8ar8qa","stage":"response_ready","normalized_query":"هل هنالك منتج باسم الكفيل","answer_mode":"llm_stream","routed_source":"articles_latest","retry_attempts":0,"result_counts":3,"top_score":30}
+ POST /api/chat/site 200 in 13995ms
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"request_received","normalized_query":"من هم اخوه العباس من ابيه","details":{"use_tools":true,"message_count":1,"original_message_count":13,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"tool_resolution_started","normalized_query":"من هم اخوه العباس من ابيه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"query_understanding","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.59,"extracted_entities":{"person":["العباس"],"topic":["من هم اخوه","من هم"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"orchestrator_plan_created","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.59,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"orchestrator_attempt_started","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'من هم اخوة العباس من ابية', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هم اخوة العباس من ابية"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"orchestrator_attempt_finished","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":3331,"elapsed_ms":3332,"budget_remaining_ms":14668}}
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"orchestrator_slow_source_path","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"duration_ms":3331,"slow_threshold_ms":3000,"reason":"entity_first:entity_fact_query"}}
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"orchestrator_runtime_takeover","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50}
+[Knowledge] Initial search: 4 chunks (top=13.7)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence Guard] Abbas biography — simple query, suppressing tool results
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 2 items, top confidence: 48%
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "من هم اخوة العباس من ابية"
+[Tool Execution] search_content { query: 'من هم اخوة العباس من ابية', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هم اخوة العباس من ابية"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"tools_resolved","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"tool_resolution_finished","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"final_stream_started","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"grounded_stream_started","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4krjt_rgkv6d","stage":"response_ready","normalized_query":"من هم اخوه العباس من ابيه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50}
+ POST /api/chat/site 200 in 12058ms
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"request_received","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","details":{"use_tools":true,"message_count":1,"original_message_count":15,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"tool_resolution_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"query_understanding","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["هل هنالك مزارع","هل هنالك"],"place":[],"source_specific":["projects_query"]}}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"orchestrator_plan_created","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"orchestrator_attempt_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content {
+  query: 'هل هنالك مزارع تابعة للعتبة العباسية',
+  source: 'articles_latest'
+}
+[siteSearchContent] Official news search fallback for query="هل هنالك مزارع تابعة للعتبة العباسية"
+[siteSearchContent] Official news search returned 11 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"orchestrator_attempt_finished","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2986,"elapsed_ms":2987,"budget_remaining_ms":15013}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"orchestrator_fallback_applied","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"orchestrator_attempt_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":15012}}
+[Tool Execution] search_content {
+  query: 'هل هنالك مزارع تابعة للعتبة العباسية',
+  source: 'videos_latest'
+}
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"orchestrator_attempt_finished","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":11,"elapsed_ms":2999,"budget_remaining_ms":15001}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"orchestrator_fallback_applied","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"orchestrator_attempt_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":15000}}
+[Tool Execution] search_content { query: 'هل هنالك مزارع تابعة للعتبة العباسية', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="هل هنالك مزارع تابعة للعتبة العباسية"
+[siteSearchContent] Official news search returned 11 candidate(s)
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"orchestrator_attempt_finished","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"result_counts":2,"top_score":30,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":2380,"elapsed_ms":5380,"budget_remaining_ms":12620}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"orchestrator_runtime_takeover","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"result_counts":2,"top_score":30}
+[Knowledge] Initial search: 0 chunks (top=–)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence Guard] Abbas shrine/activity query — tool-result evidence allowed
+[Evidence] 2 items, top confidence: 45%
+[Evidence] 2 items, top confidence: 45%
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"tools_resolved","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"result_counts":2,"top_score":30,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"tool_resolution_finished","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"result_counts":2,"top_score":30,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"final_stream_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"grounded_stream_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4l2pz_dpj34k","stage":"response_ready","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":2,"result_counts":2,"top_score":30}
+ POST /api/chat/site 200 in 10146ms
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"request_received","normalized_query":"من هو جفري ابستن","details":{"use_tools":true,"message_count":1,"original_message_count":17,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"tool_resolution_started","normalized_query":"من هو جفري ابستن","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"query_understanding","normalized_query":"من هو جفري ابستن","routed_source":"abbas_history_by_id","details":{"content_intent":"biography","operation_intent":"fact_question","route_confidence":0.71,"extracted_entities":{"person":[],"topic":["من هو جفري","من هو"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_plan_created","normalized_query":"من هو جفري ابستن","routed_source":"shrine_history_sections","details":{"tool_name":"search_content","max_attempts":3,"intent":"biography","operation_intent":"fact_question","route_confidence":0.71,"hard_constraint":false,"attempt_sources":["shrine_history_sections","shrine_history_by_section","abbas_history_by_id"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_attempt_started","normalized_query":"من هو جفري ابستن","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'من هو جفري ابستن', source: 'shrine_history_sections' }
+[siteSearchContent] Official news search fallback for query="من هو جفري ابستن"
+[siteSearchContent] Official news search returned 1 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_attempt_finished","normalized_query":"من هو جفري ابستن","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":4303,"elapsed_ms":4304,"budget_remaining_ms":13696}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_slow_source_path","normalized_query":"من هو جفري ابستن","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"duration_ms":4303,"slow_threshold_ms":3000,"reason":"entity_first:entity_fact_query"}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_fallback_applied","normalized_query":"من هو جفري ابستن","routed_source":"shrine_history_by_section","retry_attempts":1,"details":{"from_source":"shrine_history_sections","to_source":"shrine_history_by_section","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_attempt_started","normalized_query":"من هو جفري ابستن","routed_source":"shrine_history_by_section","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":13693}}
+[Tool Execution] search_content { query: 'من هو جفري ابستن', source: 'shrine_history_by_section' }
+[siteSearchContent] Official news search fallback for query="من هو جفري ابستن"
+[siteSearchContent] Official news search returned 1 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_attempt_finished","normalized_query":"من هو جفري ابستن","routed_source":"shrine_history_by_section","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":9,"elapsed_ms":4316,"budget_remaining_ms":13684}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_fallback_applied","normalized_query":"من هو جفري ابستن","routed_source":"abbas_history_by_id","retry_attempts":2,"details":{"from_source":"shrine_history_by_section","to_source":"abbas_history_by_id","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_attempt_started","normalized_query":"من هو جفري ابستن","routed_source":"abbas_history_by_id","retry_attempts":2,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":3,"budget_remaining_ms":13682}}
+[Tool Execution] search_content { query: 'من هو جفري ابستن', source: 'abbas_history_by_id' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_attempt_finished","normalized_query":"من هو جفري ابستن","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":4,"elapsed_ms":4322,"budget_remaining_ms":13678}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"orchestrator_runtime_takeover","normalized_query":"من هو جفري ابستن","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[Knowledge] Initial search: 0 chunks (top=–)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge Ingestion] Backfill articles_latest: pages 14–16 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 0 chunks (top=–) [+48]
+[Knowledge Ingestion] Backfill videos_latest: pages 14–16 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 0 chunks (top=–) [+48]
+[Knowledge] After backfill: 0 chunks (top=–) [+96 items]
+[Knowledge] No chunks for: "من هو جفري ابستن"
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence Guard] Supplementary search for gap: "من هو جفري ابستن"
+[Tool Execution] search_content { query: 'من هو جفري ابستن', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هو جفري ابستن"
+[siteSearchContent] Official news search returned 1 candidate(s)
+[Knowledge] Initial search: 0 chunks (top=–)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge Ingestion] Backfill articles_latest: pages 17–19 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 0 chunks (top=–) [+48]
+[Knowledge Ingestion] Backfill videos_latest: pages 17–19 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 0 chunks (top=–) [+48]
+[Knowledge] After backfill: 0 chunks (top=–) [+96 items]
+[Knowledge] No chunks for: "من هو جفري ابستن"
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence Guard] Supplementary search for gap: "من هو جفري ابستن"
+[Tool Execution] search_content { query: 'من هو جفري ابستن', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هو جفري ابستن"
+[siteSearchContent] Official news search returned 1 candidate(s)
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"tools_resolved","normalized_query":"من هو جفري ابستن","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"tool_resolution_finished","normalized_query":"من هو جفري ابستن","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"final_stream_started","normalized_query":"من هو جفري ابستن","routed_source":"abbas_history_by_id","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"grounded_stream_started","normalized_query":"من هو جفري ابستن","routed_source":"abbas_history_by_id","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4lbuo_6hibu3","stage":"response_ready","normalized_query":"من هو جفري ابستن","answer_mode":"llm_stream","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 19728ms
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"request_received","normalized_query":"من هو السيد احمد الراضي","details":{"use_tools":true,"message_count":1,"original_message_count":19,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"tool_resolution_started","normalized_query":"من هو السيد احمد الراضي","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"query_understanding","normalized_query":"من هو السيد احمد الراضي","routed_source":"abbas_history_by_id","details":{"content_intent":"biography","operation_intent":"fact_question","route_confidence":0.71,"extracted_entities":{"person":[],"topic":["من هو السيد","من هو"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"orchestrator_plan_created","normalized_query":"من هو السيد احمد الراضي","routed_source":"shrine_history_sections","details":{"tool_name":"search_content","max_attempts":3,"intent":"biography","operation_intent":"fact_question","route_confidence":0.71,"hard_constraint":false,"attempt_sources":["shrine_history_sections","shrine_history_by_section","abbas_history_by_id"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"orchestrator_attempt_started","normalized_query":"من هو السيد احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'من هو السيد احمد الراضي', source: 'shrine_history_sections' }
+[siteSearchContent] Official news search fallback for query="من هو السيد احمد الراضي"
+[siteSearchContent] Official news search returned 32 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"orchestrator_attempt_finished","normalized_query":"من هو السيد احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":5,"top_score":114,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":3778,"elapsed_ms":3779,"budget_remaining_ms":14221}}
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"orchestrator_slow_source_path","normalized_query":"من هو السيد احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":5,"top_score":114,"details":{"duration_ms":3778,"slow_threshold_ms":3000,"reason":"entity_first:entity_fact_query"}}
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"orchestrator_runtime_takeover","normalized_query":"من هو السيد احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":5,"top_score":114}
+[Knowledge] Initial search: 4 chunks (top=10.0)
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 3 items, top confidence: 50%
+[Evidence Guard] Fetching full article id=8700
+[Tool Execution] get_content_by_id { id: '8700', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=8700
+[Tool Execution] get_content_by_id { id: '8700', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "من هو السيد احمد الراضي"
+[Tool Execution] search_content { query: 'من هو السيد احمد الراضي', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هو السيد احمد الراضي"
+[siteSearchContent] Official news search returned 32 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[Evidence Guard] Fetching full article id=8700
+[Tool Execution] get_content_by_id { id: '8700', source: 'articles_latest' }
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 3 items, top confidence: 50%
+[Evidence Guard] Fetching full article id=8700
+[Tool Execution] get_content_by_id { id: '8700', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=8700
+[Tool Execution] get_content_by_id { id: '8700', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "من هو السيد احمد الراضي"
+[Tool Execution] search_content { query: 'من هو السيد احمد الراضي', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هو السيد احمد الراضي"
+[siteSearchContent] Official news search returned 32 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[Evidence Guard] Fetching full article id=8700
+[Tool Execution] get_content_by_id { id: '8700', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"tools_resolved","normalized_query":"من هو السيد احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":5,"top_score":114,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"tool_resolution_finished","normalized_query":"من هو السيد احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":5,"top_score":114,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"final_stream_started","normalized_query":"من هو السيد احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"grounded_stream_started","normalized_query":"من هو السيد احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4lrxq_auaypy","stage":"response_ready","normalized_query":"من هو السيد احمد الراضي","answer_mode":"llm_stream","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":5,"top_score":114}
+ POST /api/chat/site 200 in 18056ms
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"request_received","normalized_query":"ما اسم زوجه العباس","details":{"use_tools":true,"message_count":12,"original_message_count":21,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (12 msgs)
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"tool_resolution_started","normalized_query":"ما اسم زوجه العباس","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"query_understanding","normalized_query":"ما اسم زوجه العباس","routed_source":"abbas_history_by_id","details":{"content_intent":"biography","operation_intent":"fact_question","route_confidence":0.86,"extracted_entities":{"person":["العباس"],"topic":["ما اسم زوجه","ما اسم"],"place":[],"source_specific":["abbas_history_by_id","shrine_history_sections"]}}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_plan_created","normalized_query":"ما اسماء احمد الراضي","routed_source":"shrine_history_sections","details":{"tool_name":"search_content","max_attempts":3,"intent":"biography","operation_intent":"fact_question","route_confidence":0.86,"hard_constraint":false,"attempt_sources":["shrine_history_sections","shrine_history_by_section","abbas_history_by_id"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_attempt_started","normalized_query":"ما اسماء احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'ما أسماء احمد الراضي', source: 'shrine_history_sections' }
+[siteSearchContent] Official news search fallback for query="ما أسماء احمد الراضي"
+[siteSearchContent] Official news search returned 6 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_attempt_finished","normalized_query":"ما اسماء احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":3290,"elapsed_ms":3290,"budget_remaining_ms":14710}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_slow_source_path","normalized_query":"ما اسماء احمد الراضي","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"duration_ms":3290,"slow_threshold_ms":3000,"reason":"entity_first:entity_fact_query"}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_fallback_applied","normalized_query":"ما اسماء احمد الراضي","routed_source":"shrine_history_by_section","retry_attempts":1,"details":{"from_source":"shrine_history_sections","to_source":"shrine_history_by_section","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_attempt_started","normalized_query":"ما اسماء احمد الراضي","routed_source":"shrine_history_by_section","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":14706}}
+[Tool Execution] search_content { query: 'ما أسماء احمد الراضي', source: 'shrine_history_by_section' }
+[siteSearchContent] Official news search fallback for query="ما أسماء احمد الراضي"
+[siteSearchContent] Official news search returned 6 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_attempt_finished","normalized_query":"ما اسماء احمد الراضي","routed_source":"shrine_history_by_section","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":12,"elapsed_ms":3306,"budget_remaining_ms":14694}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_fallback_applied","normalized_query":"ما اسماء احمد الراضي","routed_source":"abbas_history_by_id","retry_attempts":2,"details":{"from_source":"shrine_history_by_section","to_source":"abbas_history_by_id","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_attempt_started","normalized_query":"ما اسماء احمد الراضي","routed_source":"abbas_history_by_id","retry_attempts":2,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":3,"budget_remaining_ms":14692}}
+[Tool Execution] search_content { query: 'ما أسماء احمد الراضي', source: 'abbas_history_by_id' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_attempt_finished","normalized_query":"ما اسماء احمد الراضي","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2,"elapsed_ms":3310,"budget_remaining_ms":14690}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"orchestrator_runtime_takeover","normalized_query":"ما اسماء احمد الراضي","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"out_of_scope_rejected","normalized_query":"ما اسماء احمد الراضي","details":{"reason":"no_results_after_search"}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"tools_resolved","normalized_query":"ما اسم زوجه العباس","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"no_results","details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"tool_resolution_finished","normalized_query":"ما اسم زوجه العباس","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"no_results","details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"direct_answer_returned","normalized_query":"ما اسم زوجه العباس","answer_mode":"direct_grounded","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null}
+[ChatTrace] {"trace_id":"trace_moa4m80m_m8e7yh","stage":"response_ready","normalized_query":"ما اسم زوجه العباس","answer_mode":"direct_grounded","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null}
+ POST /api/chat/site 200 in 3337ms
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"request_received","normalized_query":"ما اسم زوجه العباس","details":{"use_tools":true,"message_count":12,"original_message_count":23,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (12 msgs)
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"tool_resolution_started","normalized_query":"ما اسم زوجه العباس","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"query_understanding","normalized_query":"ما اسم زوجه العباس","routed_source":"abbas_history_by_id","details":{"content_intent":"biography","operation_intent":"fact_question","route_confidence":0.86,"extracted_entities":{"person":["العباس"],"topic":["ما اسم زوجه","ما اسم"],"place":[],"source_specific":["abbas_history_by_id","shrine_history_sections"]}}}
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"orchestrator_plan_created","normalized_query":"ما اسم زوجه العباس","routed_source":"shrine_history_sections","details":{"tool_name":"search_content","max_attempts":3,"intent":"biography","operation_intent":"fact_question","route_confidence":0.86,"hard_constraint":false,"attempt_sources":["shrine_history_sections","shrine_history_by_section","abbas_history_by_id"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"orchestrator_attempt_started","normalized_query":"ما اسم زوجه العباس","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:person_attribute_fact","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'ما اسم زوجة العباس', source: 'shrine_history_sections' }
+[siteSearchContent] Official news search fallback for query="ما اسم زوجة العباس"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"orchestrator_attempt_finished","normalized_query":"ما اسم زوجه العباس","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":1,"top_score":44,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":3514,"elapsed_ms":3515,"budget_remaining_ms":14485}}
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"orchestrator_slow_source_path","normalized_query":"ما اسم زوجه العباس","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":1,"top_score":44,"details":{"duration_ms":3514,"slow_threshold_ms":3000,"reason":"entity_first:person_attribute_fact"}}
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"orchestrator_runtime_takeover","normalized_query":"ما اسم زوجه العباس","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":1,"top_score":44}
+[Knowledge] Initial search: 6 chunks (top=6.5)
+[Knowledge] Abbas enrichment (fuzzy): +6 Abbas chunks
+[Evidence Guard] Abbas biography — simple query, suppressing tool results
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 1 items, top confidence: 53%
+[Evidence Guard] Fetching full article id=2389
+[Tool Execution] get_content_by_id { id: '2389', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=2389
+[Tool Execution] get_content_by_id { id: '2389', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "ما اسم زوجة العباس"
+[Tool Execution] search_content { query: 'ما اسم زوجة العباس', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="ما اسم زوجة العباس"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[Evidence Guard] Fetching full article id=2389
+[Tool Execution] get_content_by_id { id: '2389', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"tools_resolved","normalized_query":"ما اسم زوجه العباس","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":1,"top_score":44,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"tool_resolution_finished","normalized_query":"ما اسم زوجه العباس","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":1,"top_score":44,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"final_stream_started","normalized_query":"ما اسم زوجه العباس","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"grounded_stream_started","normalized_query":"ما اسم زوجه العباس","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4nkhf_7err4l","stage":"response_ready","normalized_query":"ما اسم زوجه العباس","answer_mode":"llm_stream","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":1,"top_score":44}
+ POST /api/chat/site 200 in 12412ms
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"request_received","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","details":{"use_tools":true,"message_count":1,"original_message_count":25,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"tool_resolution_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"query_understanding","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"extracted_entities":{"person":[],"topic":["هل هنالك مزارع","هل هنالك"],"place":[],"source_specific":["projects_query"]}}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"orchestrator_plan_created","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"articles_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.58,"hard_constraint":false,"attempt_sources":["articles_latest","videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"orchestrator_attempt_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:singular_project_lookup","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content {
+  query: 'هل هنالك مزارع تابعة للعتبة العباسية',
+  source: 'articles_latest'
+}
+[siteSearchContent] Official news search fallback for query="هل هنالك مزارع تابعة للعتبة العباسية"
+[siteSearchContent] Official news search returned 11 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"orchestrator_attempt_finished","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"articles_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":52,"elapsed_ms":53,"budget_remaining_ms":17947}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"orchestrator_fallback_applied","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"videos_latest","retry_attempts":1,"details":{"from_source":"articles_latest","to_source":"videos_latest","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"orchestrator_attempt_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"videos_latest","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":17946}}
+[Tool Execution] search_content {
+  query: 'هل هنالك مزارع تابعة للعتبة العباسية',
+  source: 'videos_latest'
+}
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"orchestrator_attempt_finished","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"videos_latest","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":29,"elapsed_ms":83,"budget_remaining_ms":17917}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"orchestrator_fallback_applied","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"orchestrator_attempt_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":3,"budget_remaining_ms":17915}}
+[Tool Execution] search_content { query: 'هل هنالك مزارع تابعة للعتبة العباسية', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="هل هنالك مزارع تابعة للعتبة العباسية"
+[siteSearchContent] Official news search returned 11 candidate(s)
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"orchestrator_attempt_finished","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"result_counts":2,"top_score":30,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":2560,"elapsed_ms":2645,"budget_remaining_ms":15355}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"orchestrator_runtime_takeover","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"result_counts":2,"top_score":30}
+[Knowledge] Initial search: 0 chunks (top=–)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence Guard] Abbas shrine/activity query — tool-result evidence allowed
+[Evidence] 2 items, top confidence: 45%
+[Evidence] 2 items, top confidence: 45%
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"tools_resolved","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"result_counts":2,"top_score":30,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"tool_resolution_finished","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"result_counts":2,"top_score":30,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"final_stream_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"grounded_stream_started","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","routed_source":"auto","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4o54d_de9uce","stage":"response_ready","normalized_query":"هل هنالك مزارع تابعه للعتبه العباسيه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":2,"result_counts":2,"top_score":30}
+ POST /api/chat/site 200 in 11444ms
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"request_received","normalized_query":"من هم اخوه العباس","details":{"use_tools":true,"message_count":1,"original_message_count":27,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"tool_resolution_started","normalized_query":"من هم اخوه العباس","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"query_understanding","normalized_query":"من هم اخوه العباس","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.59,"extracted_entities":{"person":["العباس"],"topic":["من هم اخوه","من هم"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"orchestrator_plan_created","normalized_query":"من هم اخوه العباس","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.59,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"orchestrator_attempt_started","normalized_query":"من هم اخوه العباس","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'من هم اخوة العباس', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هم اخوة العباس"
+[siteSearchContent] Official news search returned 23 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"orchestrator_attempt_finished","normalized_query":"من هم اخوه العباس","routed_source":"auto","retry_attempts":0,"result_counts":4,"top_score":44,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":4021,"elapsed_ms":4022,"budget_remaining_ms":13978}}
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"orchestrator_slow_source_path","normalized_query":"من هم اخوه العباس","routed_source":"auto","retry_attempts":0,"result_counts":4,"top_score":44,"details":{"duration_ms":4021,"slow_threshold_ms":3000,"reason":"entity_first:entity_fact_query"}}
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"orchestrator_runtime_takeover","normalized_query":"من هم اخوه العباس","routed_source":"auto","retry_attempts":0,"result_counts":4,"top_score":44}
+[Knowledge] Initial search: 4 chunks (top=15.8)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence Guard] Abbas biography — simple query, suppressing tool results
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 3 items, top confidence: 58%
+[Evidence Guard] Fetching full article id=3011
+[Tool Execution] get_content_by_id { id: '3011', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=3011
+[Tool Execution] get_content_by_id { id: '3011', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "من هم اخوة العباس"
+[Tool Execution] search_content { query: 'من هم اخوة العباس', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هم اخوة العباس"
+[siteSearchContent] Official news search returned 23 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[Evidence Guard] Fetching full article id=3011
+[Tool Execution] get_content_by_id { id: '3011', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"tools_resolved","normalized_query":"من هم اخوه العباس","routed_source":"auto","retry_attempts":0,"result_counts":4,"top_score":44,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"tool_resolution_finished","normalized_query":"من هم اخوه العباس","routed_source":"auto","retry_attempts":0,"result_counts":4,"top_score":44,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"final_stream_started","normalized_query":"من هم اخوه العباس","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"grounded_stream_started","normalized_query":"من هم اخوه العباس","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4og87_omquxo","stage":"response_ready","normalized_query":"من هم اخوه العباس","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":4,"top_score":44}
+ POST /api/chat/site 200 in 13020ms
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"request_received","normalized_query":"من هم اخوه العباس من ابيه","details":{"use_tools":true,"message_count":1,"original_message_count":29,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"tool_resolution_started","normalized_query":"من هم اخوه العباس من ابيه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"query_understanding","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.59,"extracted_entities":{"person":["العباس"],"topic":["من هم اخوه","من هم"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"orchestrator_plan_created","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.59,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"orchestrator_attempt_started","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'من هم اخوة العباس من ابية', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هم اخوة العباس من ابية"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"orchestrator_attempt_finished","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":85,"elapsed_ms":86,"budget_remaining_ms":17914}}
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"orchestrator_runtime_takeover","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50}
+[Knowledge] Initial search: 4 chunks (top=13.7)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence Guard] Abbas biography — simple query, suppressing tool results
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 2 items, top confidence: 48%
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "من هم اخوة العباس من ابية"
+[Tool Execution] search_content { query: 'من هم اخوة العباس من ابية', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هم اخوة العباس من ابية"
+[siteSearchContent] Official news search returned 10 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[Evidence Guard] Fetching full article id=30933
+[Tool Execution] get_content_by_id { id: '30933', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"tools_resolved","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"tool_resolution_finished","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"final_stream_started","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"grounded_stream_started","normalized_query":"من هم اخوه العباس من ابيه","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4ow2s_2c3ob5","stage":"response_ready","normalized_query":"من هم اخوه العباس من ابيه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":50}
+ POST /api/chat/site 200 in 9470ms
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"request_received","normalized_query":"ما معلوماتك عن منتجات الكفيل","details":{"use_tools":true,"message_count":12,"original_message_count":31,"conversation_context_mode":"preserved","model":"gpt-4o"}}
+[Chat API] Streaming FC (12 msgs)
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"tool_resolution_started","normalized_query":"ما معلوماتك عن منتجات الكفيل","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"query_understanding","normalized_query":"ما معلوماتك عن منتجات الكفيل","routed_source":"auto","details":{"content_intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"extracted_entities":{"person":[],"topic":["ما معلوماتك عن","ما معلوماتك"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"orchestrator_plan_created","normalized_query":"ما معلوماتك عن منتجات الكفيل (من ابيه)","routed_source":"auto","details":{"tool_name":"search_content","max_attempts":3,"intent":"generic","operation_intent":"fact_question","route_confidence":0.51,"hard_constraint":false,"attempt_sources":["auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"orchestrator_attempt_started","normalized_query":"ما معلوماتك عن منتجات الكفيل (من ابيه)","routed_source":"auto","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'ما معلوماتك عن منتجات الكفيل (من ابية)', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="ما معلوماتك عن منتجات الكفيل (من ابية)"
+[siteSearchContent] Official news search returned 3 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"orchestrator_attempt_finished","normalized_query":"ما معلوماتك عن منتجات الكفيل (من ابيه)","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":4075,"elapsed_ms":4076,"budget_remaining_ms":13924}}
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"orchestrator_slow_source_path","normalized_query":"ما معلوماتك عن منتجات الكفيل (من ابيه)","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30,"details":{"duration_ms":4075,"slow_threshold_ms":3000,"reason":"entity_first:entity_fact_query"}}
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"orchestrator_runtime_takeover","normalized_query":"ما معلوماتك عن منتجات الكفيل (من ابيه)","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30}
+[Knowledge] Initial search: 3 chunks (top=1.7)
+[Knowledge] Weak results — backfilling: articles_latest, videos_latest
+[Knowledge Ingestion] Backfill articles_latest: pages 20–22 → 48 items
+[Knowledge] Backfill checkpoint (articles_latest): 3 chunks (top=1.7) [+48]
+[Knowledge Ingestion] Backfill videos_latest: pages 20–22 → 48 items
+[Knowledge] Backfill checkpoint (videos_latest): 3 chunks (top=1.7) [+48]
+[Knowledge] After backfill: 3 chunks (top=1.7) [+96 items]
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 2 items, top confidence: 34%
+[Evidence Guard] Fetching full article id=112
+[Tool Execution] get_content_by_id { id: '112', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=112
+[Tool Execution] get_content_by_id { id: '112', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "ما معلوماتك عن منتجات الكفيل (من ابية)"
+[Tool Execution] search_content { query: 'ما معلوماتك عن منتجات الكفيل (من ابية)', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="ما معلوماتك عن منتجات الكفيل (من ابية)"
+[siteSearchContent] Official news search returned 3 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[Evidence Guard] Fetching full article id=112
+[Tool Execution] get_content_by_id { id: '112', source: 'articles_latest' }
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence] 2 items, top confidence: 34%
+[Evidence Guard] Fetching full article id=112
+[Tool Execution] get_content_by_id { id: '112', source: 'articles_latest' }
+[Evidence Guard] Fetching full article id=112
+[Tool Execution] get_content_by_id { id: '112', source: 'articles_latest' }
+[Evidence Guard] Supplementary search for gap: "ما معلوماتك عن منتجات الكفيل (من ابية)"
+[Tool Execution] search_content { query: 'ما معلوماتك عن منتجات الكفيل (من ابية)', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="ما معلوماتك عن منتجات الكفيل (من ابية)"
+[siteSearchContent] Official news search returned 3 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[Evidence Guard] Fetching full article id=112
+[Tool Execution] get_content_by_id { id: '112', source: 'articles_latest' }
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"tools_resolved","normalized_query":"ما معلوماتك عن منتجات الكفيل","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"tool_resolution_finished","normalized_query":"ما معلوماتك عن منتجات الكفيل","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"final_stream_started","normalized_query":"ما معلوماتك عن منتجات الكفيل","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"grounded_stream_started","normalized_query":"ما معلوماتك عن منتجات الكفيل","routed_source":"auto","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4pkit_m8xlkm","stage":"response_ready","normalized_query":"ما معلوماتك عن منتجات الكفيل","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":0,"result_counts":2,"top_score":30}
+ POST /api/chat/site 200 in 24691ms
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"request_received","normalized_query":"من هو السيد البدري","details":{"use_tools":true,"message_count":1,"original_message_count":33,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"tool_resolution_started","normalized_query":"من هو السيد البدري","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"query_understanding","normalized_query":"من هو السيد البدري","routed_source":"abbas_history_by_id","details":{"content_intent":"biography","operation_intent":"fact_question","route_confidence":0.71,"extracted_entities":{"person":[],"topic":["من هو السيد","من هو"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_plan_created","normalized_query":"من هو السيد البدري","routed_source":"shrine_history_sections","details":{"tool_name":"search_content","max_attempts":3,"intent":"biography","operation_intent":"fact_question","route_confidence":0.71,"hard_constraint":false,"attempt_sources":["shrine_history_sections","shrine_history_by_section","abbas_history_by_id"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_attempt_started","normalized_query":"من هو السيد البدري","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content { query: 'من هو السيد البدري', source: 'shrine_history_sections' }
+[siteSearchContent] Official news search fallback for query="من هو السيد البدري"
+[siteSearchContent] Official news search returned 30 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_attempt_finished","normalized_query":"من هو السيد البدري","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":4098,"elapsed_ms":4099,"budget_remaining_ms":13901}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_slow_source_path","normalized_query":"من هو السيد البدري","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"duration_ms":4098,"slow_threshold_ms":3000,"reason":"entity_first:entity_fact_query"}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_fallback_applied","normalized_query":"من هو السيد البدري","routed_source":"shrine_history_by_section","retry_attempts":1,"details":{"from_source":"shrine_history_sections","to_source":"shrine_history_by_section","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_attempt_started","normalized_query":"من هو السيد البدري","routed_source":"shrine_history_by_section","retry_attempts":1,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":2,"budget_remaining_ms":13899}}
+[Tool Execution] search_content { query: 'من هو السيد البدري', source: 'shrine_history_by_section' }
+[siteSearchContent] Official news search fallback for query="من هو السيد البدري"
+[siteSearchContent] Official news search returned 30 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_attempt_finished","normalized_query":"من هو السيد البدري","routed_source":"shrine_history_by_section","retry_attempts":1,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":24,"elapsed_ms":4125,"budget_remaining_ms":13875}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_fallback_applied","normalized_query":"من هو السيد البدري","routed_source":"abbas_history_by_id","retry_attempts":2,"details":{"from_source":"shrine_history_by_section","to_source":"abbas_history_by_id","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_attempt_started","normalized_query":"من هو السيد البدري","routed_source":"abbas_history_by_id","retry_attempts":2,"details":{"tool_name":"search_content","reason":"retry_constrained_source","attempt_index":3,"budget_remaining_ms":13875}}
+[Tool Execution] search_content { query: 'من هو السيد البدري', source: 'abbas_history_by_id' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_attempt_finished","normalized_query":"من هو السيد البدري","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2,"elapsed_ms":4127,"budget_remaining_ms":13873}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"orchestrator_runtime_takeover","normalized_query":"من هو السيد البدري","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+[Knowledge] Initial search: 4 chunks (top=8.8)
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence Guard] Supplementary search for gap: "من هو السيد البدري"
+[Tool Execution] search_content { query: 'من هو السيد البدري', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هو السيد البدري"
+[siteSearchContent] Official news search returned 30 candidate(s)
+[Evidence Guard] Abbas biography — compound/gap query, combining sources
+[Evidence Guard] Supplementary search for gap: "من هو السيد البدري"
+[Tool Execution] search_content { query: 'من هو السيد البدري', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="من هو السيد البدري"
+[siteSearchContent] Official news search returned 30 candidate(s)
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"tools_resolved","normalized_query":"من هو السيد البدري","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"tool_resolution_finished","normalized_query":"من هو السيد البدري","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted","details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"final_stream_started","normalized_query":"من هو السيد البدري","routed_source":"abbas_history_by_id","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"grounded_stream_started","normalized_query":"من هو السيد البدري","routed_source":"abbas_history_by_id","retry_attempts":2,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4qj0e_qf9q51","stage":"response_ready","normalized_query":"من هو السيد البدري","answer_mode":"llm_stream","routed_source":"abbas_history_by_id","retry_attempts":2,"result_counts":0,"top_score":null,"unavailable_reason":"attempts_exhausted"}
+ POST /api/chat/site 200 in 16285ms
+[ChatTrace] {"trace_id":"trace_moa4qy11_zldzm0","stage":"request_received","normalized_query":"ما هو اول خبر تم نشره في الموقع","details":{"use_tools":true,"message_count":1,"original_message_count":35,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4qy11_zldzm0","stage":"tool_resolution_started","normalized_query":"ما هو اول خبر تم نشره في الموقع","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4qy11_zldzm0","stage":"query_understanding","normalized_query":"ما هو اول خبر تم نشره في الموقع","routed_source":"articles_latest","details":{"content_intent":"news","operation_intent":"browse","route_confidence":0.86,"extracted_entities":{"person":[],"topic":["ما هو اول","ما هو"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4qy11_zldzm0","stage":"forced_intent_utility","normalized_query":"ما هو اول خبر تم نشره في الموقع","routed_source":"articles_latest","details":{"forced_tool":"browse_source_page"}}
+[Tool Execution] browse_source_page { source: 'articles_latest', page: 1, order: 'oldest' }
+[ChatTrace] {"trace_id":"trace_moa4qy11_zldzm0","stage":"tools_resolved","normalized_query":"ما هو اول خبر تم نشره في الموقع","routed_source":"articles_latest","retry_attempts":0,"result_counts":9,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[ChatTrace] {"trace_id":"trace_moa4qy11_zldzm0","stage":"tool_resolution_finished","normalized_query":"ما هو اول خبر تم نشره في الموقع","routed_source":"articles_latest","retry_attempts":0,"result_counts":9,"top_score":null,"details":{"iterations":0,"needs_final_call":false,"has_direct_answer":true}}
+[Chat API] Tools resolved in 0 iteration(s), needsFinalCall: false
+[Chat API] Returning direct grounded answer (bypassing final LLM call)
+[ChatTrace] {"trace_id":"trace_moa4qy11_zldzm0","stage":"direct_answer_returned","normalized_query":"ما هو اول خبر تم نشره في الموقع","answer_mode":"direct_grounded","routed_source":"articles_latest","retry_attempts":0,"result_counts":9,"top_score":null}
+[ChatTrace] {"trace_id":"trace_moa4qy11_zldzm0","stage":"response_ready","normalized_query":"ما هو اول خبر تم نشره في الموقع","answer_mode":"direct_grounded","routed_source":"articles_latest","retry_attempts":0,"result_counts":9,"top_score":null}
+ POST /api/chat/site 200 in 1775ms
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"request_received","normalized_query":"تاريخ هدم العتبه العباسيه","details":{"use_tools":true,"message_count":1,"original_message_count":37,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"tool_resolution_started","normalized_query":"تاريخ هدم العتبه العباسيه","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"query_understanding","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"shrine_history_timeline","details":{"content_intent":"history","operation_intent":"fact_question","route_confidence":0.82,"extracted_entities":{"person":[],"topic":["تاريخ هدم العتبه","تاريخ هدم"],"place":["العتبه"],"source_specific":["shrine_history_timeline","shrine_history_sections"]}}}
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"orchestrator_plan_created","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"shrine_history_sections","details":{"tool_name":"search_content","max_attempts":3,"intent":"history","operation_intent":"fact_question","route_confidence":0.82,"hard_constraint":true,"attempt_sources":["shrine_history_sections","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"orchestrator_attempt_started","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"shrine_history_sections","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":17999}}
+[Tool Execution] search_content {
+  query: 'تاريخ هدم العتبة العباسية',
+  source: 'shrine_history_sections'
+}
+[siteSearchContent] Official news search fallback for query="تاريخ هدم العتبة العباسية"
+[siteSearchContent] Official news search returned 22 candidate(s)
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[siteSearchContent] Entity-first mode active, skipping deep archive scan
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"orchestrator_attempt_finished","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"shrine_history_sections","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":2804,"elapsed_ms":2805,"budget_remaining_ms":15195}}
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"orchestrator_fallback_applied","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"auto","retry_attempts":1,"details":{"from_source":"shrine_history_sections","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"orchestrator_attempt_started","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"auto","retry_attempts":1,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":2,"budget_remaining_ms":15194}}
+[Tool Execution] search_content { query: 'تاريخ هدم العتبة العباسية', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="تاريخ هدم العتبة العباسية"
+[siteSearchContent] Official news search returned 22 candidate(s)
+[siteSearchContent] Title-query detected, launching deep archive scan...
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"orchestrator_attempt_finished","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":50,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":5962,"elapsed_ms":8768,"budget_remaining_ms":9232}}
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"orchestrator_slow_source_path","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":50,"details":{"duration_ms":5962,"slow_threshold_ms":3000,"reason":"broaden_search"}}
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"orchestrator_runtime_takeover","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":50}
+[Knowledge] Initial search: 4 chunks (top=10.0)
+[Knowledge] Abbas enrichment (fuzzy): +4 Abbas chunks
+[Evidence] 3 items, top confidence: 58%
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"tools_resolved","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":50,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"tool_resolution_finished","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":50,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"final_stream_started","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"auto","retry_attempts":1,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"grounded_stream_started","normalized_query":"تاريخ هدم العتبه العباسيه","routed_source":"auto","retry_attempts":1,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4ro3o_taht3o","stage":"response_ready","normalized_query":"تاريخ هدم العتبه العباسيه","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":50}
+ POST /api/chat/site 200 in 12220ms
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"request_received","normalized_query":"فيديوهات مستشفي الكفيل","details":{"use_tools":true,"message_count":1,"original_message_count":39,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"tool_resolution_started","normalized_query":"فيديوهات مستشفي الكفيل","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"query_understanding","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"videos_latest","details":{"content_intent":"video","operation_intent":"list_items","route_confidence":0.86,"extracted_entities":{"person":[],"topic":["فيديوهات مستشفي الكفيل","فيديوهات مستشفي"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"orchestrator_plan_created","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"videos_latest","details":{"tool_name":"search_content","max_attempts":3,"intent":"video","operation_intent":"list_items","route_confidence":0.86,"hard_constraint":true,"attempt_sources":["videos_latest","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"orchestrator_attempt_started","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"videos_latest","retry_attempts":0,"details":{"tool_name":"search_content","reason":"first_pass","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'فيديوهات مستشفى الكفيل', source: 'videos_latest' }
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"orchestrator_attempt_finished","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"videos_latest","retry_attempts":0,"result_counts":0,"top_score":null,"details":{"tool_name":"search_content","success":true,"empty":true,"rejected_low_confidence":false,"duration_ms":10,"elapsed_ms":10,"budget_remaining_ms":17990}}
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"orchestrator_fallback_applied","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"auto","retry_attempts":1,"details":{"from_source":"videos_latest","to_source":"auto","trigger_reason":"empty_result"}}
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"orchestrator_attempt_started","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"auto","retry_attempts":1,"details":{"tool_name":"search_content","reason":"broaden_search","attempt_index":2,"budget_remaining_ms":17989}}
+[Tool Execution] search_content { query: 'فيديوهات مستشفى الكفيل', source: 'auto' }
+[siteSearchContent] Official news search fallback for query="فيديوهات مستشفى الكفيل"
+[siteSearchContent] Official news search returned 20 candidate(s)
+[siteSearchContent] Title-query detected, launching deep archive scan...
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"orchestrator_attempt_finished","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":65,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":12328,"elapsed_ms":12339,"budget_remaining_ms":5661}}
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"orchestrator_slow_source_path","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":65,"details":{"duration_ms":12328,"slow_threshold_ms":3000,"reason":"broaden_search"}}
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"orchestrator_runtime_takeover","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":65}
+[Evidence] 3 items, top confidence: 15%
+[Evidence] 3 items, top confidence: 15%
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"tools_resolved","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":65,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"tool_resolution_finished","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":65,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"final_stream_started","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"auto","retry_attempts":1,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"grounded_stream_started","normalized_query":"فيديوهات مستشفي الكفيل","routed_source":"auto","retry_attempts":1,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4s272_hhoda2","stage":"response_ready","normalized_query":"فيديوهات مستشفي الكفيل","answer_mode":"llm_stream","routed_source":"auto","retry_attempts":1,"result_counts":5,"top_score":65}
+ POST /api/chat/site 200 in 19475ms
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"request_received","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","details":{"use_tools":true,"message_count":1,"original_message_count":41,"conversation_context_mode":"isolated_latest_turn","model":"gpt-4o"}}
+[Chat API] Streaming FC (1 msgs)
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"tool_resolution_started","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","details":{"max_iterations":3,"tools_count":11}}
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"query_understanding","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","routed_source":"friday_sermons","details":{"content_intent":"sermon","operation_intent":"fact_question","route_confidence":0.71,"extracted_entities":{"person":[],"topic":["خطبه جمعه تتحدث","خطبه جمعه"],"place":[],"source_specific":[]}}}
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"orchestrator_plan_created","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","routed_source":"friday_sermons","details":{"tool_name":"search_content","max_attempts":3,"intent":"sermon","operation_intent":"fact_question","route_confidence":0.71,"hard_constraint":true,"attempt_sources":["friday_sermons","wahy_friday","auto"],"request_budget_ms":18000}}
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"orchestrator_attempt_started","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","routed_source":"friday_sermons","retry_attempts":0,"details":{"tool_name":"search_content","reason":"entity_first:entity_fact_query","attempt_index":1,"budget_remaining_ms":18000}}
+[Tool Execution] search_content { query: 'خطبة جمعة تتحدث عن  الاخلاق', source: 'friday_sermons' }
+[siteSearchContent] Entity-first mode active, skipping broad expansion
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"orchestrator_attempt_finished","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","routed_source":"friday_sermons","retry_attempts":0,"result_counts":5,"top_score":44,"details":{"tool_name":"search_content","success":true,"empty":false,"rejected_low_confidence":false,"duration_ms":16,"elapsed_ms":16,"budget_remaining_ms":17984}}
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"orchestrator_runtime_takeover","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","routed_source":"friday_sermons","retry_attempts":0,"result_counts":5,"top_score":44}
+[Knowledge] Initial search: 4 chunks (top=12.6)
+[Evidence] 3 items, top confidence: 40%
+[Evidence] 3 items, top confidence: 40%
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"tools_resolved","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","routed_source":"friday_sermons","retry_attempts":0,"result_counts":5,"top_score":44,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"tool_resolution_finished","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","routed_source":"friday_sermons","retry_attempts":0,"result_counts":5,"top_score":44,"details":{"iterations":1,"needs_final_call":true,"has_direct_answer":false}}
+[Chat API] Tools resolved in 1 iteration(s), needsFinalCall: true
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"final_stream_started","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","routed_source":"friday_sermons","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"grounded_stream_started","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","routed_source":"friday_sermons","retry_attempts":0,"details":{"grounded_temperature":0,"grounded":true,"final_call_required":true}}
+[ChatTrace] {"trace_id":"trace_moa4smk3_a48xte","stage":"response_ready","normalized_query":"خطبه جمعه تتحدث عن الاخلاق","answer_mode":"llm_stream","routed_source":"friday_sermons","retry_attempts":0,"result_counts":5,"top_score":44}
+ POST /api/chat/site 200 in 5449ms

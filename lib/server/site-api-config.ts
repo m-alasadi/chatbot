@@ -21,7 +21,12 @@ export function getSiteAPIConfig(): SiteAPIConfig {
   const token = process.env.SITE_API_TOKEN || null
   const openaiModel = process.env.OPENAI_MODEL || "gpt-4o-mini"
   const acceptLanguage = process.env.SITE_API_ACCEPT_LANGUAGE || "ar"
-  const allProjectsEndpoint = process.env.SITE_API_ALL_PROJECTS_ENDPOINT || "/allProjects"
+  // The canonical project catalog lives on the projects subdomain (paginated).
+  // The legacy `/allProjects` path on the main host returns the SPA's HTML
+  // shell instead of JSON, which used to make every project query fail.
+  const allProjectsEndpoint =
+    process.env.SITE_API_ALL_PROJECTS_ENDPOINT ||
+    "https://projects.alkafeel.net/api/projects"
   const sourceEndpoints: Record<string, string> = {
     articles_latest:
       process.env.SITE_API_ARTICLES_ENDPOINT ||
@@ -35,6 +40,9 @@ export function getSiteAPIConfig(): SiteAPIConfig {
     videos_by_category:
       process.env.SITE_API_VIDEOS_BY_CATEGORY_ENDPOINT ||
       "/alkafeel_back_test/api/v1/videos/ByCat/{catId}/16?page=1",
+    shrine_history_timeline:
+      process.env.SITE_API_SHRINE_HISTORY_TIMELINE_ENDPOINT ||
+      "/alkafeel_back_test/api/v1/alkafeel-histories/getBySecId/1",
     shrine_history_sections:
       process.env.SITE_API_SHRINE_HISTORY_SECTIONS_ENDPOINT ||
       "/alkafeel_back_test/api/v1/alkafeel-histories/getOtherSec",

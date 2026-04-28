@@ -27,7 +27,7 @@
 
 ✨ **بدون dependencies، 22KB فقط، يعمل مع أي موقع!**
 
-📖 **[دليل التضمين الكامل](WIDGET_INTEGRATION.md)** | 🚀 **[دليل النشر](DEPLOY_GUIDE.md)** | 📝 **[Laravel Integration](QUICK_START.md)**
+📖 تفاصيل التضمين والنشر العملية موضحة ضمن هذا الملف لتجنّب أي روابط غير محدثة قبل الإطلاق.
 
 ---
 
@@ -47,6 +47,7 @@
 - [التطوير](#-التطوير)
 - [النشر](#-النشر)
 - [API Documentation](#-api-documentation)
+- [Release Hardening (Phase 5)](#-release-hardening-phase-5)
 
 ---
 
@@ -81,6 +82,40 @@
 - الحصول على إحصائيات وتقارير
 - استكشاف أقسام وفئات المشاريع
 
+---
+
+## ⚙️ Release Hardening (Phase 5)
+
+هذا الإصدار يعتمد على تحسينات تشغيلية للحفاظ على الجودة مع خفض زمن الاستجابة:
+
+- **Request-level retrieval budget** داخل orchestrator للحد من الاستهلاك الزائد للطلب الواحد.
+- **Entity-first retrieval** للاستعلامات الدقيقة (حقائق الأشخاص/الفعاليات/المشاريع الفردية) قبل التوسعة الواسعة.
+- **Source-specific timeout/retry policy** بدلاً من سياسة موحدة لكل المصادر.
+- **Structured runtime metrics** عبر traces + تجميع دوري في السجل لتشخيص الأداء.
+
+### متغيرات Phase 5
+
+أضف/راجع هذه القيم في `.env.local`:
+
+```bash
+RETRIEVAL_REQUEST_BUDGET_MS=18000
+RETRIEVAL_SLOW_ATTEMPT_MS=3000
+SITE_API_SLOW_THRESHOLD_MS=3500
+RUNTIME_METRICS_LOG_EVERY=25
+```
+
+### تنبيه تشغيلي مهم (Eval)
+
+سكربت التقييم العربي يستخدم `BASE_URL` إن كانت مضبوطة في البيئة.
+لتجنب توجيه التقييم إلى منفذ خاطئ:
+
+- تأكد أن السيرفر الهدف يعمل فعليًا.
+- نفّذ التقييم مع تحديد واضح مثل:
+
+```powershell
+$env:BASE_URL='http://localhost:3000'; npm run eval:ar
+```
+
 ### الجمهور المستهدف
 
 - زوار موقع alkafeel.net
@@ -109,7 +144,7 @@
 
 - **Rate Limiting**: حماية من إساءة الاستخدام والـ DDoS
 - **Data Sanitization**: تنظيف المدخلات من المحتوى الضار
-- **CORS Protection**: قيود صارمة على المصادر المسموح بها
+- **CORS Protection**: دعم CORS متوافق مع التضمين الخارجي للودجت
 - **Sensitive Data Removal**: إزالة البيانات الحساسة من الاستجابات
 - **Security Headers**: رؤوس أمان شاملة (CSP, XSS Protection, etc.)
 
@@ -201,7 +236,7 @@
    - التحقق من أن الأداة مسموحة (Whitelist)
    - تنفيذ الأداة عبر API Service
    - إرجاع النتيجة لـ GPT
-   - تكرار العملية حتى 5 مرات
+  - تكرار العملية حتى 3 مرات
 8. **Response Generation**: GPT يولد رد نهائي بناءً على البيانات
 9. **Data Sanitization**: تنظيف الاستجابة من البيانات الحساسة
 10. **Client Response**: إرسال الرد للمستخدم
@@ -790,22 +825,12 @@ const cleanData = removeSensitiveFields(apiResponse)
 
 ### 3. CORS Protection
 
-**الهدف**: السماح فقط للنطاقات الموثوقة
+**الهدف**: تمكين التضمين الخارجي للودجت مع الحفاظ على ضوابط الطلبات
 
 ```typescript
-const ALLOWED_ORIGINS = [
-  "https://alkafeel.net",  // Production
-  "http://localhost:3000",          // Development
-  "http://localhost:3001"           // Development (alternative)
-]
-
-function getSecurityHeaders(origin?: string): HeadersInit {
-  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin)
-    ? origin
-    : ALLOWED_ORIGINS[0]
-
+function getSecurityHeaders(): HeadersInit {
   return {
-    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization"
   }
@@ -985,16 +1010,18 @@ Copy-Item .env.local.example .env.local
 ```env
 # OpenAI Configuration
 OPENAI_API_KEY=sk-...                    # مطلوب
-OPENAI_MODEL=gpt-4o                       # اختياري (افتراضي: gpt-4o)
+OPENAI_MODEL=gpt-4o                       # اختياري (قيمة القالب: gpt-4o)
 
 # Site API Configuration
-SITE_API_BASE_URL=https://alkafeel.net/v1    # مطلوب
+SITE_API_BASE_URL=https://alkafeel.net        # مطلوب
 SITE_API_TOKEN=your-api-token-here       # اختياري
-SITE_DOMAIN=https://alkafeel.net # اختياري
+SITE_API_ACCEPT_LANGUAGE=ar               # اختياري
+SITE_DOMAIN=https://alkafeel.net          # اختياري
+SITE_ARTICLE_URL_TEMPLATE=/news/index?id={id} # اختياري
 
 # Optional: Alternative AI Providers
 ANTHROPIC_API_KEY=sk-ant-...             # لاستخدام Claude
-GOOGLE_API_KEY=...                        # لاستخدام Gemini
+GOOGLE_GEMINI_API_KEY=...                 # لاستخدام Gemini
 AZURE_OPENAI_ENDPOINT=...                 # لاستخدام Azure OpenAI
 MISTRAL_API_KEY=...                       # لاستخدام Mistral
 ```
@@ -1027,15 +1054,17 @@ npm run start
 | المتغير | الوصف | مثال |
 |---------|-------|------|
 | `OPENAI_API_KEY` | مفتاح OpenAI API | `sk-proj-...` |
-| `SITE_API_BASE_URL` | رابط REST API للموقع | `https://alkafeel.net/v1` |
+| `SITE_API_BASE_URL` | رابط REST API للموقع | `https://alkafeel.net` |
 
 ### المتغيرات الاختيارية
 
 | المتغير | الوصف | القيمة الافتراضية |
 |---------|-------|-------------------|
-| `OPENAI_MODEL` | نموذج OpenAI المستخدم | `gpt-4o` |
+| `OPENAI_MODEL` | نموذج OpenAI المستخدم | `gpt-4o` (في القالب) / `gpt-4o-mini` (عند عدم التعيين) |
 | `SITE_API_TOKEN` | توكن مصادقة للـ API | `null` (بدون مصادقة) |
+| `SITE_API_ACCEPT_LANGUAGE` | لغة طلبات الـ API | `ar` |
 | `SITE_DOMAIN` | نطاق الموقع الأساسي | `https://alkafeel.net` |
+| `SITE_ARTICLE_URL_TEMPLATE` | قالب رابط المقال | `/news/index?id={id}` |
 | `NODE_ENV` | بيئة التشغيل | `development` |
 | `NEXT_PUBLIC_APP_URL` | رابط التطبيق (للـ PWA) | `http://localhost:3000` |
 
@@ -1046,7 +1075,7 @@ npm run start
 ANTHROPIC_API_KEY=sk-ant-...
 
 # Google Gemini
-GOOGLE_API_KEY=...
+GOOGLE_GEMINI_API_KEY=...
 
 # Azure OpenAI
 AZURE_OPENAI_ENDPOINT=https://...
@@ -1391,7 +1420,7 @@ pm2 startup
 ```env
 NODE_ENV=production
 NEXT_PUBLIC_APP_URL=https://chatbot.alkafeel.net
-SITE_API_BASE_URL=https://alkafeel.net/v1
+SITE_API_BASE_URL=https://alkafeel.net
 # ... other production vars
 ```
 
@@ -1400,7 +1429,7 @@ SITE_API_BASE_URL=https://alkafeel.net/v1
 ```env
 NODE_ENV=development
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-SITE_API_BASE_URL=http://localhost:8000/api/v1
+SITE_API_BASE_URL=http://localhost:8000
 # ... other dev vars
 ```
 
@@ -1419,8 +1448,8 @@ SITE_API_BASE_URL=http://localhost:8000/api/v1
 ```typescript
 {
   messages: ChatCompletionMessageParam[]  // مطلوب: سجل المحادثة
-  temperature?: number                    // اختياري: 0.0-2.0 (افتراضي: 0.7)
-  max_tokens?: number                     // اختياري: الحد الأقصى (افتراضي: 2000)
+  temperature?: number                    // اختياري: 0.0-2.0 (افتراضي: 0.5)
+  max_tokens?: number                     // اختياري: الحد الأقصى (افتراضي: 1200)
   use_tools?: boolean                     // اختياري: تفعيل الأدوات (افتراضي: true)
 }
 ```
@@ -1432,19 +1461,16 @@ SITE_API_BASE_URL=http://localhost:8000/api/v1
   "messages": [
     { "role": "user", "content": "أريد مشاريع طبية" }
   ],
-  "temperature": 0.7,
-  "max_tokens": 2000,
+  "temperature": 0.5,
+  "max_tokens": 1200,
   "use_tools": true
 }
 ```
 
 **Response (Success)**:
 
-```json
-{
-  "message": "وجدت لك 5 مشاريع في قسم المشاريع الطبية...",
-  "iterations": 2
-}
+```text
+استجابة نصية متدفقة (streaming text/plain) تحتوي الإجابة النهائية مباشرة.
 ```
 
 **Response (Error)**:
@@ -1459,14 +1485,17 @@ SITE_API_BASE_URL=http://localhost:8000/api/v1
 
 - `200`: نجاح
 - `400`: خطأ في البيانات المرسلة
+- `401`: إعداد أو مفتاح API غير صالح
 - `429`: تجاوز حد الطلبات (Rate Limit)
+- `503`: النموذج غير متاح حالياً
 - `500`: خطأ في السيرفر
 
 **Headers**:
 
 ```
-Content-Type: application/json
-Access-Control-Allow-Origin: https://alkafeel.net
+Content-Type: text/plain; charset=utf-8  (نجاح)
+Content-Type: application/json           (أخطاء)
+Access-Control-Allow-Origin: *
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 X-XSS-Protection: 1; mode=block
@@ -1493,7 +1522,7 @@ X-XSS-Protection: 1; mode=block
 
 ```
 Status: 204 No Content
-Access-Control-Allow-Origin: https://alkafeel.net
+Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: POST, OPTIONS
 Access-Control-Allow-Headers: Content-Type, Authorization
 Access-Control-Max-Age: 86400

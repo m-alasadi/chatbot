@@ -25,6 +25,12 @@ function buildEvidenceSnippet(
   queryTokens: string[],
   windowSize = 300
 ): string {
+  // Auto-widen the window for chunks longer than the default; ensures the
+  // matched cluster keeps surrounding context (e.g. enumerations that span
+  // multiple sentences after the query keyword).
+  if (chunkText.length > windowSize * 2) {
+    windowSize = Math.min(900, Math.max(windowSize, Math.floor(chunkText.length / 3)))
+  }
   const normText = normalizeArabic(chunkText)
 
   // Find best match position — where the most query tokens cluster
@@ -127,6 +133,29 @@ function detectTypeConstraint(normQuery: string): import("./content-types").Cont
   return null
 }
 
+function getSpecificQueryTokens(queryTokens: string[]): string[] {
+  const genericTokens = new Set([
+    "ما", "هو", "هي", "هل", "عن", "في", "على", "من", "الى", "إلى", "او", "أو",
+    "للعتبه", "للعتبة", "العتبه", "العتبة", "العباسيه", "العباسية",
+    "مشروع", "مشاريع", "اسبوع"
+  ].map(t => normalizeArabic(t)))
+
+  return queryTokens.filter(token => !genericTokens.has(token))
+}
+
+function countSpecificTokenMatches(haystacks: string[], specificTokens: string[]): number {
+  if (specificTokens.length === 0) return 0
+  let matched = 0
+
+  for (const token of specificTokens) {
+    if (haystacks.some(text => text.includes(token))) {
+      matched++
+    }
+  }
+
+  return matched
+}
+
 /**
  * Prefix-fuzzy search over Abbas chunks.
  * Bridges Arabic morphological gaps:
@@ -201,6 +230,13 @@ function rerank(
   const normSection = normalizeArabic(chunk.section)
   const normText = normalizeArabic(chunk.chunk_text)
   const normQuery = normalizeArabic(rawQuery)
+  const haystacks = [normTitle, normSection, normText]
+  const specificTokens = getSpecificQueryTokens(queryTokens)
+  const specificMatchCount = countSpecificTokenMatches(haystacks, specificTokens)
+
+  if (specificTokens.length > 0 && specificMatchCount === 0) {
+    return 0
+  }
 
   // Title match: how many query tokens appear in title
   const titleHits = queryTokens.filter(t => normTitle.includes(t)).length
@@ -260,6 +296,15 @@ function rerank(
   const preferredType = detectTypeConstraint(normQuery)
   if (preferredType && chunk.family === preferredType) {
     signals.typeConstraint = 1
+  }
+
+  if (specificTokens.length > 0) {
+    const specificCoverage = specificMatchCount / specificTokens.length
+    signals.textDensity += specificCoverage * 1.5
+
+    if (specificCoverage < 0.5) {
+      signals.typeConstraint -= 0.5
+    }
   }
 
   // Weighted combination
@@ -434,11 +479,29 @@ export async function searchKnowledgeWithBackfill(
     return { ...initial, backfilled: false }
   }
 
-  // Phase 3: backfill one batch per source
+  // Phase 3: backfill one batch per source (incremental, stop early once strong)
   console.log(`[Knowledge] Weak results — backfilling: ${sources.join(", ")}`)
   let totalNew = 0
+  let best = initial
   for (const src of sources) {
-    totalNew += await backfillOlderPages(src)
+    const newItems = await backfillOlderPages(src)
+    totalNew += newItems
+
+    if (newItems <= 0) continue
+
+    const retry = searchKnowledgeChunks(query, options)
+    console.log(`[Knowledge] Backfill checkpoint (${src}): ${retry.chunks.length} chunks (top=${retry.chunks[0]?.score.toFixed(1) ?? "–"}) [+${newItems}]`)
+
+    if (
+      retry.chunks.length > best.chunks.length ||
+      (retry.chunks[0]?.score ?? 0) > (best.chunks[0]?.score ?? 0)
+    ) {
+      best = retry
+    }
+
+    if (!isWeakResult(retry)) {
+      return { ...retry, backfilled: true }
+    }
   }
 
   if (totalNew === 0) {
@@ -446,14 +509,6 @@ export async function searchKnowledgeWithBackfill(
     return { ...initial, backfilled: true }
   }
 
-  // Phase 4: retry search
-  const retry = searchKnowledgeChunks(query, options)
-  console.log(`[Knowledge] After backfill: ${retry.chunks.length} chunks (top=${retry.chunks[0]?.score.toFixed(1) ?? "–"}) [+${totalNew} items]`)
-
-  // Return whichever set is better
-  const best = (retry.chunks.length > initial.chunks.length ||
-    (retry.chunks[0]?.score ?? 0) > (initial.chunks[0]?.score ?? 0))
-    ? retry : initial
-
+  console.log(`[Knowledge] After backfill: ${best.chunks.length} chunks (top=${best.chunks[0]?.score.toFixed(1) ?? "–"}) [+${totalNew} items]`)
   return { ...best, backfilled: true }
 }

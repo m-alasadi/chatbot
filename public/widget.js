@@ -419,7 +419,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages:   self.messages,
-        temperature: 0.5,
+        temperature: 0.2,
         max_tokens:  1200,
         use_tools: true,
       }),

@@ -1,682 +1,551 @@
-/**
+﻿/**
  * Service Layer للتواصل مع REST API الخاص بالموقع
- * 
+ *
  * جميع استدعاءات API تمر عبر هذه الطبقة
  * يتم التحكم بالـ Whitelist والتحقق من الأمان هنا
  */
 
-import { fillEndpointTemplate, getSiteAPIConfig } from "./site-api-config"
+import { getSiteAPIConfig } from "./site-api-config"
 import type { AllowedToolName } from "./site-tools-definitions"
-import { sanitizeAPIResponse } from "./data-sanitizer"
+import { callSiteAPI } from "./site-api-transport"
+import type { APICallResult } from "./site-api-transport"
+import {
+  type SiteSourceName,
+  type SourceFetchParams,
+  ALL_SOURCES,
+  CATEGORY_INDEX_SOURCES,
+  EXPANDABLE_SOURCES,
+  canFetchSource,
+  fetchSourceMetadataRaw,
+  fetchSourcePage,
+  friendlySourceLabel,
+  getSourceDocuments,
+  normalizeProjectsDataset
+} from "./site-source-adapters"
+import {
+  buildEvidenceSnippet,
+  buildTokenVariants,
+  deepTitleSearch,
+  expandSearchFromSources,
+  extractNamedPhrase,
+  isCategoryIntent,
+  looksLikeTitleQuery,
+  normalizeArabic,
+  rankCandidateSources,
+  scoreTitleMatch,
+  scoreUnifiedItem,
+  tokenizeArabicQuery
+} from "./site-ranking-policy"
+import { understandQuery, deriveRetrievalCapabilitySignals } from "./query-understanding"
 
-/**
- * إعدادات Timeout و Retry
- */
-const API_TIMEOUT_MS = 30000 // 30 ثانية (API بطيء بسبب حجم البيانات)
-const MAX_RETRIES = 1 // محاولة واحدة فقط (البيانات كبيرة)
-const RETRY_DELAY_MS = 1000 // التأخير بين المحاولات
+export type { APICallResult } from "./site-api-transport"
 
-/**
- * نتيجة استدعاء API
- */
-export interface APICallResult {
-  success: boolean
-  data?: any
-  error?: string
-  statusCode?: number
+const OFFICIAL_NEWS_SEARCH_TIMEOUT_MS = Number(process.env.OFFICIAL_NEWS_SEARCH_TIMEOUT_MS || 12000)
+const OFFICIAL_NEWS_SEARCH_CACHE_MS = Number(process.env.OFFICIAL_NEWS_SEARCH_CACHE_MS || 10 * 60 * 1000)
+const officialNewsSearchCache = new Map<string, { items: any[]; cachedAt: number }>()
+/** كلمات يجب تصفيتها من الاستعلام قبل البحث — مصدر الحقيقة الوحيد لكلمات الوقف */
+export const FILTER_STOP_WORDS = new Set([
+  // حروف الجر والظروف القصيرة
+  "في", "من", "عن", "على", "الى", "الي",
+  // اسم المؤسسة وصيغه
+  "للعتبه", "للعتبة", "العتبه", "العتبة",
+  "العباسيه", "العباسية", "المقدسه", "المقدسة",
+  // ظروف زمنية عامة جداً
+  "اليوم", "حاليا", "حالياً", "الان", "الآن",
+  "احدث", "اخر", "آخر", "الاخيره", "الاخيرة",
+  "الجديده", "الجديدة",
+  // نوع المحتوى
+  "منشورات", "المنشورات", "اخبار", "الاخبار",
+  "خبر", "الخبر", "فيديو", "الفيديو",
+  "فيديوهات", "الفيديوهات", "مقاطع", "المقاطع",
+  // أفعال الطلب
+  "اعرض", "هات", "اعطني", "اريد", "لي",
+  // كلمات الوجود والانتماء (كانت في stopTokens داخل buildRelaxedProjectQueries)
+  "هناك", "هنالك", "يوجد", "توجد", "لدى",
+  "تابع", "تابعة", "تابعه", "يتبع", "تتبع",
+  "مؤسسة", "مؤسسات"
+].map(token => normalizeArabic(token)))
+
+type LatestSourceFetchParams = SourceFetchParams & {
+  query?: string
 }
 
-/**
- * معلومات الاتصال بـ API
- */
-interface APIRequestOptions {
-  method?: "GET" | "POST" | "PUT" | "DELETE"
-  body?: Record<string, any>
-  params?: Record<string, string | number | boolean>
-  timeout?: number // Timeout مخصص
-  retries?: number // عدد محاولات مخصص
+interface SourceCategoryOption {
+  id: string
+  name: string
+  source: string
 }
 
-type SiteSourceName =
-  | "articles_latest"
-  | "videos_latest"
-  | "videos_categories"
-  | "videos_by_category"
-  | "shrine_history_sections"
-  | "shrine_history_by_section"
-  | "abbas_history_by_id"
-  | "lang_words_ar"
-  | "friday_sermons"
-  | "wahy_friday"
-
-interface SourceFetchParams {
-  source?: SiteSourceName | "auto"
-  category_id?: string
-  section_id?: string
-  id?: string
+interface LatestListingResolution {
+  source: SiteSourceName | "auto"
+  params: SourceFetchParams
+  matchedCategory?: SourceCategoryOption | null
 }
 
-const ALL_SOURCES: SiteSourceName[] = [
-  "articles_latest",
-  "videos_latest",
-  "videos_categories",
-  "videos_by_category",
-  "shrine_history_sections",
-  "shrine_history_by_section",
-  "abbas_history_by_id",
-  "lang_words_ar",
-  "friday_sermons",
-  "wahy_friday"
-]
+function buildArabicTokenVariants(token: string): string[] {
+  const base = normalizeArabic(String(token || "")).trim()
+  if (!base) return []
 
-const SOURCE_CACHE_DURATION_MS: Record<SiteSourceName, number> = {
-  articles_latest: 15 * 60 * 1000,
-  videos_latest: 15 * 60 * 1000,
-  videos_categories: 6 * 60 * 60 * 1000,
-  videos_by_category: 20 * 60 * 1000,
-  shrine_history_sections: 12 * 60 * 60 * 1000,
-  shrine_history_by_section: 60 * 60 * 1000,
-  abbas_history_by_id: 60 * 60 * 1000,
-  lang_words_ar: 24 * 60 * 60 * 1000,
-  friday_sermons: 30 * 60 * 1000,
-  wahy_friday: 30 * 60 * 1000
+  const variants = new Set<string>([base])
+  const suffixes = ["يه", "ه", "ات", "ين", "ون"]
+  for (const suffix of suffixes) {
+    if (base.endsWith(suffix) && base.length > suffix.length + 2) {
+      variants.add(base.slice(0, -suffix.length))
+    }
+  }
+
+  return [...variants].filter(value => value.length >= 3)
 }
 
-/**
- * Fetch مع Timeout
- */
-async function fetchWithTimeout(
+function buildRelaxedProjectQueries(query: string): string[] {
+  const original = String(query || "").trim()
+  if (!original) return []
+
+  // يُستخدم FILTER_STOP_WORDS (المُصدَّر أعلاه) مصدراً واحداً لكلمات الوقف
+  const tokens = tokenizeArabicQuery(original).filter(token => !FILTER_STOP_WORDS.has(token))
+  const namedPhrase = extractNamedPhrase(original)
+  const queries = new Set<string>()
+
+  if (namedPhrase) queries.add(namedPhrase)
+  if (tokens.length > 0) {
+    queries.add(tokens.join(" "))
+    queries.add(tokens.slice(0, 3).join(" "))
+    queries.add(tokens.slice(0, 2).join(" "))
+  }
+
+  for (const token of tokens) {
+    for (const variant of buildArabicTokenVariants(token)) {
+      queries.add(variant)
+      queries.add(`مشروع ${variant}`)
+    }
+  }
+
+  return [...queries].map(value => value.trim()).filter(Boolean).slice(0, 8)
+}
+
+function decodeHtmlEntities(text: string): string {
+  return String(text || "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&rlm;|&lrm;/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function normalizeOfficialNewsSearchDate(value: string): string {
+  const raw = String(value || "").trim()
+  const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!match) return new Date().toISOString()
+  const [, day, month, year] = match
+  return new Date(`${year}-${month}-${day}T00:00:00.000Z`).toISOString()
+}
+
+async function fetchTextWithTimeout(
   url: string,
-  options: RequestInit,
-  timeoutMs: number = API_TIMEOUT_MS
-): Promise<Response> {
+  timeoutMs: number
+): Promise<string | null> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    })
-    clearTimeout(timeoutId)
-    return response
-  } catch (error: any) {
-    clearTimeout(timeoutId)
-    if (error.name === "AbortError") {
-      throw new Error(`انتهت مهلة الاتصال بعد ${timeoutMs / 1000} ثانية`)
-    }
-    throw error
-  }
-}
-
-/**
- * تأخير (للانتظار بين المحاولات)
- */
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-/**
- * تنفيذ Retry Logic
- */
-async function retryOperation<T>(
-  operation: () => Promise<T>,
-  maxRetries: number = MAX_RETRIES,
-  delayMs: number = RETRY_DELAY_MS
-): Promise<T> {
-  let lastError: Error
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await operation()
-    } catch (error: any) {
-      lastError = error
-
-      // إذا كان آخر محاولة، ارمِ الخطأ
-      if (attempt === maxRetries) {
-        break
-      }
-
-      // سجل المحاولة
-      console.log(
-        `[API Retry] Attempt ${attempt + 1} failed. Retrying in ${delayMs}ms...`
-      )
-
-      // انتظر قبل المحاولة التالية
-      await delay(delayMs)
-
-      // زيادة التأخير للمحاولة التالية (Exponential Backoff)
-      delayMs *= 2
-    }
-  }
-
-  throw lastError!
-}
-
-/**
- * استدعاء عام لـ REST API مع التحقق من الأمان
- * 
- * @param endpoint - المسار النسبي (مثل: /api/projects)
- * @param options - خيارات الطلب
- */
-async function callSiteAPI(
-  endpoint: string,
-  options: APIRequestOptions = {}
-): Promise<APICallResult> {
-  const {
-    method = "GET",
-    body,
-    params,
-    timeout = API_TIMEOUT_MS,
-    retries = MAX_RETRIES
-  } = options
-
-  // تغليف العملية في retry logic
-  return await retryOperation(
-    async () => {
-      try {
-        const config = getSiteAPIConfig()
-
-        // بناء URL كامل بشكل مرن (يدعم endpoint نسبي أو URL كامل)
-        const normalizedBase = config.baseUrl.replace(/\/+$/, "")
-        const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
-
-        const isAbsoluteEndpoint =
-          endpoint.startsWith("http://") || endpoint.startsWith("https://")
-
-        // إذا كان baseUrl يحتوي مسار عميق والـ endpoint يبدأ من root،
-        // نركب الرابط على origin فقط لتجنب تكرار المسار.
-        let url: string
-        if (isAbsoluteEndpoint) {
-          url = endpoint
-        } else if (normalizedEndpoint.startsWith("/alkafeel_back_test/")) {
-          const baseOrigin = new URL(normalizedBase).origin
-          url = `${baseOrigin}${normalizedEndpoint}`
-        } else {
-          url = `${normalizedBase}${normalizedEndpoint}`
-        }
-
-        // إضافة query parameters
-        if (params && Object.keys(params).length > 0) {
-          const searchParams = new URLSearchParams()
-          Object.entries(params).forEach(([key, value]) => {
-            searchParams.append(key, String(value))
-          })
-          const separator = url.includes("?") ? "&" : "?"
-          url += `${separator}${searchParams.toString()}`
-        }
-
-        // إعداد Headers
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          "Accept-Language": config.acceptLanguage
-        }
-
-        // إضافة Token إذا كان متوفراً
-        if (config.token) {
-          headers["Authorization"] = `Bearer ${config.token}`
-        }
-
-        // إعداد الطلب
-        const requestOptions: RequestInit = {
-          method,
-          headers,
-          ...(body && method !== "GET" && { body: JSON.stringify(body) })
-        }
-
-        // تنفيذ الطلب مع Timeout
-        const response = await fetchWithTimeout(url, requestOptions, timeout)
-
-        // معالجة الرد
-        if (!response.ok) {
-          return {
-            success: false,
-            error: `خطأ في الاتصال: ${response.status} ${response.statusText}`,
-            statusCode: response.status
-          }
-        }
-
-        // قراءة البيانات
-        let data = await response.json()
-
-        console.log("[callSiteAPI] Response type:", typeof data, "| Is Array:", Array.isArray(data))
-
-        // ✅ Phase 4: تنظيف البيانات الحساسة
-        data = sanitizeAPIResponse(data)
-
-        console.log("[callSiteAPI] After sanitize - type:", typeof data, "| Is Array:", Array.isArray(data), "| Length:", Array.isArray(data) ? data.length : "N/A")
-
-        return {
-          success: true,
-          data,
-          statusCode: response.status
-        }
-      } catch (error: any) {
-        console.error("[Site API Error]:", error.message)
-
-        // إذا كان خطأ Network، يُعاد المحاولة
-        if (
-          error.message.includes("fetch") ||
-          error.message.includes("network") ||
-          error.message.includes("timeout")
-        ) {
-          throw error // للسماح بـ retry
-        }
-
-        // أخطاء أخرى لا تحتاج retry
-        return {
-          success: false,
-          error: error.message || "حدث خطأ غير متوقع أثناء الاتصال بالـ API"
-        }
-      }
-    },
-    retries,
-    RETRY_DELAY_MS
-  ).catch((error: Error) => {
-    // إذا فشلت جميع المحاولات
-    return {
-      success: false,
-      error: `فشل الاتصال بعد ${retries + 1} محاولات: ${error.message}`
-    }
-  })
-}
-
-function normalizeSection(value: string): { id: string; name: string } {
-  const text = (value || "غير مصنف").trim() || "غير مصنف"
-  return { id: text, name: text }
-}
-
-function toUnixDate(value: any): string {
-  const num = Number(value)
-  if (Number.isFinite(num) && num > 0) {
-    return new Date(num * 1000).toISOString()
-  }
-  return new Date().toISOString()
-}
-
-function pickText(...values: any[]): string {
-  for (const v of values) {
-    if (typeof v === "string" && v.trim().length > 0) return v
-  }
-  return ""
-}
-
-/** Category/index sources — structural, not end-content */
-const CATEGORY_INDEX_SOURCES: SiteSourceName[] = ["videos_categories", "shrine_history_sections"]
-
-/** Sources safe for pagination expansion (meaningful paginated content, not structural) */
-const EXPANDABLE_SOURCES: SiteSourceName[] = ["articles_latest", "videos_latest", "friday_sermons", "wahy_friday"]
-
-// ── Arabic normalization utilities ──────────────────────────────────
-
-/** Full Arabic normalization: lowercase, strip diacritics/tatweel, normalize letter forms */
-function normalizeArabic(text: string): string {
-  return (text || "")
-    .replace(/[\u0610-\u061A\u064B-\u065F\u0670]/g, "") // strip tashkeel
-    .replace(/\u0640/g, "")                               // strip tatweel
-    .replace(/[\u0622\u0623\u0625\u0627]/g, "\u0627")      // normalize alef variants → ا
-    .replace(/\u0649/g, "\u064A")                           // ى → ي
-    .replace(/\u0629/g, "\u0647")                           // ة → ه
-    .replace(/\s+/g, " ")                                   // collapse whitespace
-    .trim()
-    .toLowerCase()
-}
-
-/** Tokenize an Arabic query into meaningful search tokens (≥2 chars) */
-function tokenizeArabicQuery(query: string): string[] {
-  return normalizeArabic(query)
-    .split(/\s+/)
-    .filter(w => w.length >= 2)
-}
-
-/**
- * Detect whether the query looks like a (partial) article title rather than a question.
- * Title-like queries are long Arabic phrases without interrogative structure.
- */
-function looksLikeTitleQuery(query: string): boolean {
-  const trimmed = (query || "").trim()
-  if (trimmed.length < 20) return false
-
-  const norm = normalizeArabic(trimmed)
-
-  // Question / command prefixes → NOT a title
-  const questionPrefixes = [
-    "ما هو", "ما هي", "من هو", "من هي", "كيف", "لماذا", "متي",
-    "اين", "هل", "كم", "ابحث", "اعرض", "اعطني", "تحدث", "اريد",
-    "عرف", "وضح", "اشرح", "ما الذي", "ما هو عدد"
-  ]
-  if (questionPrefixes.some(q => norm.startsWith(normalizeArabic(q)))) return false
-
-  // Any question mark → not a title
-  if (trimmed.includes("?") || trimmed.includes("\u061F")) return false
-
-  // Must be majority Arabic characters
-  const arabicChars = (trimmed.match(/[\u0600-\u06FF]/g) || []).length
-  if (arabicChars / trimmed.replace(/\s/g, "").length < 0.5) return false
-
-  // Long enough and no question markers anywhere → likely a title
-  if (trimmed.length >= 30) return true
-
-  // Medium length (20-29 chars): accept only if no question words appear at all
-  const anyQuestion = questionPrefixes.some(q => norm.includes(normalizeArabic(q)))
-  return !anyQuestion
-}
-
-/**
- * Title-specific scorer: measures how closely an item's title matches the query.
- * Returns 0–100.  50+ = confident match.
- */
-function scoreTitleMatch(item: any, query: string): number {
-  const normQ = normalizeArabic(query)
-  const normTitle = normalizeArabic(item?.name || "")
-  if (!normQ || !normTitle) return 0
-
-  // Exact match
-  if (normTitle === normQ) return 100
-  // Title contains the full query
-  if (normTitle.includes(normQ)) return 85
-  // Query contains the full title
-  if (normQ.includes(normTitle) && normTitle.length > 10) return 75
-
-  // Token overlap ratio
-  const qTokens = tokenizeArabicQuery(query)
-  const tTokens = new Set(tokenizeArabicQuery(item?.name || ""))
-  if (qTokens.length === 0 || tTokens.size === 0) return 0
-
-  let matchCount = 0
-  for (const t of qTokens) {
-    for (const tt of tTokens) {
-      if (tt.includes(t) || t.includes(tt)) { matchCount++; break }
-    }
-  }
-
-  const ratio = matchCount / qTokens.length
-  if (ratio >= 0.85) return 65
-  if (ratio >= 0.7)  return 50
-  if (ratio >= 0.5)  return 30
-  if (ratio >= 0.3)  return 15
-  return 0
-}
-
-/** Returns true only when the query clearly asks for categories / sections / classifications */
-function isCategoryIntent(query: string): boolean {
-  const norm = normalizeArabic(query)
-  const categoryKeywords = [
-    "الاقسام", "التصنيفات", "الفئات",
-    "اقسام الفيديو", "اقسام التاريخ", "اقسام الاخبار",
-    "ما هي الاقسام", "ما هي التصنيفات", "ما هي الفئات",
-    "قائمه الاقسام", "قائمه التصنيفات"
-  ]
-  return categoryKeywords.some(kw => norm.includes(normalizeArabic(kw)))
-}
-
-/** Check whether a parametric source can be fetched with the given params */
-function canFetchSource(source: SiteSourceName, params: SourceFetchParams): boolean {
-  switch (source) {
-    case "videos_by_category":        return !!params.category_id
-    case "shrine_history_by_section": return !!params.section_id
-    case "abbas_history_by_id":       return !!params.id
-    default: return true
-  }
-}
-
-function buildSourceEndpoint(
-  source: SiteSourceName,
-  params: SourceFetchParams
-): string {
-  const config = getSiteAPIConfig()
-  const endpoint = config.sourceEndpoints[source]
-  if (!endpoint) {
-    throw new Error(`Endpoint غير معرف للمصدر: ${source}`)
-  }
-
-  switch (source) {
-    case "videos_by_category": {
-      if (!params.category_id) throw new Error(`Source ${source} requires category_id`)
-      return fillEndpointTemplate(endpoint, { catId: params.category_id })
-    }
-    case "shrine_history_by_section": {
-      if (!params.section_id) throw new Error(`Source ${source} requires section_id`)
-      return fillEndpointTemplate(endpoint, { secId: params.section_id })
-    }
-    case "abbas_history_by_id": {
-      if (!params.id) throw new Error(`Source ${source} requires id`)
-      return fillEndpointTemplate(endpoint, { id: params.id })
-    }
-    default:
-      return endpoint
-  }
-}
-
-function normalizeSourceDataset(source: SiteSourceName, rawData: any): any[] {
-  const siteDomain = (process.env.SITE_DOMAIN || "https://alkafeel.net").replace(/\/+$/, "")
-  const arr = Array.isArray(rawData)
-    ? rawData
-    : Array.isArray(rawData?.data)
-      ? rawData.data
-      : []
-
-  if (source === "articles_latest") {
-    return normalizeProjectsDataset(rawData)
-  }
-
-  if (source === "videos_latest" || source === "videos_by_category" || source === "friday_sermons" || source === "wahy_friday") {
-    const defaultSection = source === "friday_sermons" ? "خطب الجمعة"
-      : source === "wahy_friday" ? "من وحي الجمعة"
-      : "فيديو"
-    return arr.map((item: any) => {
-      const section = pickText(item?.cat_title, item?.category, defaultSection)
-      const id = String(item?.id || item?.video_id || "")
-      // حقل request يحتوي المعرّف الصحيح (hash/slug) لصفحة الخبر
-      const mediaSlug = item?.request || item?.news_id || item?.article_id || item?.newsId || item?.articleId
-      const url = mediaSlug
-        ? `${siteDomain}/media/${encodeURIComponent(String(mediaSlug))}?lang=ar`
-        : siteDomain
-
-      return {
-        id,
-        name: pickText(item?.title, item?.name, "بدون عنوان"),
-        description: pickText(item?.caption, item?.description, item?.text, item?.summary),
-        image: item?.image || item?.thumb || null,
-        created_at: toUnixDate(item?.time || item?.created_at),
-        address: "",
-        sections: [normalizeSection(section)],
-        kftags: [],
-        properties: [],
-        url,
-        source_type: source,
-        source_raw: item
+      signal: controller.signal,
+      headers: {
+        "Accept-Language": "ar",
+        "User-Agent": "Mozilla/5.0"
       }
     })
-  }
 
-  if (source === "videos_categories") {
-    return arr.map((item: any) => ({
-      id: String(item?.id || item?.cat_id || item?.slug || ""),
-      name: pickText(item?.title, item?.name, item?.cat_title, "قسم فيديو"),
-      description: pickText(item?.description, "قسم من أقسام الفيديو"),
-      image: item?.image || null,
-      created_at: new Date().toISOString(),
-      address: "",
-      sections: [normalizeSection("أقسام الفيديو")],
-      kftags: [],
-      properties: [],
-      url: siteDomain,
-      source_type: source,
-      source_raw: item
-    }))
+    if (!response.ok) return null
+    return await response.text()
+  } catch (error) {
+    console.warn("[OfficialNewsSearch] Request failed:", (error as Error)?.message || error)
+    return null
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  if (source === "shrine_history_sections") {
-    return arr.map((item: any) => ({
-      id: String(item?.id || item?.sec_id || item?.title || ""),
-      name: pickText(item?.title, item?.name, item?.sec_title, "قسم تاريخ"),
-      description: pickText(item?.text, item?.description, "قسم من تاريخ العتبة"),
-      image: item?.image || null,
-      created_at: new Date().toISOString(),
-      address: "",
-      sections: [normalizeSection("أقسام تاريخ العتبة")],
-      kftags: [],
-      properties: [],
-      url: `${siteDomain}/history?lang=ar`,
-      source_type: source,
-      source_raw: item
-    }))
-  }
-
-  if (source === "shrine_history_by_section" || source === "abbas_history_by_id") {
-    const historyPath = source === "abbas_history_by_id" ? "/abbas?lang=ar" : "/history?lang=ar"
-    return arr.map((item: any) => ({
-      id: String(item?.id || item?.history_id || ""),
-      name: pickText(item?.title, item?.name, "محتوى تاريخي"),
-      description: pickText(item?.text, item?.description, item?.content),
-      image: item?.image || null,
-      created_at: toUnixDate(item?.time || item?.created_at),
-      address: "",
-      sections: [normalizeSection(source === "abbas_history_by_id" ? "تاريخ العباس" : "تاريخ العتبة")],
-      kftags: [],
-      properties: [],
-      url: `${siteDomain}${historyPath}`,
-      source_type: source,
-      source_raw: item
-    }))
-  }
-
-  if (source === "lang_words_ar") {
-    if (!rawData || typeof rawData !== "object") return []
-    return Object.entries(rawData).map(([key, value]) => ({
-      id: key,
-      name: key,
-      description: String(value ?? ""),
-      image: null,
-      created_at: new Date().toISOString(),
-      address: "",
-      sections: [normalizeSection("قاموس اللغة")],
-      kftags: [],
-      properties: [],
-      url: siteDomain,
-      source_type: source,
-      source_raw: { key, value }
-    }))
-  }
-
-  return []
 }
 
-const multiSourceCache = new Map<string, { data: any[]; cachedAt: number }>()
+function buildOfficialNewsSearchQueries(query: string, preserveEntityTokens: boolean = false): string[] {
+  const original = String(query || "").trim()
+  const namedPhrase = extractNamedPhrase(original)
+  const normOriginal = normalizeArabic(original)
+  const baseStopTokens = [
+    "ما", "هو", "هي", "هل", "من", "عن", "في", "على", "الى", "إلى", "او", "أو",
+    "للعتبه", "للعتبة", "العتبه", "العتبة", "العباسيه", "العباسية",
+    "ابحث", "بحث", "خبر", "اخبار", "قديم", "قديمة", "يتحدث", "حول", "تكلم", "اشرح",
+    "لي", "باختصار", "مختصر", "حدثني", "اخبرني", "عرفني", "اعطني", "اعرض", "عليه", "السلام"
+  ]
+  const stopTokens = new Set(baseStopTokens.map(token => normalizeArabic(token)))
+  if (preserveEntityTokens) {
+    const identityTokens = ["للعتبه", "للعتبة", "العتبه", "العتبة", "العباسيه", "العباسية"]
+    for (const token of identityTokens) {
+      stopTokens.delete(normalizeArabic(token))
+    }
+  }
+  const specificTokens = tokenizeArabicQuery(original).filter(token => !stopTokens.has(token))
+  const queries = new Set<string>()
+  const constructionTokens = specificTokens.filter(token =>
+    ["اعمار", "ترميم", "صيانه", "توسعه", "توسعة", "بناء", "تشييد"].includes(token)
+  )
 
-function buildSourceCacheKey(source: SiteSourceName, params: SourceFetchParams): string {
-  return [
-    source,
-    params.category_id || "",
-    params.section_id || "",
-    params.id || ""
-  ].join("|")
+  // ── Topic-anchor queries ──────────────────────────────────────────
+  // When the user asks about an institutional topic (مصانع/شركات/مستشفى/…),
+  // the full sentence ("هل العتبة العباسية لديها مصانع؟") confuses the
+  // upstream search engine because functional words outweigh the topic
+  // and irrelevant articles bubble up. We synthesize "[topic] العتبة
+  // العباسية" so the engine ranks the actual factory/company/hospital
+  // articles first.
+  const INSTITUTIONAL_TOPIC_TOKENS = new Set([
+    "مصانع", "مصنع", "صناعه", "صناعة", "صناعات", "شركات", "شركه", "شركة",
+    "مستشفى", "مستشفي", "مستشفيات", "مدارس", "مدرسه", "مدرسة",
+    "جامعه", "جامعة", "جامعات", "كليات", "كليه", "كلية", "معهد", "معاهد",
+    "مكتبه", "مكتبة", "مكتبات", "مزارع", "مزرعه", "مزرعة", "مناحل",
+    "صحف", "صحيفه", "صحيفة", "مجلات", "مجله", "مجلة", "اذاعه", "اذاعة",
+    "تلفزيون", "قنوات", "قناه", "قناة", "مراكز", "مركز", "مستوصفات",
+    "دور", "دار", "متاحف", "متحف", "حدائق", "حديقه", "حديقة",
+    "مطابع", "مطبعه", "مطبعة", "مخابز", "مخبز", "مطاعم", "مطعم",
+    "مهرجان", "مهرجانات", "مؤتمر", "مؤتمرات", "معرض", "معارض",
+    "اقسام", "قسم"
+  ].map(token => normalizeArabic(token)))
+
+  const topicTokens = specificTokens.filter(token =>
+    INSTITUTIONAL_TOPIC_TOKENS.has(normalizeArabic(token))
+  )
+
+  // Topic-anchor goes FIRST so its results dominate the candidate pool.
+  for (const topic of topicTokens.slice(0, 3)) {
+    queries.add(`${topic} العتبة العباسية`)
+    queries.add(topic)
+  }
+
+  if (namedPhrase) queries.add(namedPhrase)
+  if (original) queries.add(original)
+  if (specificTokens.length > 0) queries.add(specificTokens.slice(0, 5).join(" "))
+
+  if (specificTokens.length > 0) {
+    queries.add(specificTokens.slice(0, 4).join(" "))
+    queries.add(specificTokens.slice(0, 2).join(" "))
+  }
+
+  const asksProjectLookup =
+    specificTokens.length > 0 &&
+    /(?:^|\s)(?:هل|يوجد|هناك|هنالك|ما|من)(?:\s|$)/u.test(normOriginal) &&
+    !/(?:^|\s)(?:كم|عدد|اجمالي|إجمالي|مجموع)(?:\s|$)/u.test(normOriginal)
+  if (asksProjectLookup) {
+    for (const token of specificTokens.slice(0, 2)) {
+      queries.add(`مشروع ${token}`)
+    }
+  }
+
+  if (constructionTokens.length > 0) {
+    queries.add(constructionTokens.slice(0, 2).join(" "))
+    for (const token of constructionTokens.slice(0, 2)) {
+      queries.add(`مشروع ${token}`)
+      queries.add(token)
+    }
+  }
+
+  const asksOfficeHolder = normOriginal.includes(normalizeArabic("المتولي الشرعي"))
+  if (asksOfficeHolder) {
+    queries.add("المتولي الشرعي")
+    queries.add("اسم المتولي الشرعي")
+  }
+
+  const asksImamaWeek =
+    normOriginal.includes(normalizeArabic("أسبوع الإمامة")) ||
+    normOriginal.includes(normalizeArabic("اسبوع الامامة"))
+  if (asksImamaWeek) {
+    queries.add("أسبوع الإمامة")
+    queries.add("فعاليات أسبوع الإمامة")
+  }
+
+  const asksProxyVisit =
+    normOriginal.includes(normalizeArabic("الزيارة بالنيابة")) ||
+    normOriginal.includes(normalizeArabic("زياره بالنيابه"))
+  if (asksProxyVisit) {
+    queries.add("الزيارة بالنيابة")
+    queries.add("خدمة الزيارة بالنيابة")
+  }
+
+  if (specificTokens.length > 0) {
+    for (const token of specificTokens.slice(0, 5)) {
+      for (const variant of buildArabicTokenVariants(token)) {
+        queries.add(variant)
+      }
+    }
+  }
+
+  return [...queries]
+    .map(value => value.trim())
+    .filter(Boolean)
+    .slice(0, 12)
 }
 
-async function getSourceDocuments(
-  source: SiteSourceName,
-  params: SourceFetchParams = {}
-): Promise<APICallResult> {
-  const cacheKey = buildSourceCacheKey(source, params)
-  const cached = multiSourceCache.get(cacheKey)
+export async function fetchOfficialNewsSearchResults(
+  query: string,
+  limit: number,
+  options: { preserveEntityTokens?: boolean } = {}
+): Promise<any[]> {
+  const cacheKey = `${query}::${limit}`
+  const cached = officialNewsSearchCache.get(cacheKey)
   const now = Date.now()
-
-  if (cached && now - cached.cachedAt < SOURCE_CACHE_DURATION_MS[source]) {
-    return { success: true, data: cached.data }
+  if (cached && now - cached.cachedAt < OFFICIAL_NEWS_SEARCH_CACHE_MS) {
+    return cached.items.slice(0, Math.max(limit * 8, 40))
   }
 
-  let endpoint: string
-  try {
-    endpoint = buildSourceEndpoint(source, params)
-  } catch {
-    return { success: false, error: `Skipped ${source}: missing required parameter` }
-  }
+  const baseUrl = (process.env.SITE_API_BASE_URL || "https://alkafeel.net").replace(/\/+$/, "")
+  const items: any[] = []
+  const blockPattern = /<div id="(\d+)"[\s\S]*?<a[^>]+href="index\?id=(\d+)&lang=ar"[\s\S]*?<div class="ar_title-0[\s\S]*?">([\s\S]*?)<\/div>[\s\S]*?<div class="ar_date-[\s\S]*?">([\s\S]*?)<\/div>/g
+  const maxCandidates = Math.max(limit * 8, 40)
+  const seenIds = new Set<string>()
+  const searchQueries = buildOfficialNewsSearchQueries(query, Boolean(options.preserveEntityTokens))
 
-  const result = await callSiteAPI(endpoint)
-  if (!result.success) return result
+  for (const searchQuery of searchQueries) {
+    const searchUrl = `${baseUrl}/news/search?search_term=${encodeURIComponent(searchQuery)}&lang=ar`
+    const html = await fetchTextWithTimeout(searchUrl, OFFICIAL_NEWS_SEARCH_TIMEOUT_MS)
+    if (!html || !html.includes("message_box")) continue
 
-  const normalized = normalizeSourceDataset(source, result.data)
-  multiSourceCache.set(cacheKey, { data: normalized, cachedAt: now })
-  return { success: true, data: normalized }
-}
+    let match: RegExpExecArray | null
+    while ((match = blockPattern.exec(html)) !== null && items.length < maxCandidates) {
+      const [, blockId, articleId, rawTitle, rawDate] = match
+      const title = decodeHtmlEntities(rawTitle)
+      const stableId = String(articleId || blockId)
+      if (!title || seenIds.has(stableId)) continue
 
-/**
- * توحيد شكل البيانات القادمة من APIs مختلفة إلى مصفوفة مشاريع موحدة
- */
-function normalizeProjectsDataset(rawData: any): any[] {
-  if (Array.isArray(rawData)) {
-    return rawData
-  }
-
-  const siteDomain = (process.env.SITE_DOMAIN || "https://alkafeel.net").replace(/\/+$/, "")
-  const articleUrlTemplate = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}"
-
-  function resolveArticleUrl(item: any): string {
-    const explicitUrl =
-      item?.url ||
-      item?.link ||
-      item?.permalink ||
-      item?.news_url ||
-      item?.article_url
-
-    if (typeof explicitUrl === "string" && explicitUrl.trim().length > 0) {
-      return explicitUrl
-    }
-
-    // حقل request يحتوي المعرّف الصحيح (hash/slug) لصفحة الخبر — يُستخدم كأولوية على الـ id الرقمي
-    const requestSlug = item?.request
-    if (typeof requestSlug === "string" && requestSlug.trim().length > 0) {
-      return `${siteDomain}/news/${encodeURIComponent(requestSlug.trim())}?lang=ar`
-    }
-
-    const id = String(item?.id || "").trim()
-    if (!id) return siteDomain
-
-    const articlePath = articleUrlTemplate.replace("{id}", encodeURIComponent(id))
-
-    // Fallback pattern for news pages when API item has no direct URL.
-    if (articlePath.startsWith("http://") || articlePath.startsWith("https://")) {
-      return articlePath
-    }
-
-    const normalizedPath = articlePath.startsWith("/") ? articlePath : `/${articlePath}`
-    return `${siteDomain}${normalizedPath}`
-  }
-
-  if (rawData && Array.isArray(rawData.data)) {
-    return rawData.data.map((item: any) => {
-      const sectionName = item.cat_title || "غير مصنف"
-      const unixTime = Number(item.time)
-      const createdAt = Number.isFinite(unixTime) && unixTime > 0
-        ? new Date(unixTime * 1000).toISOString()
-        : new Date().toISOString()
-      const articleUrl = resolveArticleUrl(item)
-
-      return {
-        id: String(item.id || ""),
-        name: item.title || item.name || "بدون عنوان",
-        description: item.text || item.description || "",
-        image: item.image || null,
-        created_at: createdAt,
-        address: item.address || "",
-        sections: [
-          {
-            id: sectionName,
-            name: sectionName
-          }
-        ],
+      seenIds.add(stableId)
+      items.push({
+        id: stableId,
+        name: title,
+        description: "",
+        image: null,
+        created_at: normalizeOfficialNewsSearchDate(decodeHtmlEntities(rawDate)),
+        address: "",
+        sections: [{ id: "official_news_search", name: "نتائج بحث الأخبار" }],
         kftags: [],
         properties: [],
-        url: articleUrl,
+        url: `${baseUrl}/news/index?id=${encodeURIComponent(stableId)}&lang=ar`,
         source_type: "articles_latest",
-        source_raw: item
-      }
+        source_raw: {
+          query: searchQuery,
+          search_url: searchUrl,
+          official_search: true
+        }
+      })
+    }
+
+    if (items.length >= maxCandidates) break
+  }
+
+  if (items.length > 0) {
+    officialNewsSearchCache.set(cacheKey, {
+      items: [...items],
+      cachedAt: now
     })
   }
 
-  return []
+  return items
+}
+
+export function shouldAllowOfficialNewsSearchFallback(
+  source: SiteSourceName | "auto",
+  scoredCount: number,
+  topScore: number,
+  capability: ReturnType<typeof deriveRetrievalCapabilitySignals>,
+  query: string
+): boolean {
+  const hasQueryTokens = tokenizeArabicQuery(query).length > 0
+  if (!hasQueryTokens) return false
+
+  const isPrimaryNewsSource = source === "auto" || source === "articles_latest"
+  const isHistorySource =
+    source === "shrine_history_timeline" ||
+    source === "shrine_history_sections" ||
+    source === "shrine_history_by_section"
+  const weakOrEmptyHistoryMatch = isHistorySource && (scoredCount === 0 || topScore < 8)
+
+  if (!isPrimaryNewsSource && !weakOrEmptyHistoryMatch) return false
+
+  return (
+    scoredCount === 0 ||
+    topScore < 8 ||
+    capability.named_event_or_program ||
+    capability.institutional_relation ||
+    capability.title_or_phrase_lookup ||
+    capability.singular_project_lookup ||
+    looksLikeTitleQuery(query)
+  )
+}
+
+function extractSectionFilterCandidates(query: string): string[] {
+  const norm = normalizeArabic(String(query || ""))
+  if (!norm) return []
+
+  const markers = [
+    "من قسم",
+    "في قسم",
+    "بقسم",
+    "قسم",
+    "القسم",
+    "من تصنيف",
+    "في تصنيف",
+    "تصنيف",
+    "التصنيف",
+    "من فئة",
+    "في فئة",
+    "فئة",
+    "الفئة"
+  ].map(marker => normalizeArabic(marker))
+
+  const phrases: string[] = []
+
+  for (const marker of markers) {
+    const idx = norm.indexOf(marker)
+    if (idx === -1) continue
+
+    const tail = norm
+      .slice(idx + marker.length)
+      .trim()
+      .replace(/^(?:الخاص|الخاصة|الخاصه|التابع|التابعه|التابعة|المسمى|المسمي)\s+/u, "")
+
+    if (!tail) continue
+
+    const collected: string[] = []
+    for (const token of tail.split(/\s+/).filter(Boolean)) {
+      if (FILTER_STOP_WORDS.has(token)) {
+        if (collected.length > 0) break
+        continue
+      }
+      collected.push(token)
+      if (collected.length >= 5) break
+    }
+
+    if (collected.length === 0) continue
+    phrases.push(collected.join(" "))
+    for (let len = Math.min(collected.length, 4); len >= 1; len--) {
+      phrases.push(collected.slice(0, len).join(" "))
+    }
+  }
+
+  return [...new Set(phrases.filter(Boolean))]
+}
+
+function scoreCategoryMatch(
+  category: SourceCategoryOption,
+  queryCandidates: string[]
+): number {
+  const normName = normalizeArabic(category.name)
+  if (!normName || queryCandidates.length === 0) return 0
+
+  const nameTokens = tokenizeArabicQuery(category.name)
+  let bestScore = 0
+
+  for (const candidate of queryCandidates) {
+    const normCandidate = normalizeArabic(candidate)
+    if (!normCandidate) continue
+
+    if (normName === normCandidate) {
+      bestScore = Math.max(bestScore, 100)
+      continue
+    }
+
+    if (normName.includes(normCandidate)) {
+      bestScore = Math.max(bestScore, 80 + Math.min(normCandidate.length, 10))
+    }
+
+    if (normCandidate.includes(normName)) {
+      bestScore = Math.max(bestScore, 70 + Math.min(normName.length, 10))
+    }
+
+    const candidateTokens = tokenizeArabicQuery(candidate)
+    const overlap = candidateTokens.filter(token =>
+      nameTokens.some(nameToken => nameToken.includes(token) || token.includes(nameToken))
+    ).length
+
+    if (overlap > 0) {
+      const tokenScore = overlap * 20 + (candidateTokens.length === nameTokens.length ? 10 : 0)
+      bestScore = Math.max(bestScore, tokenScore)
+    }
+  }
+
+  return bestScore
+}
+
+function findBestCategoryMatch(
+  query: string,
+  categories: SourceCategoryOption[]
+): SourceCategoryOption | null {
+  const candidates = extractSectionFilterCandidates(query)
+  if (candidates.length === 0 || categories.length === 0) return null
+
+  let bestMatch: SourceCategoryOption | null = null
+  let bestScore = 0
+
+  for (const category of categories) {
+    const score = scoreCategoryMatch(category, candidates)
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = category
+    }
+  }
+
+  return bestScore >= 40 ? bestMatch : null
+}
+
+export async function resolveLatestListingRequest(
+  source: SiteSourceName | "auto" = "auto",
+  params: LatestSourceFetchParams = {},
+  listCategories: (source: SiteSourceName | "auto") => Promise<APICallResult> = siteListSourceCategories
+): Promise<LatestListingResolution> {
+  const resolvedParams: SourceFetchParams = {
+    category_id: params.category_id,
+    section_id: params.section_id,
+    id: params.id
+  }
+
+  if (!params.query) {
+    return { source, params: resolvedParams, matchedCategory: null }
+  }
+
+  if (source === "videos_latest" && !resolvedParams.category_id) {
+    const categoriesResult = await listCategories("videos_categories")
+    const categories = Array.isArray(categoriesResult.data?.categories)
+      ? categoriesResult.data.categories as SourceCategoryOption[]
+      : []
+    const match = findBestCategoryMatch(params.query, categories)
+
+    if (match) {
+      return {
+        source: "videos_by_category",
+        params: { ...resolvedParams, category_id: match.id },
+        matchedCategory: match
+      }
+    }
+  }
+
+  if (source === "articles_latest" && !resolvedParams.section_id) {
+    const categoriesResult = await listCategories("articles_latest")
+    const categories = Array.isArray(categoriesResult.data?.categories)
+      ? categoriesResult.data.categories as SourceCategoryOption[]
+      : []
+    const match = findBestCategoryMatch(params.query, categories)
+
+    if (match) {
+      return {
+        source,
+        params: { ...resolvedParams, section_id: match.id },
+        matchedCategory: match
+      }
+    }
+  }
+
+  return { source, params: resolvedParams, matchedCategory: null }
 }
 
 /**
@@ -690,7 +559,7 @@ const CACHE_DURATION = 30 * 60 * 1000 // 30 دقيقة — تقليل استدع
 async function getAllProjects(): Promise<APICallResult> {
   console.log("[getAllProjects] Starting...")
   const config = getSiteAPIConfig()
-  
+
   // تحقق من الـ cache
   const now = Date.now()
   if (projectsCache && now - projectsCacheTime < CACHE_DURATION) {
@@ -702,9 +571,39 @@ async function getAllProjects(): Promise<APICallResult> {
   }
 
   console.log("[getAllProjects] Cache miss, fetching from API...")
-  
-  // جلب البيانات من API
-  const result = await callSiteAPI(config.allProjectsEndpoint)
+
+  // The canonical projects API is paginated (Laravel-style: { data, current_page,
+  // last_page, ... }). When it returns a single array (legacy/simple endpoints)
+  // we use it as-is. When it's paginated we fetch every page so the search
+  // operates on the full catalog.
+  const firstPage = await callSiteAPI(config.allProjectsEndpoint)
+  const aggregated: any[] = []
+
+  if (firstPage.success) {
+    if (Array.isArray(firstPage.data)) {
+      aggregated.push(...firstPage.data)
+    } else if (firstPage.data && Array.isArray(firstPage.data.data)) {
+      aggregated.push(...firstPage.data.data)
+      const lastPage = Number(firstPage.data.last_page) || 1
+      const isAbsolute = /^https?:\/\//.test(config.allProjectsEndpoint)
+      const separator = config.allProjectsEndpoint.includes("?") ? "&" : "?"
+      for (let page = 2; page <= lastPage; page++) {
+        const pageUrl = isAbsolute
+          ? `${config.allProjectsEndpoint}${separator}page=${page}`
+          : `${config.allProjectsEndpoint}${separator}page=${page}`
+        const pageResult = await callSiteAPI(pageUrl)
+        if (pageResult.success && pageResult.data && Array.isArray(pageResult.data.data)) {
+          aggregated.push(...pageResult.data.data)
+        } else {
+          break
+        }
+      }
+    }
+  }
+
+  const result: APICallResult = aggregated.length > 0
+    ? { success: true, data: aggregated }
+    : firstPage
   const normalizedProjects = result.success
     ? normalizeProjectsDataset(result.data)
     : []
@@ -741,7 +640,7 @@ async function getAllProjects(): Promise<APICallResult> {
  * البحث العميق في المشاريع
  * يبحث في: الاسم، الوصف، الأقسام، الخصائص (المكان، المواصفات، الجهة المنفذة...)،
  * العلامات (tags)، والعنوان
- * 
+ *
  * @param query - كلمة البحث
  * @param section - اسم القسم بالعربية (اختياري)
  * @param limit - عدد النتائج
@@ -752,14 +651,14 @@ export async function siteSearch(
   limit: number = 5
 ): Promise<APICallResult> {
   const allProjects = await getAllProjects()
-  
+
   if (!allProjects.success) {
     return allProjects
   }
 
   const projects = allProjects.data as any[]
 
-  // ✅ معالجة query فارغ أو undefined — GPT أحياناً يرسل section فقط بدون query
+  // معالجة query فارغ أو undefined — GPT أحياناً يرسل section فقط بدون query
   const safeQuery = (query || "").trim()
 
   // تقسيم الاستعلام إلى كلمات فردية للبحث المرن
@@ -767,41 +666,30 @@ export async function siteSearch(
   const queryWords = tokenizeArabicQuery(safeQuery)
   const lowerQuery = normQuery
 
-  /**
-   * استخراج كل النصوص القابلة للبحث من مشروع
-   * يعيد مصفوفة من النصوص مع أوزان (weight) لترتيب النتائج
-   */
   function getSearchableTexts(project: any): { text: string; weight: number }[] {
     const texts: { text: string; weight: number }[] = []
 
-    // 1. اسم المشروع — وزن عالي جداً
     if (project.name) {
       texts.push({ text: normalizeArabic(project.name), weight: 10 })
     }
 
-    // 2. الوصف — وزن عالي
     if (project.description) {
       texts.push({ text: normalizeArabic(project.description), weight: 5 })
     }
 
-    // 3. العنوان — وزن عالي
     if (project.address) {
       texts.push({ text: normalizeArabic(project.address), weight: 5 })
     }
 
-    // 4. أسماء الأقسام — وزن متوسط
     if (Array.isArray(project.sections)) {
       for (const s of project.sections) {
         if (s.name) texts.push({ text: normalizeArabic(s.name), weight: 3 })
       }
     }
 
-    // 5. الخصائص properties (المكان، المواصفات، الجهة المنفذة، تاريخ الافتتاح...) — وزن متوسط-عالي
     if (Array.isArray(project.properties)) {
       for (const prop of project.properties) {
-        // اسم الخاصية
         if (prop.name) texts.push({ text: normalizeArabic(prop.name), weight: 3 })
-        // قيمة الخاصية (قد تكون في pivot.value أو value)
         const val = prop.pivot?.value || prop.value
         if (val && typeof val === "string") {
           texts.push({ text: normalizeArabic(val), weight: 4 })
@@ -809,7 +697,6 @@ export async function siteSearch(
       }
     }
 
-    // 6. العلامات kftags — وزن متوسط
     if (Array.isArray(project.kftags)) {
       for (const tag of project.kftags) {
         if (tag.title) texts.push({ text: normalizeArabic(tag.title), weight: 3 })
@@ -817,7 +704,6 @@ export async function siteSearch(
       }
     }
 
-    // 7. الأخبار kfnews — وزن منخفض
     if (Array.isArray(project.kfnews)) {
       for (const news of project.kfnews) {
         if (news.title) texts.push({ text: normalizeArabic(news.title), weight: 2 })
@@ -828,23 +714,19 @@ export async function siteSearch(
     return texts
   }
 
-  /**
-   * حساب درجة التطابق لمشروع
-   * كلما ارتفعت الدرجة، كان التطابق أفضل
-   */
   function scoreProject(project: any): number {
     const searchTexts = getSearchableTexts(project)
     let score = 0
 
     for (const { text, weight } of searchTexts) {
-      // مطابقة الاستعلام الكامل — أعلى نقاط
       if (text.includes(lowerQuery)) {
         score += weight * 3
       }
 
-      // مطابقة الكلمات الفردية
       for (const word of queryWords) {
-        if (text.includes(word)) {
+        // Match word OR any morphological variant (broken plural, suffix-stripped)
+        const variants = buildTokenVariants(word)
+        if (variants.some(v => text.includes(v))) {
           score += weight
         }
       }
@@ -853,13 +735,47 @@ export async function siteSearch(
     return score
   }
 
-  // فلترة المشاريع مع حساب درجة التطابق
+  // Relaxed scorer: matches by morphological stem (≥3-char shared prefix between
+  // query token and any whole word in the project text). Generalizable — handles
+  // feminine/masculine adjective forms, plural ↔ singular, and root-shared
+  // derivatives without hard-coded synonym lists.
+  function scoreProjectRelaxed(project: any): number {
+    if (queryWords.length === 0) return 0
+    // Build stems from BOTH original tokens AND their morphological variants
+    // so broken plurals (مصانع→مصنع) can stem-match singular project names.
+    const stems: string[] = []
+    for (const w of queryWords) {
+      for (const v of buildTokenVariants(w)) {
+        const stem = v.length >= 4 ? v.slice(0, Math.max(3, v.length - 1)) : v
+        if (stem.length >= 3) stems.push(stem)
+      }
+    }
+    if (stems.length === 0) return 0
+
+    const searchTexts = getSearchableTexts(project)
+    let score = 0
+    for (const { text, weight } of searchTexts) {
+      const words = text.split(/\s+/).filter(w => w.length >= 3)
+      for (const stem of stems) {
+        const hit = words.some(w => {
+          if (w.startsWith(stem)) return true
+          // bidirectional shared prefix: word starts with stem, or stem starts with word
+          // (handles plural↔singular, masc↔fem morphology). Require ≥4 shared chars.
+          const minLen = Math.min(w.length, stem.length)
+          if (minLen < 4) return false
+          return w.slice(0, minLen) === stem.slice(0, minLen)
+        })
+        if (hit) score += weight
+      }
+    }
+    return score
+  }
+
   let scored = projects.map(project => ({
     project,
     score: scoreProject(project)
   }))
 
-  // فلترة حسب القسم إذا كان محدداً
   if (section) {
     const normSection = normalizeArabic(section)
     scored = scored.filter(({ project }) =>
@@ -869,16 +785,20 @@ export async function siteSearch(
     )
   }
 
-  // حذف المشاريع التي لم تطابق أي شيء (score = 0)
-  // لكن إذا حددنا قسم بدون query فعلي، نقبل الكل
   if (queryWords.length > 0) {
-    scored = scored.filter(({ score }) => score > 0)
+    const exactMatched = scored.filter(({ score }) => score > 0)
+    if (exactMatched.length > 0) {
+      scored = exactMatched
+    } else {
+      // No exact substring matches — relax to morphological/stem matching.
+      scored = projects
+        .map(project => ({ project, score: scoreProjectRelaxed(project) }))
+        .filter(({ score }) => score > 0)
+    }
   }
 
-  // ترتيب حسب الدرجة (الأعلى أولاً)
   scored.sort((a, b) => b.score - a.score)
 
-  // حد النتائج
   const filtered = scored.slice(0, limit).map(({ project }) => project)
 
   return {
@@ -893,12 +813,12 @@ export async function siteSearch(
 
 /**
  * الحصول على تفاصيل مشروع محدد
- * 
+ *
  * @param id - معرف المشروع
  */
 export async function siteGetProject(id: string): Promise<APICallResult> {
   const allProjects = await getAllProjects()
-  
+
   if (!allProjects.success) {
     return allProjects
   }
@@ -921,22 +841,21 @@ export async function siteGetProject(id: string): Promise<APICallResult> {
 
 /**
  * الحصول على قائمة الفئات (الأقسام)
- * 
+ *
  * @param include_counts - تضمين عدد المشاريع في كل فئة
  */
 export async function siteListCategories(
   include_counts: boolean = false
 ): Promise<APICallResult> {
   const allProjects = await getAllProjects()
-  
+
   if (!allProjects.success) {
     return allProjects
   }
 
   const projects = allProjects.data as any[]
-  const sectionsMap = new Map<number, {name: string, count: number}>()
+  const sectionsMap = new Map<string | number, { name: string; count: number }>()
 
-  // استخراج جميع الأقسام
   projects.forEach(project => {
     if (Array.isArray(project.sections)) {
       project.sections.forEach((section: any) => {
@@ -969,7 +888,7 @@ export async function siteListCategories(
 
 /**
  * الحصول على أحدث المشاريع
- * 
+ *
  * @param limit - عدد المشاريع
  * @param category - فئة اختيارية
  */
@@ -978,30 +897,27 @@ export async function siteGetLatest(
   section?: string
 ): Promise<APICallResult> {
   const allProjects = await getAllProjects()
-  
+
   if (!allProjects.success) {
     return allProjects
   }
 
   let projects = allProjects.data as any[]
 
-  // فلترة حسب القسم إذا كان محدداً
   if (section) {
-    projects = projects.filter(project => 
-      project.sections?.some((s: any) => 
+    projects = projects.filter(project =>
+      project.sections?.some((s: any) =>
         s.name?.toLowerCase().includes(section.toLowerCase())
       )
     )
   }
 
-  // ترتيب حسب تاريخ الإنشاء (الأحدث أولاً)
   projects.sort((a, b) => {
     const dateA = new Date(a.created_at || 0).getTime()
     const dateB = new Date(b.created_at || 0).getTime()
     return dateB - dateA
   })
 
-  // حد النتائج
   projects = projects.slice(0, limit)
 
   return {
@@ -1019,22 +935,19 @@ export async function siteGetLatest(
  */
 export async function siteGetStatistics(): Promise<APICallResult> {
   const allProjects = await getAllProjects()
-  
+
   if (!allProjects.success) {
     return allProjects
   }
 
   const projects = allProjects.data as any[]
-  
-  // حساب الإحصائيات
   const totalProjects = projects.length
-  
-  // عد المشاريع حسب الأقسام
+
   const sectionCounts = new Map<string, number>()
   projects.forEach(project => {
     if (Array.isArray(project.sections)) {
       project.sections.forEach((section: any) => {
-        const name = section.name || 'غير مصنف'
+        const name = section.name || "غير مصنف"
         sectionCounts.set(name, (sectionCounts.get(name) || 0) + 1)
       })
     }
@@ -1055,157 +968,34 @@ export async function siteGetStatistics(): Promise<APICallResult> {
   }
 }
 
-// ── Stronger multi-field scoring ────────────────────────────────────
-
-interface WeightedField { text: string; weight: number }
-
-/** Extract all searchable text fields from a unified item with weights */
-function getItemSearchFields(item: any): WeightedField[] {
-  const out: WeightedField[] = []
-  if (item?.name)        out.push({ text: normalizeArabic(item.name), weight: 10 })
-  if (item?.description) out.push({ text: normalizeArabic(item.description), weight: 5 })
-  if (item?.address)     out.push({ text: normalizeArabic(item.address), weight: 5 })
-
-  if (Array.isArray(item?.sections)) {
-    for (const s of item.sections) {
-      if (s?.name) out.push({ text: normalizeArabic(s.name), weight: 2 })
-    }
-  }
-  if (Array.isArray(item?.properties)) {
-    for (const p of item.properties) {
-      if (p?.name) out.push({ text: normalizeArabic(p.name), weight: 3 })
-      const val = p?.pivot?.value || p?.value
-      if (typeof val === "string") out.push({ text: normalizeArabic(val), weight: 4 })
-    }
-  }
-  if (Array.isArray(item?.kftags)) {
-    for (const t of item.kftags) {
-      if (t?.title) out.push({ text: normalizeArabic(t.title), weight: 3 })
-      if (t?.name)  out.push({ text: normalizeArabic(t.name), weight: 3 })
-    }
-  }
-
-  // source_raw extras (caption/summary) — weak
-  const raw = item?.source_raw
-  if (raw) {
-    if (raw.caption)  out.push({ text: normalizeArabic(raw.caption), weight: 2 })
-    if (raw.summary)  out.push({ text: normalizeArabic(raw.summary), weight: 2 })
-  }
-
-  // source_type only as very weak signal
-  if (item?.source_type) out.push({ text: normalizeArabic(item.source_type), weight: 1 })
-
-  return out
-}
-
-function scoreUnifiedItem(item: any, query: string): number {
-  const normQ = normalizeArabic(query)
-  if (!normQ) return 1
-
-  const tokens = tokenizeArabicQuery(query)
-  const fields = getItemSearchFields(item)
-  let score = 0
-  let matchedTokenCount = 0
-
-  for (const { text, weight } of fields) {
-    if (!text) continue
-    // Full query match — highest boost
-    if (text.includes(normQ)) score += weight * 4
-    // Per-token matching
-    for (const tok of tokens) {
-      if (text.includes(tok)) {
-        score += weight
-        matchedTokenCount++
-      }
-    }
-  }
-
-  // Bonus when ALL tokens matched somewhere
-  if (tokens.length > 1 && matchedTokenCount >= tokens.length) {
-    score += 8
-  }
-
-  // Penalty: if score only came from weak section/source_type matches
-  if (score > 0 && score <= 4) {
-    score = Math.max(1, score - 1)
-  }
-
-  return score
-}
-
-// ── Evidence snippet builder ────────────────────────────────────────
-
-/** Build a short evidence snippet showing where the query matched in the item */
-function buildEvidenceSnippet(item: any, query: string): string {
-  const normQ = normalizeArabic(query)
-  const tokens = tokenizeArabicQuery(query)
-  if (!normQ && tokens.length === 0) return ""
-
-  // Candidate raw text fields to extract snippet from, ordered by relevance
-  const rawCandidates: { raw: string; weight: number }[] = []
-  if (item?.name)        rawCandidates.push({ raw: item.name, weight: 10 })
-  if (item?.description) rawCandidates.push({ raw: item.description, weight: 5 })
-  if (item?.address)     rawCandidates.push({ raw: item.address, weight: 4 })
-  const rawSrc = item?.source_raw
-  if (rawSrc?.text)      rawCandidates.push({ raw: rawSrc.text, weight: 3 })
-  if (rawSrc?.caption)   rawCandidates.push({ raw: rawSrc.caption, weight: 2 })
-  if (rawSrc?.summary)   rawCandidates.push({ raw: rawSrc.summary, weight: 2 })
-  if (rawSrc?.content)   rawCandidates.push({ raw: rawSrc.content, weight: 2 })
-
-  // Find best matching field
-  let bestSnippet = ""
-  let bestScore = -1
-
-  for (const { raw, weight } of rawCandidates) {
-    if (!raw || typeof raw !== "string") continue
-    const norm = normalizeArabic(raw)
-    let fieldScore = 0
-    let matchPos = -1
-
-    const fullIdx = norm.indexOf(normQ)
-    if (fullIdx !== -1) {
-      fieldScore = weight * 4
-      matchPos = fullIdx
-    } else {
-      for (const tok of tokens) {
-        const idx = norm.indexOf(tok)
-        if (idx !== -1) {
-          fieldScore += weight
-          if (matchPos === -1) matchPos = idx
-        }
-      }
-    }
-
-    if (fieldScore > bestScore) {
-      bestScore = fieldScore
-      // Extract a window around the match in the ORIGINAL (non-normalized) text
-      if (matchPos !== -1) {
-        const WINDOW = 120
-        const start = Math.max(0, matchPos - 30)
-        const end = Math.min(raw.length, matchPos + WINDOW)
-        bestSnippet = (start > 0 ? "…" : "") + raw.slice(start, end).trim() + (end < raw.length ? "…" : "")
-      } else {
-        bestSnippet = raw.slice(0, 150).trim() + (raw.length > 150 ? "…" : "")
-      }
-    }
-  }
-
-  return bestSnippet
-}
-
 export async function siteSearchContent(
   query: string,
   source: SiteSourceName | "auto" = "auto",
   limit: number = 5,
   params: SourceFetchParams = {}
 ): Promise<APICallResult> {
+  const understanding = understandQuery(query)
+  const capability = deriveRetrievalCapabilitySignals(understanding, query)
+  const entityFirstMode = capability.entity_first_mode &&
+    understanding.clarity !== "underspecified" &&
+    !capability.institutional_relation
+
   const safeLimit = Math.min(Math.max(limit || 5, 1), 20)
   const rawCandidates = source === "auto"
-    ? rankCandidateSources(query, params)
+    ? rankCandidateSources(query, params, capability)
     : [source]
+  const widenedCandidates: SiteSourceName[] = source === "auto" && (capability.institutional_relation || capability.title_or_phrase_lookup)
+    ? [...new Set<SiteSourceName>([
+        ...rawCandidates,
+        "articles_latest",
+        "friday_sermons",
+        "wahy_friday",
+        "videos_latest",
+        "shrine_history_sections"
+      ])]
+    : rawCandidates
 
-  // Filter out parametric sources that cannot be fetched + category sources unless intent matches
-  const candidates = rawCandidates.filter(s => {
+  const candidates = widenedCandidates.filter(s => {
     if (!canFetchSource(s, params)) return false
     if (CATEGORY_INDEX_SOURCES.includes(s) && !isCategoryIntent(query)) return false
     return true
@@ -1222,14 +1012,39 @@ export async function siteSearchContent(
     }
   }
 
-  // Abbas/history auto-resolution: when sections were fetched, find relevant section
-  // and automatically pull its content for broad biography queries
+  // Always attempt to augment from the projects dataset when source is auto.
+  // No hard-coded vocabulary gate: getAllProjects() is cached (30 min) so the
+  // call is cheap, and siteSearch() returns only items with score > 0. The
+  // downstream scoring drops any irrelevant items, so non-project queries
+  // pay near-zero cost and project queries get full coverage automatically.
+  const shouldAugmentFromProjectsDataset = source === "auto"
+
+  if (shouldAugmentFromProjectsDataset) {
+    const projectQueries = [query, ...buildRelaxedProjectQueries(query)]
+    const seenProjectIds = new Set<string>()
+
+    for (const projectQuery of projectQueries) {
+      const projectsAugment = await siteSearch(projectQuery, undefined, Math.min(Math.max(safeLimit * 3, 8), 20))
+      if (!projectsAugment.success || !Array.isArray(projectsAugment.data?.results)) continue
+
+      for (const projectItem of projectsAugment.data.results) {
+        const projectId = String(projectItem?.id || "")
+        if (!projectId || seenProjectIds.has(projectId)) continue
+        seenProjectIds.add(projectId)
+        merged.push({
+          ...projectItem,
+          source_type: projectItem?.source_type || "projects_dataset"
+        })
+      }
+
+      if (seenProjectIds.size >= safeLimit * 2) break
+    }
+  }
+
   const norm = normalizeArabic(query)
   const abbasAutoHints = ["العباس", "ابو الفضل", "ابا الفضل", "ابوالفضل"]
   const isAbbasBioQuery = abbasAutoHints.some(h => norm.includes(normalizeArabic(h)))
   if (isAbbasBioQuery && !params.section_id && !params.id && source === "auto") {
-    // shrine_history_sections items already contain full text in description
-    // Score them directly against the query and include relevant ones
     const sectionsResult = await getSourceDocuments("shrine_history_sections")
     if (sectionsResult.success && Array.isArray(sectionsResult.data)) {
       for (const item of sectionsResult.data) {
@@ -1241,9 +1056,10 @@ export async function siteSearchContent(
     }
   }
 
-  // fallback — only non-parametric, non-category sources
   if (merged.length === 0 && source === "auto") {
-    const SAFE_FALLBACK: SiteSourceName[] = ["articles_latest", "videos_latest", "lang_words_ar"]
+    const SAFE_FALLBACK: SiteSourceName[] = capability.title_or_phrase_lookup
+      ? ["articles_latest", "friday_sermons", "wahy_friday", "videos_latest", "shrine_history_sections", "lang_words_ar"]
+      : ["articles_latest", "videos_latest", "lang_words_ar"]
     const fallback = await Promise.all(
       SAFE_FALLBACK.map(async s => ({ source: s, result: await getSourceDocuments(s, params) }))
     )
@@ -1254,259 +1070,254 @@ export async function siteSearchContent(
     }
   }
 
-  // Deduplicate
   const deduped = new Map<string, any>()
   for (const item of merged) {
     const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
     if (!deduped.has(key)) deduped.set(key, item)
   }
 
-  // Score, sort, slice
   let scored = Array.from(deduped.values())
     .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score)
 
-  // Expansion: if results are sparse, try loading more from expandable sources
-  if (scored.length < safeLimit && source === "auto" && tokenizeArabicQuery(query).length > 0) {
+  if (capability.institutional_relation && scored.length === 0) {
+    const relaxedScoreQueries = [
+      ...buildRelaxedProjectQueries(query),
+      ...tokenizeArabicQuery(query).slice(0, 4)
+    ]
+    const seenRelaxed = new Set<string>()
+    const uniqueRelaxed = relaxedScoreQueries.filter(q => {
+      const key = normalizeArabic(String(q || ""))
+      if (!key || seenRelaxed.has(key)) return false
+      seenRelaxed.add(key)
+      return true
+    }).slice(0, 8)
+
+    if (uniqueRelaxed.length > 0) {
+      scored = Array.from(deduped.values())
+        .map(item => {
+          const best = uniqueRelaxed.reduce((maxScore, relaxedQuery) => {
+            return Math.max(maxScore, scoreUnifiedItem(item, relaxedQuery))
+          }, 0)
+          return { item, score: best }
+        })
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+    }
+  }
+
+  const topScore = scored[0]?.score || 0
+  const shouldUseOfficialNewsSearch = shouldAllowOfficialNewsSearchFallback(
+    source,
+    scored.length,
+    topScore,
+    capability,
+    query
+  )
+
+  if (shouldUseOfficialNewsSearch) {
+    console.log(`[siteSearchContent] Official news search fallback for query="${query}"`)
+    // للاستعلامات الطويلة: استخرج الكلمات الرئيسية (محتوى) فقط بدلاً من الجملة الكاملة
+    // حتى لا يُعيد الـ API نتائج غير ذات صلة بسبب الكلمات الوظيفية
+    const queryTokensRaw = tokenizeArabicQuery(query)
+    const genericStopSet = new Set(["ماهي","ماهو","ما","اسم","من","هو","هي","هل","اين","يقام","كم","عدد","لي","عن","في","على","هن","له","لها","لهم","العتبه","العتبة","العباسيه","العباسية","مشروع","مشاريع","خبر","قديم","يتحدث","تكلم","اشرح","حدثني","اخبرني","حول","باختصار","اعطني","اعرض","عليه","السلام","تمتلك","يمتلك","تملك","توجد","يوجد","هناك","هنالك","تتبع","تابعه","تابع","لديها","لديه","لدى","او","أو","ثم","بل","لكن","اما","للعتبه","لعتبه"])
+    const keyTokens = queryTokensRaw.filter(t => !genericStopSet.has(normalizeArabic(t)))
+    // Strip stop-words only when at least TWO content tokens remain. With a
+    // single content token (e.g. "جامعات") the search loses entity context
+    // and returns generic articles; the full query keeps the discriminating
+    // tokens (e.g. "العباسية") that the API uses for relevance ranking.
+    const officialSearchQuery = keyTokens.length >= 2 && keyTokens.length < queryTokensRaw.length
+      ? keyTokens.join(" ")
+      : query
+    const officialNewsResults = await fetchOfficialNewsSearchResults(officialSearchQuery, safeLimit, {
+      preserveEntityTokens: capability.institutional_relation
+    })
+    console.log(`[siteSearchContent] Official news search returned ${officialNewsResults.length} candidate(s)`)
+    for (const item of officialNewsResults) {
+      const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
+      if (!deduped.has(key)) {
+        deduped.set(key, item)
+      }
+    }
+
+    if (officialNewsResults.length > 0) {
+      scored = Array.from(deduped.values())
+        .map(item => ({ item, score: scoreUnifiedItem(item, query) }))
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+
+      if (capability.institutional_relation && scored.length === 0) {
+        const relaxedScoreQueries = [
+          ...buildRelaxedProjectQueries(query),
+          ...tokenizeArabicQuery(query).slice(0, 4)
+        ]
+        const seenRelaxed = new Set<string>()
+        const uniqueRelaxed = relaxedScoreQueries.filter(q => {
+          const key = normalizeArabic(String(q || ""))
+          if (!key || seenRelaxed.has(key)) return false
+          seenRelaxed.add(key)
+          return true
+        }).slice(0, 8)
+
+        if (uniqueRelaxed.length > 0) {
+          scored = Array.from(deduped.values())
+            .map(item => {
+              const best = uniqueRelaxed.reduce((maxScore, relaxedQuery) => {
+                return Math.max(maxScore, scoreUnifiedItem(item, relaxedQuery))
+              }, 0)
+              return { item, score: best }
+            })
+            .filter(x => x.score > 0)
+            .sort((a, b) => b.score - a.score)
+        }
+      }
+    }
+  }
+
+  const shouldExpandSearch =
+    source === "auto" &&
+    tokenizeArabicQuery(query).length > 0 &&
+    (
+      capability.institutional_relation ||
+      capability.title_or_phrase_lookup ||
+      !entityFirstMode ||
+      scored.length === 0 ||
+      (scored[0]?.score || 0) < 8
+    )
+
+  if (shouldExpandSearch && scored.length < safeLimit) {
     const expandSources = candidates.filter(s => EXPANDABLE_SOURCES.includes(s))
     if (expandSources.length > 0) {
-      const extra = await expandSearchFromSources(expandSources, params, deduped)
+      const extra = await expandSearchFromSources(
+        expandSources,
+        params,
+        deduped,
+        (s) => fetchSourceMetadataRaw(s, params),
+        (s, p, pms) => fetchSourcePage(s, p, pms)
+      )
       for (const item of extra) {
         const s = scoreUnifiedItem(item, query)
         if (s > 0) scored.push({ item, score: s })
       }
       scored.sort((a, b) => b.score - a.score)
     }
+  } else if (entityFirstMode) {
+    console.log("[siteSearchContent] Entity-first mode active, skipping broad expansion")
   }
 
-  // Deep title search: if the query looks like a title and no existing result
-  // is a strong title match, scan deeper into archives in parallel.
-  const isTitleQ = looksLikeTitleQuery(query)
-  const hasStrongTitleHit = scored.some(s => scoreTitleMatch(s.item, query) >= 50)
-  if (isTitleQ && !hasStrongTitleHit && source === "auto") {
+  const isTitleQ = looksLikeTitleQuery(query) || capability.title_or_phrase_lookup
+  // Always run deep archive scan for bare title queries; partial-overlap
+  // matches in news fallback are not the actual item the user is asking about.
+  // The deep scan has its own internal HIGH_CONFIDENCE early-exit.
+  const shouldRunDeepTitleScan = isTitleQ
+
+  if (shouldRunDeepTitleScan) {
     console.log("[siteSearchContent] Title-query detected, launching deep archive scan...")
-    const deepSources = candidates.filter(s => EXPANDABLE_SOURCES.includes(s))
+    const deepSources = source === "auto"
+      ? candidates.filter(s => EXPANDABLE_SOURCES.includes(s))
+      : candidates.filter(s => EXPANDABLE_SOURCES.includes(s) || s === source)
     if (deepSources.length > 0) {
-      const deepHits = await deepTitleSearch(query, deepSources, params, deduped, safeLimit)
+      const deepHits = await deepTitleSearch(
+        query,
+        deepSources,
+        params,
+        deduped,
+        safeLimit,
+        (s) => fetchSourceMetadataRaw(s, params),
+        (s, p, pms) => fetchSourcePage(s, p, pms)
+      )
       for (const h of deepHits) {
         scored.push(h)
       }
       scored.sort((a, b) => b.score - a.score)
     }
+  } else if (entityFirstMode && isTitleQ) {
+    console.log("[siteSearchContent] Entity-first mode active, skipping deep archive scan")
   }
 
-  // Attach evidence snippets
   const results = scored.slice(0, safeLimit).map(x => ({
     ...x.item,
     _snippet: buildEvidenceSnippet(x.item, query)
   }))
+
+  // Final-stage rescue: when the unified search has produced no scored results
+  // and we're in auto-source mode, surface the project section catalog so the
+  // LLM can either identify a relevant domain category or honestly state which
+  // categories exist. The matching is purely data-driven against the live
+  // taxonomy (no hard-coded vocabulary): if no section name shares stems with
+  // the query, `matched` will be empty and the hint stays generic.
+  if (results.length === 0 && source === "auto") {
+    try {
+      const catalog = await siteListCategories(true)
+      const allCats = Array.isArray(catalog?.data?.categories) ? catalog.data.categories : []
+      const queryTokens = tokenizeArabicQuery(query)
+      const stems = queryTokens
+        .map(t => t.length >= 4 ? t.slice(0, t.length - 1) : t)
+        .filter(s => s.length >= 3)
+
+      const scoredCatalog = allCats
+        .map((c: any) => {
+          const name = normalizeArabic(String(c?.name || ""))
+          if (!name) return { c, s: 0 }
+          let s = 0
+          for (const stem of stems) {
+            if (name.includes(stem)) s += 5
+            const words = name.split(/\s+/).filter((w: string) => w.length >= 3)
+            if (words.some((w: string) => w.startsWith(stem) || stem.startsWith(w))) s += 2
+          }
+          return { c, s }
+        })
+        .sort((a: any, b: any) => b.s - a.s)
+
+      const matched = scoredCatalog.filter((x: any) => x.s > 0).slice(0, 8).map((x: any) => x.c)
+      const browse = allCats.slice(0, 40).map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        count: typeof c.count === "number" ? c.count : undefined
+      }))
+
+      return {
+        success: true,
+        data: {
+          results: [],
+          total: 0,
+          result_count: 0,
+          top_score: null,
+          query,
+          source_used: source,
+          candidate_sources: candidates,
+          source_attempts: candidates,
+          entity_first_mode: entityFirstMode,
+          empty_results: true,
+          rescue_hint: {
+            kind: "project_section_catalog",
+            note: "لم تُرجع المصادر المُجدولة نتائج بحث مباشرة، ولكن المؤسسة تمتلك قائمة أقسام للمشاريع. تحقّق من أقسام المشاريع التالية لمعرفة ما إذا كان أحدها يطابق موضوع السؤال (مثلاً: قسم زراعي، قسم صحي، قسم خدمي…). إذا وجدت قسماً مطابقاً، استخدم get_latest_by_source/list_source_categories للحصول على التفاصيل قبل الاعتذار.",
+            matched_sections: matched,
+            available_sections: browse,
+            total_sections: allCats.length
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[siteSearchContent] catalog rescue failed:", (e as Error)?.message)
+    }
+  }
 
   return {
     success: true,
     data: {
       results,
       total: results.length,
+      result_count: results.length,
+      top_score: scored.length > 0 ? scored[0].score : null,
       query,
       source_used: source,
-      candidate_sources: candidates
+      candidate_sources: candidates,
+      source_attempts: candidates,
+      entity_first_mode: entityFirstMode
     }
   }
-}
-
-/** Fetch a specific page of a paginated source (bypasses cache) */
-async function fetchSourcePage(
-  source: SiteSourceName,
-  page: number,
-  params: SourceFetchParams = {}
-): Promise<any[]> {
-  let endpoint: string
-  try {
-    endpoint = buildSourceEndpoint(source, params)
-  } catch {
-    return []
-  }
-  // Replace page=1 with the requested page number
-  const pagedEndpoint = endpoint.replace(/([?&])page=\d+/, `$1page=${page}`)
-  if (pagedEndpoint === endpoint && page !== 1) return [] // source doesn't support pagination
-
-  const result = await callSiteAPI(pagedEndpoint)
-  if (!result.success) return []
-  return normalizeSourceDataset(source, result.data)
-}
-
-/** Expand search by fetching additional pages from expandable sources (parallel batches) */
-async function expandSearchFromSources(
-  sources: SiteSourceName[],
-  params: SourceFetchParams,
-  alreadySeen: Map<string, any>
-): Promise<any[]> {
-  const extra: any[] = []
-  const MAX_EXPANSION_PAGE = 6
-  const BATCH = 5
-
-  for (const s of sources) {
-    const meta = await fetchSourceMetadataRaw(s)
-    const maxPage = Math.min(meta.last_page, MAX_EXPANSION_PAGE)
-
-    for (let batchStart = 2; batchStart <= maxPage; batchStart += BATCH) {
-      const batchEnd = Math.min(batchStart + BATCH - 1, maxPage)
-      const pages = Array.from({ length: batchEnd - batchStart + 1 }, (_, i) => batchStart + i)
-      const batchResults = await Promise.all(pages.map(p => fetchSourcePage(s, p, params)))
-
-      for (const items of batchResults) {
-        for (const item of items) {
-          const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
-          if (!alreadySeen.has(key)) {
-            alreadySeen.set(key, item)
-            extra.push(item)
-          }
-        }
-      }
-    }
-  }
-  return extra
-}
-
-// ── Deep title search (parallel batch scanning) ─────────────────────
-
-/**
- * Scan deep into paginated archives in parallel batches looking for
- * high-confidence title matches.  Used when `looksLikeTitleQuery` is true.
- *
- * Strategy:  Scan from BOTH ends simultaneously:
- *  - newest → pages 2..MAX_DEEP_PAGE   (recent articles)
- *  - oldest → pages last_page..last_page-MAX_DEEP_PAGE  (very old articles)
- *  Both directions run in interleaved parallel batches.
- *  Stop early when a ≥50 confidence title match is found.
- */
-async function deepTitleSearch(
-  query: string,
-  sources: SiteSourceName[],
-  params: SourceFetchParams,
-  alreadySeen: Map<string, any>,
-  limit: number = 5
-): Promise<{ item: any; score: number }[]> {
-  const MAX_DEEP_PAGE = 150     // max pages per direction
-  const BATCH_SIZE = 10
-  const HIGH_CONFIDENCE = 50
-
-  const hits: { item: any; score: number }[] = []
-
-  for (const source of sources) {
-    if (!EXPANDABLE_SOURCES.includes(source)) continue
-
-    const meta = await fetchSourceMetadataRaw(source)
-    if (meta.last_page <= 1) continue
-
-    // Build page ranges for both directions
-    const newestMax = Math.min(meta.last_page, MAX_DEEP_PAGE)
-    const oldestStart = meta.last_page
-    const oldestMin = Math.max(1, meta.last_page - MAX_DEEP_PAGE + 1)
-
-    let foundHigh = false
-    let newestPage = 2
-    let oldestPage = oldestStart
-
-    while (!foundHigh && (newestPage <= newestMax || oldestPage >= oldestMin)) {
-      const pagesToFetch: number[] = []
-
-      // Add a batch from the newest direction
-      for (let i = 0; i < BATCH_SIZE && newestPage <= newestMax; i++, newestPage++) {
-        pagesToFetch.push(newestPage)
-      }
-      // Add a batch from the oldest direction
-      for (let i = 0; i < BATCH_SIZE && oldestPage >= oldestMin; i++, oldestPage--) {
-        if (!pagesToFetch.includes(oldestPage)) pagesToFetch.push(oldestPage)
-      }
-
-      if (pagesToFetch.length === 0) break
-
-      const batchResults = await Promise.all(
-        pagesToFetch.map(p => fetchSourcePage(source, p, params))
-      )
-
-      for (const items of batchResults) {
-        for (const item of items) {
-          const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
-          if (alreadySeen.has(key)) continue
-          alreadySeen.set(key, item)
-
-          const ts = scoreTitleMatch(item, query)
-          if (ts > 0) {
-            const gs = scoreUnifiedItem(item, query)
-            hits.push({ item, score: Math.max(ts, gs) })
-            if (ts >= HIGH_CONFIDENCE) foundHigh = true
-          }
-        }
-      }
-    }
-  }
-
-  hits.sort((a, b) => b.score - a.score)
-  return hits.slice(0, limit)
-}
-
-// ── Weighted candidate source ranking ───────────────────────────────
-
-interface SourceScore { source: SiteSourceName; score: number }
-
-/** Rank candidate sources by query affinity instead of simple if/else branches */
-function rankCandidateSources(query: string, params: SourceFetchParams = {}): SiteSourceName[] {
-  const norm = normalizeArabic(query)
-  const scores: SourceScore[] = []
-
-  // Always include articles as baseline
-  scores.push({ source: "articles_latest", score: 5 })
-
-  // Video signals
-  const videoHints = ["فيديو", "فديو", "مرئي", "يوتيوب", "مقطع", "مشاهده"]
-  const videoBoost = videoHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 6 : 0), 0)
-  scores.push({ source: "videos_latest", score: 3 + videoBoost })
-  if (params.category_id) scores.push({ source: "videos_by_category", score: 4 + videoBoost })
-  if (isCategoryIntent(query)) scores.push({ source: "videos_categories", score: 2 + videoBoost })
-
-  // History signals
-  const historyHints = ["تاريخ", "سيره", "العباس", "العتبه", "ابو الفضل", "تاريخي"]
-  const histBoost = historyHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 5 : 0), 0)
-  if (params.section_id) scores.push({ source: "shrine_history_by_section", score: 4 + histBoost })
-  if (params.id) scores.push({ source: "abbas_history_by_id", score: 4 + histBoost })
-  if (isCategoryIntent(query) && histBoost > 0) scores.push({ source: "shrine_history_sections", score: 2 + histBoost })
-
-  // Abbas / broad biography intent — even without params, include sections for auto-resolution
-  const abbasHints = ["العباس", "ابو الفضل", "ابا الفضل", "ابوالفضل"]
-  const isAbbasIntent = abbasHints.some(h => norm.includes(normalizeArabic(h)))
-  if (isAbbasIntent && !params.section_id && !params.id) {
-    scores.push({ source: "shrine_history_sections", score: 6 + histBoost })
-  }
-
-  // Friday sermon signals
-  const sermonHints = ["خطبه", "خطب", "جمعه", "صلاه الجمعه", "وحي الجمعه", "خطيب"]
-  const sermonBoost = sermonHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 6 : 0), 0)
-  if (sermonBoost > 0) {
-    scores.push({ source: "friday_sermons", score: 6 + sermonBoost })
-    scores.push({ source: "wahy_friday", score: 5 + sermonBoost })
-  }
-
-  // Language signals
-  const langHints = ["ترجمه", "لغه", "كلمه", "مصطلح", "معني", "قاموس"]
-  const langBoost = langHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 6 : 0), 0)
-  if (langBoost > 0) scores.push({ source: "lang_words_ar", score: 4 + langBoost })
-  else scores.push({ source: "lang_words_ar", score: 1 })
-
-  // Sort by score desc, take top 4
-  scores.sort((a, b) => b.score - a.score)
-
-  // Deduplicate and return
-  const seen = new Set<SiteSourceName>()
-  const ranked: SiteSourceName[] = []
-  for (const { source } of scores) {
-    if (!seen.has(source)) {
-      seen.add(source)
-      ranked.push(source)
-    }
-  }
-  return ranked.slice(0, 4)
 }
 
 export async function siteGetContentById(
@@ -1517,7 +1328,6 @@ export async function siteGetContentById(
   const candidates = source === "auto" ? ALL_SOURCES : [source]
   const strId = String(id)
 
-  // Phase 1: search in cached page-1 data for all candidate sources
   for (const s of candidates) {
     const result = await getSourceDocuments(s, { ...params, id })
     if (!result.success || !Array.isArray(result.data)) continue
@@ -1527,29 +1337,21 @@ export async function siteGetContentById(
     }
   }
 
-  // Phase 2: for paginated sources, use metadata to estimate candidate page
   const paginatedCandidates = candidates.filter(s => EXPANDABLE_SOURCES.includes(s))
   for (const s of paginatedCandidates) {
-    // Fetch metadata to know how many pages exist
-    const meta = await fetchSourceMetadataRaw(s)
-    const maxPage = Math.min(meta.last_page, 10) // cap at 10 pages to stay bounded
+    const meta = await fetchSourceMetadataRaw(s, params)
+    const maxPage = Math.min(meta.last_page, 10)
 
-    // Try numeric ID heuristic: if id is numeric and per_page is known,
-    // estimate which page it might be on
     const numId = Number(strId)
     const pagesToTry: number[] = []
 
     if (Number.isFinite(numId) && numId > 0 && meta.per_page > 0 && meta.total > 0) {
-      // Items are usually newest-first, so older IDs are on higher pages
-      // Estimate: page ≈ ceil((total - numId_position) / per_page)
-      // Since we don't know exact position, try a few nearby pages
       const estimatedPage = Math.ceil(meta.total / meta.per_page)
-      const candidates_pages = [2, 3, estimatedPage, estimatedPage - 1, estimatedPage + 1]
-      for (const p of candidates_pages) {
+      const candidatesPages = [2, 3, estimatedPage, estimatedPage - 1, estimatedPage + 1]
+      for (const p of candidatesPages) {
         if (p >= 2 && p <= maxPage && !pagesToTry.includes(p)) pagesToTry.push(p)
       }
     } else {
-      // Fallback: try pages 2–5 sequentially
       for (let p = 2; p <= Math.min(5, maxPage); p++) pagesToTry.push(p)
     }
 
@@ -1614,17 +1416,30 @@ export async function siteListSourceCategories(
 export async function siteGetLatestBySource(
   source: SiteSourceName | "auto" = "auto",
   limit: number = 5,
-  params: SourceFetchParams = {}
+  params: LatestSourceFetchParams = {}
 ): Promise<APICallResult> {
   const safeLimit = Math.min(Math.max(limit || 5, 1), 20)
-  const candidates = source === "auto"
-    ? (["articles_latest", "videos_latest"] as SiteSourceName[]).filter(s => canFetchSource(s, params))
-    : [source]
+  const resolved = await resolveLatestListingRequest(source, params)
+  const candidates = resolved.source === "auto"
+    ? (["articles_latest", "videos_latest"] as SiteSourceName[]).filter(s => canFetchSource(s, resolved.params))
+    : [resolved.source]
 
-  const results = await Promise.all(candidates.map(s => getSourceDocuments(s, params)))
-  const merged = results
+  const results = await Promise.all(candidates.map(s => getSourceDocuments(s, resolved.params)))
+  let merged = results
     .filter(r => r.success && Array.isArray(r.data))
     .flatMap(r => r.data as any[])
+
+  if (resolved.source === "articles_latest" && resolved.params.section_id) {
+    const normSection = normalizeArabic(resolved.params.section_id)
+    merged = merged.filter(item =>
+      Array.isArray(item?.sections) &&
+      item.sections.some((section: any) => {
+        const sectionId = String(section?.id || "").trim()
+        const sectionName = String(section?.name || "").trim()
+        return sectionId === resolved.params.section_id || normalizeArabic(sectionName) === normSection
+      })
+    )
+  }
 
   merged.sort((a, b) => {
     const dateA = new Date(a?.created_at || 0).getTime()
@@ -1639,8 +1454,9 @@ export async function siteGetLatestBySource(
       projects: items,
       total: items.length,
       limit: safeLimit,
-      source_used: source,
-      candidate_sources: candidates
+      source_used: resolved.source,
+      candidate_sources: candidates,
+      matched_category: resolved.matchedCategory?.name
     }
   }
 }
@@ -1649,14 +1465,12 @@ export async function siteGetMultiSourceStatistics(): Promise<APICallResult> {
   const targets: SiteSourceName[] = ["articles_latest", "videos_latest", "lang_words_ar"]
 
   const bySource = await Promise.all(targets.map(async s => {
-    // For paginated sources, use real metadata total
     if (EXPANDABLE_SOURCES.includes(s)) {
       const meta = await fetchSourceMetadataRaw(s)
       if (meta.total > 0) {
         return { source: s, count: meta.total }
       }
     }
-    // Fallback: use loaded document count
     const docs = await getSourceDocuments(s)
     const count = docs.success && Array.isArray(docs.data) ? docs.data.length : 0
     return { source: s, count }
@@ -1674,45 +1488,6 @@ export async function siteGetMultiSourceStatistics(): Promise<APICallResult> {
   }
 }
 
-/** Fetch raw pagination metadata from a source endpoint without normalizing items */
-async function fetchSourceMetadataRaw(
-  source: SiteSourceName,
-  params: SourceFetchParams = {}
-): Promise<{ total: number; per_page: number; current_page: number; last_page: number }> {
-  const fallback = { total: 0, per_page: 16, current_page: 1, last_page: 1 }
-  let endpoint: string
-  try {
-    endpoint = buildSourceEndpoint(source, params)
-  } catch {
-    return fallback
-  }
-  const result = await callSiteAPI(endpoint)
-  if (!result.success || !result.data || typeof result.data !== "object") return fallback
-
-  const raw = result.data
-  // Laravel-style pagination: { total, per_page, current_page, last_page, data: [...] }
-  // API may return numeric fields as strings, so coerce with Number()
-  const numTotal = Number(raw.total)
-  const numPerPage = Number(raw.per_page)
-  if (Number.isFinite(numTotal) && Number.isFinite(numPerPage) && numPerPage > 0) {
-    const numLastPage = Number(raw.last_page) || Math.ceil(numTotal / numPerPage) || 1
-    return {
-      total: numTotal,
-      per_page: numPerPage,
-      current_page: Number(raw.current_page) || 1,
-      last_page: numLastPage
-    }
-  }
-  // Array response — estimate from length
-  const arr = Array.isArray(raw) ? raw : Array.isArray(raw.data) ? raw.data : []
-  return {
-    total: arr.length,
-    per_page: 16,
-    current_page: 1,
-    last_page: 1
-  }
-}
-
 /**
  * Get metadata about a source: pagination info, cache stats, param requirements.
  * If source is "auto" (cast externally), returns compact metadata for all primary sources.
@@ -1726,7 +1501,6 @@ export async function siteGetSourceMetadata(
     abbas_history_by_id: "id"
   }
 
-  // auto → return compact summary for primary sources
   if (source === "auto") {
     const primaries: SiteSourceName[] = ["articles_latest", "videos_latest", "lang_words_ar"]
     const summaries = await Promise.all(primaries.map(async s => {
@@ -1781,25 +1555,19 @@ export async function siteBrowseSourcePage(
   const safePerPage = Math.min(Math.max(perPage || 10, 1), 20)
   let targetPage = Math.max(1, Math.floor(page))
 
-  // For "oldest" order, derive the actual API page from metadata
   if (order === "oldest") {
     const meta = await fetchSourceMetadataRaw(source)
-    // API page 1 = newest, page last_page = oldest
-    // user page 1 oldest → API last_page, user page 2 oldest → API last_page-1, etc.
     targetPage = Math.max(1, meta.last_page - (targetPage - 1))
   }
 
-  // Fetch metadata for accurate has_more and page info
   const meta = await fetchSourceMetadataRaw(source)
 
   const items = targetPage === 1
     ? ((await getSourceDocuments(source)).data || []) as any[]
     : await fetchSourcePage(source, targetPage, {})
 
-  // For oldest order, reverse so oldest items come first
   const ordered = order === "oldest" ? [...items].reverse() : items
 
-  // Compute has_more from metadata when available
   const hasMore = meta.last_page > 1
     ? (order === "oldest" ? targetPage > 1 : targetPage < meta.last_page)
     : false
@@ -1820,26 +1588,61 @@ export async function siteBrowseSourcePage(
   }
 }
 
-/** Human-readable source label (internal helper) */
-function friendlySourceLabel(source: string): string {
-  const map: Record<string, string> = {
-    articles_latest: "الأخبار",
-    videos_latest: "الفيديوهات",
-    videos_categories: "أقسام الفيديو",
-    videos_by_category: "فيديوهات حسب القسم",
-    shrine_history_sections: "أقسام تاريخ العتبة",
-    shrine_history_by_section: "تاريخ العتبة",
-    abbas_history_by_id: "تاريخ العباس",
-    lang_words_ar: "القاموس اللغوي"
+async function discoverEntities(query: string): Promise<APICallResult> {
+  const projectsResult = await getAllProjects()
+  const projects = projectsResult.success && Array.isArray(projectsResult.data)
+    ? (projectsResult.data as any[])
+    : []
+
+  const entities = projects.map((p: any) => ({
+    name: p.name,
+    type: Array.isArray(p.sections)
+      ? p.sections.map((s: any) => (typeof s === "string" ? s : s.name)).filter(Boolean)
+      : [],
+  }))
+
+  return {
+    success: entities.length > 0,
+    data: { query, total: entities.length, entities },
+    ...(entities.length === 0 && { error: "الفهرس غير متاح حالياً، جرّب البحث المباشر" }),
   }
-  return map[source] || source
+}
+
+/**
+ * بناء مقتطف نصي مضغوط من فهرس الكيانات ليُحقن في system prompt
+ * يعيد سلسلة نصية جاهزة أو سلسلة فارغة إذا لم تكن البيانات محملة بعد
+ *
+ * Cache: نتيجة النص النهائي تُحفظ مع نفس TTL لكاش المشاريع
+ * (`projectsCache`) لتفادي إعادة بناء النص من الصفر في كل طلب.
+ */
+let entityCatalogSnippetCache: { text: string; cachedAt: number } | null = null
+
+export async function buildEntityCatalogSnippet(): Promise<string> {
+  const now = Date.now()
+  if (entityCatalogSnippetCache && now - entityCatalogSnippetCache.cachedAt < CACHE_DURATION) {
+    return entityCatalogSnippetCache.text
+  }
+
+  const result = await getAllProjects()
+  if (!result.success || !Array.isArray(result.data) || result.data.length === 0) return ""
+
+  const lines = (result.data as any[]).map((p: any) => {
+    const sections = Array.isArray(p.sections)
+      ? p.sections.map((s: any) => (typeof s === "string" ? s : s.name)).filter(Boolean).join("، ")
+      : ""
+    return sections ? `- ${p.name} [${sections}]` : `- ${p.name}`
+  })
+
+  const text = `\n\n## فهرس الكيانات المتاحة في قاعدة البيانات\nاستخدم الأسماء الدقيقة أدناه عند صياغة استعلامات البحث:\n${lines.join("\n")}`
+  entityCatalogSnippetCache = { text, cachedAt: now }
+  return text
 }
 
 /**
  * تنفيذ أداة بناءً على اسمها والمعاملات
- * 
+ *
  * هذه الدالة هي نقطة الدخول الرئيسية لتنفيذ أي أداة
- * 
+ *
  * @param toolName - اسم الأداة
  * @param args - معاملات الأداة
  */
@@ -1851,12 +1654,11 @@ export async function executeToolByName(
 
   try {
     switch (toolName) {
+      case "discover_entities":
+        return await discoverEntities(args.query || "")
+
       case "search_projects":
-        return await siteSearchContent(args.query, args.source || "auto", args.limit, {
-          category_id: args.category_id,
-          section_id: args.section_id,
-          id: args.id
-        })
+        return await siteSearch(args.query, args.section, args.limit)
 
       case "search_content":
         return await siteSearchContent(args.query, args.source || "auto", args.limit, {
@@ -1889,14 +1691,16 @@ export async function executeToolByName(
         return await siteGetLatestBySource(args.source || "auto", args.limit, {
           category_id: args.category_id,
           section_id: args.section_id,
-          id: args.id
+          id: args.id,
+          query: args.query
         })
 
       case "get_latest_by_source":
         return await siteGetLatestBySource(args.source || "auto", args.limit, {
           category_id: args.category_id,
           section_id: args.section_id,
-          id: args.id
+          id: args.id,
+          query: args.query
         })
 
       case "get_statistics":
