@@ -1207,20 +1207,16 @@ export async function siteSearchContent(
   }
 
   const isTitleQ = looksLikeTitleQuery(query) || capability.title_or_phrase_lookup
-  const hasStrongTitleHit = scored.some(s => scoreTitleMatch(s.item, query) >= 50)
-  const shouldRunDeepTitleScan =
-    isTitleQ &&
-    !hasStrongTitleHit &&
-    source === "auto" &&
-    (
-      !entityFirstMode ||
-      scored.length === 0 ||
-      (scored[0]?.score || 0) < 12
-    )
+  // Always run deep archive scan for bare title queries; partial-overlap
+  // matches in news fallback are not the actual item the user is asking about.
+  // The deep scan has its own internal HIGH_CONFIDENCE early-exit.
+  const shouldRunDeepTitleScan = isTitleQ
 
   if (shouldRunDeepTitleScan) {
     console.log("[siteSearchContent] Title-query detected, launching deep archive scan...")
-    const deepSources = candidates.filter(s => EXPANDABLE_SOURCES.includes(s))
+    const deepSources = source === "auto"
+      ? candidates.filter(s => EXPANDABLE_SOURCES.includes(s))
+      : candidates.filter(s => EXPANDABLE_SOURCES.includes(s) || s === source)
     if (deepSources.length > 0) {
       const deepHits = await deepTitleSearch(
         query,

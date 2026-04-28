@@ -781,6 +781,11 @@ export async function deepTitleSearch(
 
   const hits: { item: any; score: number }[] = []
 
+  // Scan expandable sources sequentially. The previous attempt to parallelize
+  // sources overwhelmed the upstream API. Instead we rely on the caller
+  // ordering compact sources (videos_latest, friday_sermons, wahy_friday)
+  // before the very large articles_latest archive, so a video title can be
+  // discovered before the request budget is consumed by a high-volume source.
   for (const source of sources) {
     if (!EXPANDABLE_SOURCES.includes(source)) continue
 
@@ -829,6 +834,9 @@ export async function deepTitleSearch(
         }
       }
     }
+
+    // Early exit across sources once we already have a strong title hit.
+    if (hits.some(h => h.score >= HIGH_CONFIDENCE)) break
   }
 
   hits.sort((a, b) => b.score - a.score)

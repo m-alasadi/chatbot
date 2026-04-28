@@ -443,6 +443,52 @@ function directAnswerSatisfiesSensitiveQuery(query: string, answer: string): boo
   return tokens.filter(t => normAnswer.includes(t)).length >= Math.min(2, tokens.length)
 }
 
+/**
+ * Heuristic — query looks like a bare title/phrase lookup
+ * (no question cues, 2..9 Arabic tokens, not a command).
+ * Mirrors the logic of `isTitleOrPhraseLookup` in query-understanding,
+ * kept local to avoid leaking the helper from that module.
+ */
+function looksLikeBareTitleLookup(query: string): boolean {
+  const raw = String(query || "").trim()
+  if (!raw) return false
+  const tokens = raw.split(/\s+/).filter(Boolean)
+  if (tokens.length < 2 || tokens.length > 9) return false
+  if (!/[\u0621-\u064A]{2,}/u.test(raw)) return false
+  const norm = normalizeArabicLight(raw)
+  if (/(?:^|\s)(?:ما|ماذا|من|هل|كم|كيف|متى|أين|لماذا|اشر?ح|عرفني|حدثني|اعطني|اعرض|اخبرني)(?:\s|$)/u.test(norm)) return false
+  if (/(?:^|\s)(?:اعرض|اعطني|ابحث|اشرح|حدثني|اخبرني|عرفني)(?:\s|$)/u.test(norm)) return false
+  return true
+}
+
+/**
+ * True when the top evidence's source_title carries a strong overlap
+ * with the meaningful tokens of the query — i.e. retrieval surfaced an
+ * item whose title matches what the user typed. This is the generic
+ * signal for "found the thing the user named".
+ *
+ * The query frequently includes generic framing tokens (e.g.
+ * "الفيلم الوثائقي ...") on top of the actual title, so we don't require
+ * the title to cover ALL meaningful tokens — a meaningful core overlap
+ * combined with strong evidence confidence is sufficient.
+ */
+function topEvidenceTitleMatchesQuery(query: string, evidence: Evidence[]): boolean {
+  const top = evidence[0]
+  if (!top || !top.source_title) return false
+  const tokens = extractSpecificQueryTokens(query)
+  if (tokens.length < 2) return false
+  const titleNorm = normalizeArabicLight(top.source_title)
+  if (!titleNorm) return false
+  const matched = tokens.filter(t => titleNorm.includes(t)).length
+  if (matched < 2) return false
+  // Strong path: the title covers most of the meaningful tokens.
+  if (matched >= Math.ceil(tokens.length * 0.7)) return true
+  // Lenient path: at least two distinctive tokens match AND the
+  // evidence already scored highly enough to be the "main hit".
+  if (matched >= 2 && (top.confidence || 0) >= 35) return true
+  return false
+}
+
 export function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): string | null {
   if (!evidence || evidence.length === 0) return null
   if (isCompoundFactQuery(query)) return null
@@ -455,6 +501,19 @@ export function tryGenerateDirectAnswer(query: string, evidence: Evidence[]): st
     if (generated && directAnswerSatisfiesSensitiveQuery(query, generated)) {
       return generated.replace(/\s*\n+\s*/g, " ").replace(/\s{2,}/g, " ").trim()
     }
+  }
+
+  // Title/phrase lookup: the user typed a bare title-like phrase and retrieval
+  // surfaced an item whose title matches it strongly. Present the matched item
+  // deterministically so the model never apologizes for the missing surrounding
+  // context (e.g. a video page that only carries a title and a URL).
+  if (
+    understanding.operation_intent === "fact_question" &&
+    looksLikeBareTitleLookup(query) &&
+    topEvidenceTitleMatchesQuery(query, evidence)
+  ) {
+    const formatted = formatGroundedAnswer(query, evidence.slice(0, 2)).trim()
+    if (formatted) return formatted
   }
 
   return null

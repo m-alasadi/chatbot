@@ -87,7 +87,7 @@ function isInstitutionalRelationQuery(norm: string): boolean {
   const hasExistentialCue = /(?:^|\s)(?:هل|يوجد|هناك|هنالك)(?:\s|$)/u.test(norm)
   const hasInstitutionOwnerCue = /(?:العتب[هة](?:\s+العباسي[هة])?|العباسي[هة])/u.test(norm)
   const hasOwnershipExistentialCue = /(?:^|\s)هل\s+(?:لدى|لل|توجد\s+ل|يوجد\s+ل)/u.test(norm)
-  const hasOrgObjectCue = /(?:جامع[هة]|جامعة|جامعه|كلية|كليه|مؤسسة|مركز|معهد|مدرسة|مشروع|مشاريع|برامج|نشاطات|خدمات)/u.test(norm)
+  const hasOrgObjectCue = /(?:جامع[هة]|جامعة|جامعه|كلية|كليه|مؤسسة|مركز|معهد|مدرسة|مشروع|مشاريع|برامج|نشاطات|خدمات|مصانع|مصنع|مزارع|مزرعة|مزرع)/u.test(norm)
 
   return (
     (hasRelationCue && hasInstitutionCue) ||
@@ -177,7 +177,7 @@ function isHistoricalShrineLifecycleQuery(norm: string): boolean {
 
 function detectContentIntent(norm: string): QueryContentIntent {
   if (/(?:وحي)/u.test(norm)) return "wahy"
-  if (/(?:فيديو|فديو|محاضر|مرئي|مقطع|يوتيوب)/u.test(norm)) return "video"
+  if (/(?:فيديو|فديو|محاضر|مرئي|مقطع|يوتيوب|فيلم|الفيلم|افلام|أفلام|الافلام|الأفلام|وثائقي|الوثائقي)/u.test(norm)) return "video"
   if (/(?:خطب|خطب[هة]?|جمع[هة]|خطيب|منبر)/u.test(norm)) return "sermon"
   if (/(?:من هو|من هي|سير[هة]|مولد|استشهاد|وفاة|وفاه|لقب|القاب|كنية|كنيه|زوج|ابناء|أبناء|اولاد)/u.test(norm)) return "biography"
   if (/(?:تاريخ|تاري?خ|مراحل|قرن|حقبه|حقبة|مرقد|ضريح|صحن|رواق|هدم|اعمار|إعمار|ترميم|تشييد|بناء)/u.test(norm)) return "history"

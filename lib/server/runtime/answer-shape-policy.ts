@@ -72,6 +72,11 @@ function hasRadioKafeelSignal(norm: string): boolean {
 }
 
 function hasShrineLocationSignal(norm: string): boolean {
+  // Don't trigger on website-navigation queries — "موقع" means "website" here, not "location"
+  const isWebNavQuery = includesAny(norm, ["اقسام", "أقسام", "قسم", "فيديو", "محتوى", "خدمات", "ما في", "ما هي", "ما هو"])
+  if (isWebNavQuery) {
+    return includesAny(norm, ["اين تقع", "أين تقع", "تقع العتبة", "موقع المرقد"])
+  }
   return includesAny(norm, ["اين تقع", "أين تقع", "موقع العتبة", "تقع العتبة", "موقع المرقد"])
 }
 
@@ -332,7 +337,11 @@ function isMedicalProjectQuery(norm: string): boolean {
 function isExplicitLatestListingRequest(norm: string): boolean {
   const hasLatestPlural = /(?:اخر|آخر|أحدث|احدث)\s+(?:\d+\s+)?(?:منشور|منشورين|منشورات|اخبار|أخبار|خبر|خبرين|مقال|مقاله|مقالات|فيديو|فيديوهات|بيان|بيانات|اعلان|إعلان|اعلانات|إعلانات|تصاريح|تصريح|نشاطات|نشاط|فعاليات|فعاليه)/u.test(norm)
   const hasNumericLatest = /(?:اخر|آخر|أحدث|احدث)\s+\d+/u.test(norm)
-  return hasLatestPlural || hasNumericLatest
+  // Also treat "display verb + plural media type" as an explicit listing request
+  // so "اعرض لي فيديوهات مستشفى الكفيل" bypasses canned answers.
+  const hasDisplayVerb = /(?:اعرض|ارني|أرني|احضر|أحضر|اجلب|جيب|هات)(?:\s+لي)?/u.test(norm)
+  const hasPluralMediaType = /(?:فيديوهات|مقاطع|تسجيلات|اخبار|أخبار|مقالات|منشورات|محاضرات)/u.test(norm)
+  return hasLatestPlural || hasNumericLatest || (hasDisplayVerb && hasPluralMediaType)
 }
 
 function isProjectListThreeQuery(norm: string): boolean {
@@ -453,6 +462,17 @@ function isAgricultureProjectQuery(norm: string): boolean {
   return includesAny(norm, ["مشاريع زراعيه", "مشاريع زراعية", "مشاتل", "زراعي"])
 }
 
+function isIndustrialProjectQuery(norm: string): boolean {
+  return includesAny(norm, ["مصانع", "مصنع", "صناعي", "صناعية", "مشاريع صناعيه", "مشاريع صناعية"])
+}
+
+function isUniversityExistenceQuery(norm: string): boolean {
+  return (
+    includesAny(norm, ["هل لدى العتبة", "هل للعتبة", "هل لدى العتبه", "هل للعتبه"]) &&
+    includesAny(norm, ["جامعة", "جامعه", "جامعات"])
+  )
+}
+
 function isDevelopmentSelfSufficiencyQuery(norm: string): boolean {
   return includesAny(norm, ["التنميه", "التنمية", "الاكتفاء", "الانتاج", "الإنتاج"])
 }
@@ -544,6 +564,14 @@ function isMourningCouncilsProgramsQuery(norm: string): boolean {
 
 function isWhereFindVideosQuery(norm: string): boolean {
   return includesAny(norm, ["اين اجد الفيديوهات", "أين أجد الفيديوهات", "الفيديوهات التابعة", "قسم الفيديو"])
+}
+
+function isVideoSectionsListQuery(norm: string): boolean {
+  return (
+    includesAny(norm, ["اقسام الفيديو", "أقسام الفيديو", "اقسام المكتبه المرئيه", "أقسام المكتبة المرئية",
+      "تصنيفات الفيديو", "انواع الفيديو", "أنواع الفيديو", "فئات الفيديو"]) &&
+    !includesAny(norm, ["اين تقع", "أين تقع", "موقع المرقد"])
+  )
 }
 
 function isAliSharifiQuery(norm: string): boolean {
@@ -699,6 +727,10 @@ function _getDeterministicDirectAnswerInner(query: string): string | null {
     return "تجد الفيديوهات عبر قسم الوسائط/الفيديو في موقع الكفيل، ويمكنك التصفية حسب التصنيف مثل البرامج الدينية، التقارير، والخطب والمقتطفات المرئية."
   }
 
+  if (isVideoSectionsListQuery(norm)) {
+    return "تضم المكتبة المرئية في موقع الكفيل عدة أقسام رئيسية، من أبرزها: الوثائقيات، والفيديوهات القصيرة، وأبرز الفيديوهات، إضافةً إلى أقسام مصنّفة حسب الموضوع والمناسبة. يمكنك تصفّح جميع الأقسام عبر قسم المكتبة المرئية في موقع الكفيل."
+  }
+
   if (isGiftAndVowsSectionQuery(norm)) {
     return "قسم الهدايا والنذور يتولى تنظيم واستلام النذور والهدايا وتوجيهها وفق الضوابط الشرعية والإدارية المعتمدة في العتبة."
   }
@@ -713,6 +745,14 @@ function _getDeterministicDirectAnswerInner(query: string): string | null {
 
   if (isMedicalProjectQuery(norm)) {
     return "نعم، من المشاريع الطبية التابعة للعتبة العباسية: مستشفى الكفيل التخصصي."
+  }
+
+  if (isIndustrialProjectQuery(norm)) {
+    return "نعم، تمتلك العتبة العباسية المقدسة عدداً من المشاريع الصناعية والإنتاجية، من أبرزها: مصنع الجود، ومصنع النور، ومعمل البلوك والمقرنص، والخباطة المركزية، وغيرها. يمكنك الاطلاع على التفاصيل الكاملة في قسم المشاريع عبر موقع الكفيل."
+  }
+
+  if (isUniversityExistenceQuery(norm)) {
+    return "نعم، من المشاريع التعليمية التابعة للعتبة العباسية المقدسة: جامعة الكفيل وجامعة العميد (ضمن مجموعة العميد التربوية). تُقدّم هاتان الجامعتان برامج أكاديمية متنوعة وتعملان تحت مظلة العتبة العباسية."
   }
 
   if (isTopProjectsShortQuery(norm) || isMajorServiceProjectsQuery(norm) || isConstructionBeyondExpansionQuery(norm) || isProjectNamesOnlyQuery(norm) || isProjectListThreeQuery(norm)) {
@@ -1037,6 +1077,10 @@ export function getSafeCapabilityDirectAnswer(query: string): string | null {
 
   if (isWhereFindVideosQuery(norm)) {
     return "تجد الفيديوهات عبر قسم الوسائط أو الفيديو في موقع الكفيل، مع إمكانية التصفية حسب التصنيف مثل البرامج الدينية أو التقارير أو الخطب والمقتطفات المرئية."
+  }
+
+  if (isVideoSectionsListQuery(norm)) {
+    return "تضم المكتبة المرئية في موقع الكفيل عدة أقسام رئيسية، من أبرزها: الوثائقيات، والفيديوهات القصيرة، وأبرز الفيديوهات، إضافةً إلى أقسام مصنّفة حسب الموضوع والمناسبة. يمكنك تصفّح جميع الأقسام عبر قسم المكتبة المرئية في موقع الكفيل."
   }
 
   if (isRadioKafeelTypeQuery(norm)) {

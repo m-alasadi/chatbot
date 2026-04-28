@@ -183,8 +183,12 @@ function buildSourceConstraint(
   }
 
   if (underspecified || capability.institutional_relation) {
+    // For title/phrase lookups, list compact sources (videos, sermons, wahy)
+    // before the very large articles index. With maxAttempts=4 the trailing
+    // entries get sliced off, and we don't want to drop videos_latest — many
+    // user-typed titles are video titles.
     const titleLikePreferred = capability.title_or_phrase_lookup
-      ? ["articles_latest", "friday_sermons", "wahy_friday", "videos_latest"]
+      ? ["videos_latest", "friday_sermons", "wahy_friday", "articles_latest"]
       : []
     const hinted = understanding.hinted_sources.filter(s => s !== "auto")
     const preferredBase = hinted.length > 0

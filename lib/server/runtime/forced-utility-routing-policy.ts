@@ -128,11 +128,13 @@ export function detectForcedUtilityIntent(
     if ((isNews || understoodNews) && !(isVideo || understoodVideo)) return { tool: "get_latest_by_source", args: { source: "articles_latest", limit: inferredLimit, query: userText } }
   }
 
-  // 4.2 Explicit listing for a video category/section (e.g. "اعرض فيديوهات قسم مستشفى الكفيل")
+  // 4.2 Explicit video listing with an optional section/category reference.
+  // Covers both "اعرض فيديوهات من قسم فيديو كليب" (explicit قسم keyword) and
+  // "اعرض فيديوهات مستشفى الكفيل" (section name directly after plural media type).
   if (
     (isVideo || understoodVideo) &&
     hasListingKeyword &&
-    hasAnyKeyword(norm, sectionFilterHints) &&
+    (hasAnyKeyword(norm, sectionFilterHints) || hasAnyKeyword(norm, pluralCollectionHints)) &&
     !(isNews || understoodNews)
   ) {
     return { tool: "get_latest_by_source", args: { source: "videos_latest", limit: 5, query: userText } }
