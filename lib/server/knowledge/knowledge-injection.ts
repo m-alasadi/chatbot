@@ -346,16 +346,9 @@ export async function injectKnowledgeAndGuard(
         messages.push({ role: "system", content: kCtx })
       }
     } else {
-      const norm = normalizeArabicLight(userQuery)
-      if (
-        isAbbasBiographyQuery(userQuery) &&
-        ["ابناء", "أبناء", "زوجات", "القاب", "كنيه", "كنية"].some(t => norm.includes(normalizeArabicLight(t)))
-      ) {
-        messages.push({
-          role: "system",
-          content: "ℹ️ لم تتوفر مطابقة كافية من الفهرس المحلي لهذا التفصيل. إن كان السؤال عن السمات الشخصية لأبي الفضل العباس (عليه السلام) مثل الأبناء أو الألقاب، يمكنك الإجابة من المعرفة التاريخية الموثوقة بصياغة مباشرة ومختصرة، ولا تنتقل إلى أخبار مشاريع العتبة.",
-        })
-      }
+      // No local knowledge found. The system prompt's standing exception covers
+      // well-known historical facts (Abbas biography, Ahl al-Bayt) — no need to
+      // inject a per-query permission message here.
     }
   }
 
@@ -388,11 +381,23 @@ export async function injectKnowledgeAndGuard(
 
     if (isCompound || knowledgeGap) {
       console.log(`[Evidence Guard] Abbas biography — compound/gap query, combining sources`)
+      if (!abbasKnowledgeInjected) {
+        // No local Abbas data — neutralize unrelated tool results so GPT isn't
+        // confused by news articles. The system prompt's standing exception
+        // already permits answering from historical knowledge.
+        for (const m of messages) {
+          if (m.role === "tool" && typeof m.content === "string") {
+            (m as any).content = JSON.stringify({ success: true, data: { note: "لا توجد نتائج ذات صلة بهذا السؤال" } })
+          }
+        }
+        return []
+      }
+      // Only inject tool evidence when we have Abbas knowledge context.
       if (extractedEvidence.length > 0) injectToolEvidenceBlock(messages, userQuery, extractedEvidence)
       if (knowledgeGap) {
         await resolveKnowledgeGap(messages, extractedEvidence, specificTokens.length > 0 ? specificTokens : ["العباس"], userQuery)
       }
-      if (abbasKnowledgeInjected) bindCanonicalAbbasSource(messages, knowledgeEvidence)
+      bindCanonicalAbbasSource(messages, knowledgeEvidence)
       return extractedEvidence
     }
 

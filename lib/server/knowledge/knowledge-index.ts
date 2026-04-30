@@ -241,6 +241,23 @@ export class KnowledgeIndex {
   }
 
   /**
+   * Iterate over every indexed term (vocabulary).
+   * Used by the spell-correction layer to build a candidate dictionary.
+   */
+  getVocabulary(): IterableIterator<string> {
+    return this.invertedIndex.keys()
+  }
+
+  /**
+   * Number of distinct postings for a term — useful as a frequency proxy
+   * when scoring spell-correction candidates.
+   */
+  getTermFrequency(term: string): number {
+    const set = this.invertedIndex.get(term)
+    return set ? set.size : 0
+  }
+
+  /**
    * Clear entire index.
    */
   clear(): void {

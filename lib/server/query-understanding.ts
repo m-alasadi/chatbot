@@ -177,7 +177,7 @@ function isHistoricalShrineLifecycleQuery(norm: string): boolean {
 
 function detectContentIntent(norm: string): QueryContentIntent {
   if (/(?:وحي)/u.test(norm)) return "wahy"
-  if (/(?:فيديو|فديو|محاضر|مرئي|مقطع|يوتيوب|فيلم|الفيلم|افلام|أفلام|الافلام|الأفلام|وثائقي|الوثائقي)/u.test(norm)) return "video"
+  if (/(?:فيديو|فديو|محاضر|مرئي|مقطع|يوتيوب|فيلم|الفيلم|افلام|أفلام|الافلام|الأفلام|وثائقي|الوثائقي|حلق[هة]|حلقات)/u.test(norm)) return "video"
   if (/(?:خطب|خطب[هة]?|جمع[هة]|خطيب|منبر)/u.test(norm)) return "sermon"
   if (/(?:من هو|من هي|سير[هة]|مولد|استشهاد|وفاة|وفاه|لقب|القاب|كنية|كنيه|زوج|ابناء|أبناء|اولاد)/u.test(norm)) return "biography"
   if (/(?:تاريخ|تاري?خ|مراحل|قرن|حقبه|حقبة|مرقد|ضريح|صحن|رواق|هدم|اعمار|إعمار|ترميم|تشييد|بناء)/u.test(norm)) return "history"
@@ -330,9 +330,18 @@ function computeConfidence(
   return Math.max(0.1, Math.min(0.99, Number(score.toFixed(2))))
 }
 
+// ── Query understanding cache (per-process, bounded at 200 entries) ────────────
+const _understandCache = new Map<string, QueryUnderstandingResult>()
+const _UNDERSTAND_CACHE_MAX = 200
+
 export function understandQuery(query: string): QueryUnderstandingResult {
   const raw = String(query || "").trim()
   const norm = normalizeQueryForTrace(raw)
+
+  // Return cached result for identical normalized queries to avoid redundant parsing.
+  const cacheKey = norm
+  const cached = _understandCache.get(cacheKey)
+  if (cached) return cached
 
   const contentIntent = detectContentIntent(norm)
   const operationIntent = detectOperationIntent(norm)
@@ -344,7 +353,7 @@ export function understandQuery(query: string): QueryUnderstandingResult {
     ? Math.max(0.1, Number((baseConfidence - 0.12).toFixed(2)))
     : baseConfidence
 
-  return {
+  const result: QueryUnderstandingResult = {
     raw_query: raw,
     normalized_query: norm,
     content_intent: contentIntent,
@@ -354,6 +363,14 @@ export function understandQuery(query: string): QueryUnderstandingResult {
     hinted_sources: hintedSources,
     route_confidence: routeConfidence
   }
+
+  // Evict oldest entry if cache is full
+  if (_understandCache.size >= _UNDERSTAND_CACHE_MAX) {
+    const firstKey = _understandCache.keys().next().value
+    if (firstKey !== undefined) _understandCache.delete(firstKey)
+  }
+  _understandCache.set(cacheKey, result)
+  return result
 }
 
 export function deriveRetrievalCapabilitySignals(

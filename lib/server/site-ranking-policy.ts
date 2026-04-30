@@ -35,21 +35,47 @@ export function buildTokenVariants(token: string): string[] {
   const base = normalizeArabic(String(token || "")).trim()
   if (!base || base.length < 3) return [base]
   const variants = new Set<string>([base])
-  // strip Arabic definite article "ال" so "المشاريع" stems the same as "مشاريع".
+
+  // Strip Arabic definite article "ال" so "المشاريع" stems the same as "مشاريع".
   // Guard against false positives like "الى" / "الذي" (length < 5 after strip is too short).
   if (base.length >= 5 && base.startsWith("ال")) {
     variants.add(base.slice(2))
   }
-  // strip common suffixes (including possessive/pronominal: ها، هم، هن، ك)
-  for (const suffix of ["يه", "ه", "ات", "ين", "ون", "ها", "هم", "هن", "ك"]) {
+
+  // Strip attached preposition prefixes: ب، ل، و + ال (بالمشروع → المشروع → مشروع)
+  for (const prefix of ["بال", "لل", "وال", "فال", "كال"]) {
+    if (base.startsWith(prefix) && base.length > prefix.length + 2) {
+      const stripped = base.slice(prefix.length)
+      variants.add(stripped)
+      // Also add without the "ال" that follows the prefix
+      if (stripped.startsWith("ال") && stripped.length > 4) variants.add(stripped.slice(2))
+    }
+  }
+
+  // Strip common noun/verb suffixes (possessive, plural, feminine, verb-plural وا)
+  for (const suffix of ["يه", "ه", "ات", "ين", "ون", "ها", "هم", "هن", "ك", "وا"]) {
     if (base.endsWith(suffix) && base.length > suffix.length + 2) {
       variants.add(base.slice(0, -suffix.length))
     }
   }
-  // broken-plural alef removal: mXAYZ → mXYZ (مصانع → مصنع, مزارع → مزرع)
+
+  // Nisbah (relative adjective): strip trailing "ي" so "العباسي"→"العباس", "الكفيلي"→"الكفيل"
+  // Only apply when the word is long enough to avoid stripping meaningful short roots.
+  if (base.endsWith("ي") && base.length > 5) {
+    variants.add(base.slice(0, -1))
+  }
+
+  // Broken-plural alef removal: mXAYZ → mXYZ (مصانع → مصنع, مزارع → مزرع)
   if (base.length >= 5 && base[2] === "ا") {
     variants.add(base[0] + base[1] + base.slice(3))
   }
+
+  // Deduplicate "ال"-stripped variants of generated forms
+  const current = [...variants]
+  for (const v of current) {
+    if (v.length >= 5 && v.startsWith("ال")) variants.add(v.slice(2))
+  }
+
   return [...variants].filter(v => v.length >= 3)
 }
 
@@ -368,7 +394,7 @@ export function scoreUnifiedItem(item: any, query: string): number {
     "اسم", "يقام", "لها", "لهم", "حول", "عليه",
     "باختصار", "السلام",
     // اسم المؤسسة — يظهر في كل استعلام تقريباً وليس محتوى قابلاً للمطابقة
-    "العتبه", "العتبة", "العباسيه", "العباسية",
+    "العتبه", "العتبة", "العباسيه", "العباسية", "الكفيل",
     // كلمات إخبارية/تصنيفية عامة جداً
     "مشروع", "مشاريع", "خبر", "قديم", "يتحدث",
     // كلمات النية التشغيلية (لخص، اشرح، عدد، نبذة…)
@@ -526,6 +552,22 @@ export function scoreUnifiedItem(item: any, query: string): number {
     return 0
   }
 
+  // Rare-token enforcement: when the user query distills to a SINGLE specific token
+  // (e.g. "صدى الكفيل" → specific=["صدي"], generic=["الكفيل"]), that token IS the
+  // distinguishing signal. Even results from the official search engine MUST match
+  // it; otherwise we are returning generic/popular content that ignores the rare
+  // discriminator. This prevents queries like "صدى الكفيل" from returning random
+  // articles that only match the common token "الكفيل".
+  if (
+    isOfficialSearchHit &&
+    specificTokens.length === 1 &&
+    !matchedSpecificToken &&
+    !hasSpecificNamedPhrase
+  ) {
+    if (process.env.DEBUG_SCORING === "1") console.log("[REJECT rareToken]", item?.name || item?.title, "rareToken:", specificTokens[0])
+    return 0
+  }
+
   if (requiresStrictSpecificCoverage) {
     // للمشاريع: يكفي توافق كلمة واحدة (أسماء قصيرة).
     // للمقالات الرسمية: النظام الخارجي صنّفها وفق الاستعلام، يكفي توافق مصطلح واحد.
@@ -533,6 +575,38 @@ export function scoreUnifiedItem(item: any, query: string): number {
     if (matchedSpecificTokenCount < minimumSpecificMatches && titleSpecificMatchCount < minimumSpecificMatches && !hasSpecificNamedPhrase) {
       if (process.env.DEBUG_SCORING === "1") console.log("[REJECT strictCoverage]", item?.name || item?.title, "matched:", matchedSpecificTokenCount, "title:", titleSpecificMatchCount, "min:", minimumSpecificMatches, "specific:", specificTokens, "isOfficial:", isOfficialSearchHit)
       return 0
+    }
+
+    // للأسماء البشرية: لا يكفي مطابقة الصفة (الشيخ/السيد/سماحة) وحدها — يجب
+    // مطابقة جزء من الاسم الفعلي (مثلاً "زمان") وإلا نكون عرضنا نتيجة لشخص آخر
+    // يشاركه نفس اللقب فقط. نطبّق هذا حتى عند isOfficialSearchHit لأن البحث
+    // الرسمي قد يُرجع نتائج لأشخاص مختلفين بنفس الصفة.
+    if (isNamedPersonQuery) {
+      const honorificSet = new Set([
+        normalizeArabic("الشيخ"), normalizeArabic("السيد"),
+        normalizeArabic("الامام"), normalizeArabic("الإمام"),
+        normalizeArabic("سماحه"), normalizeArabic("سماحة"),
+        normalizeArabic("العلامه"), normalizeArabic("العلامة")
+      ])
+      // أيضاً نستبعد كلمات المحتوى العامة (محاضرات، فيديو، برنامج…)
+      // لأنها توجد في كل العناصر ولا تُميّز الشخص المطلوب.
+      const contentGenericSet = new Set([
+        "محاضرات", "محاضره", "فيديو", "فيديوهات", "برنامج", "حلقه", "حلقات",
+        "خطبه", "خطب", "دروس", "درس", "كلمه", "كلمات", "مقطع", "مقاطع", "تسجيل"
+      ])
+      const personNameTokens = specificTokens.filter(t =>
+        !honorificSet.has(t) && !contentGenericSet.has(t)
+      )
+      if (personNameTokens.length > 0) {
+        const fieldsCombined = fields.map(f => f.text || "").join(" ")
+        const namePartMatched = personNameTokens.some(tok =>
+          fieldsCombined.includes(tok) || normTitle.includes(tok)
+        )
+        if (!namePartMatched) {
+          if (process.env.DEBUG_SCORING === "1") console.log("[REJECT personNameMismatch]", item?.name || item?.title, "personTokens:", personNameTokens)
+          return 0
+        }
+      }
     }
   }
 
@@ -632,7 +706,7 @@ export function rankCandidateSources(
   scores.push({ source: "articles_latest", score: 5 })
 
   // Video signals
-  const videoHints = ["فيديو", "فديو", "مرئي", "يوتيوب", "مقطع", "مشاهده"]
+  const videoHints = ["فيديو", "فديو", "مرئي", "يوتيوب", "مقطع", "مشاهده", "حلقه", "حلقات"]
   const videoBoost = videoHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 6 : 0), 0)
   scores.push({ source: "videos_latest", score: 3 + videoBoost })
   if (params.category_id) scores.push({ source: "videos_by_category", score: 4 + videoBoost })

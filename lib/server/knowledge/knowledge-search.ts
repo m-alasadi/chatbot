@@ -17,6 +17,7 @@ import type {
 } from "./content-types"
 import { getKnowledgeIndex, normalizeArabic, tokenize } from "./knowledge-index"
 import { backfillOlderPages, getBackfillSourcesForQuery } from "./content-ingestion"
+import { correctArabicQuery } from "../text/spell-correct"
 
 // ── Evidence snippet builder ────────────────────────────────────────
 
@@ -116,6 +117,34 @@ function isFridayQuery(normQuery: string): boolean {
     "خطيب", "منبر", "صلاه جمعه", "من وحي", "وحي",
   ]
   return hints.some(h => normQuery.includes(h))
+}
+
+// Honorific tokens (already normalized: ة→ه)
+const HONORIFIC_TOKENS = new Set([
+  "الشيخ", "السيد", "الامام", "الإمام",
+  "سماحه", "العلامه",
+])
+
+/**
+ * For a query like "محاضرات الشيخ زمان" return ["زمان"].
+ * For a query like "خطبة السيد أحمد الصافي" return ["احمد", "الصافي"].
+ * Returns [] if the query has no honorific (so we don't over-filter generic queries).
+ */
+function extractPersonNameTokens(rawQuery: string, queryTokens: string[]): string[] {
+  const norm = normalizeArabic(rawQuery)
+  const hasHonorific = [...HONORIFIC_TOKENS].some(h => norm.includes(h))
+  if (!hasHonorific) return []
+
+  // Drop honorifics + very short / generic tokens to keep only the name parts.
+  const generic = new Set([
+    "محاضره", "محاضرات", "خطبه", "خطب", "كلمه", "كلمات",
+    "برنامج", "حلقه", "حلقات", "فيديو", "فيديوهات",
+    "مقطع", "مقاطع", "تسجيل", "دروس", "درس",
+    "للعتبه", "العتبه", "العباسيه",
+  ])
+  return queryTokens.filter(tok =>
+    !HONORIFIC_TOKENS.has(tok) && !generic.has(tok) && tok.length >= 3
+  )
 }
 
 /** Detect explicit content-type constraint from the query.
@@ -360,12 +389,24 @@ export function searchKnowledgeChunks(
   // Phase 2: rerank with multi-signal scoring
   const scored: ChunkSearchResult[] = []
 
+  // Person-name disambiguation: when the query carries an honorific
+  // (الشيخ/السيد/سماحة/العلامة) + an actual name, require the chunk text or
+  // title to contain at least one non-honorific name token. Otherwise a chunk
+  // mentioning only "الشيخ X" (different person) would slip through.
+  const personNameTokens = extractPersonNameTokens(query, queryTokens)
+
   for (const { chunk_id, score: rawScore } of candidates) {
     const chunk = index.getChunk(chunk_id)
     if (!chunk) continue
 
     const finalScore = rerank(chunk, queryTokens, query, rawScore)
     if (finalScore < minScore) continue
+
+    if (personNameTokens.length > 0) {
+      const haystack = normalizeArabic(`${chunk.title || ""} ${chunk.chunk_text || ""}`)
+      const namePartMatched = personNameTokens.some(tok => haystack.includes(tok))
+      if (!namePartMatched) continue
+    }
 
     const evidence = buildEvidenceSnippet(chunk.chunk_text, queryTokens)
 
@@ -436,17 +477,30 @@ export async function searchKnowledgeWithBackfill(
   query: string,
   options: KnowledgeSearchOptions = {}
 ): Promise<KnowledgeSearchResponse & { backfilled: boolean }> {
+  // Phase 0: spell-correct the query against the in-memory vocabulary.
+  // Catches obvious typos (e.g. "العبس" → "العباس") BEFORE we spend
+  // multiple round-trips chasing 0-result paths across sources.
+  const correction = correctArabicQuery(query)
+  let effectiveQuery = query
+  if (correction.corrections.length > 0 && correction.corrected !== query) {
+    console.log(
+      `[Knowledge] Spell-corrected query: "${query}" → "${correction.corrected}" ` +
+        `(${correction.corrections.map(c => `${c.from}→${c.to}`).join(", ")})`
+    )
+    effectiveQuery = correction.corrected
+  }
+
   // Phase 1: initial search
-  let initial = searchKnowledgeChunks(query, options)
+  let initial = searchKnowledgeChunks(effectiveQuery, options)
   console.log(`[Knowledge] Initial search: ${initial.chunks.length} chunks (top=${initial.chunks[0]?.score.toFixed(1) ?? "–"})`)
 
   // Phase 1b: Abbas query enrichment — fuzzy prefix search over Abbas chunks.
   // Bridges Arabic morphological gaps (e.g., "اخوه" ↔ "اخوته", "زواج" ↔ "الزواج").
-  const normQ = normalizeArabic(query)
+  const normQ = normalizeArabic(effectiveQuery)
   if (isAbbasQuery(normQ)) {
-    const queryTokens = tokenize(query).filter(t => t.length >= 2)
+    const queryTokens = tokenize(effectiveQuery).filter(t => t.length >= 2)
     const limit = options.limit ?? 8
-    const abbasResults = fuzzySearchAbbasChunks(query, queryTokens, limit)
+    const abbasResults = fuzzySearchAbbasChunks(effectiveQuery, queryTokens, limit)
     if (abbasResults.length > 0) {
       console.log(`[Knowledge] Abbas enrichment (fuzzy): +${abbasResults.length} Abbas chunks`)
       // Score-based merge: combine, deduplicate, sort by score, keep best
@@ -473,7 +527,7 @@ export async function searchKnowledgeWithBackfill(
   }
 
   // Phase 2: find backfill candidates
-  const sources = getBackfillSourcesForQuery(query)
+  const sources = getBackfillSourcesForQuery(effectiveQuery)
   if (sources.length === 0) {
     console.log(`[Knowledge] Weak results but no backfill sources available`)
     return { ...initial, backfilled: false }
@@ -489,7 +543,7 @@ export async function searchKnowledgeWithBackfill(
 
     if (newItems <= 0) continue
 
-    const retry = searchKnowledgeChunks(query, options)
+    const retry = searchKnowledgeChunks(effectiveQuery, options)
     console.log(`[Knowledge] Backfill checkpoint (${src}): ${retry.chunks.length} chunks (top=${retry.chunks[0]?.score.toFixed(1) ?? "–"}) [+${newItems}]`)
 
     if (

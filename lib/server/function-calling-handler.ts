@@ -41,6 +41,36 @@ import {
 
 // ── Data cleaning helpers ───────────────────────────────────────────
 
+/**
+ * Convert ability-check queries to direct content requests.
+ * E.g. "هل يمكنك الوصول الى وصف العتبة" → "اعطني وصف العتبة العباسية المقدسة"
+ */
+function normalizeAbilityCheckQuery(query: string): string {
+  if (!query) return query
+  
+  // Pattern: "هل يمكنك/هل تستطيع/ممكن" + optional "ان" + verb ("الوصول الى", "الحصول على", "تجد", etc.) + optional "الى" + <content>
+  const abilityCheckPattern = /^(?:هل\s+)?(?:يمكنك|تستطيع|ممكن|يمكن|استطاع|هل\s+يمكن)\s*(?:ان\s+)?(?:الوصول\s+(?:الى|إلى|الي)|الحصول\s+على|تجد|تصل|تعطي|تعطيني|تخبري)\s*(?:الى|إلى|الي)?\s*/iu
+  
+  const match = query.match(abilityCheckPattern)
+  if (match) {
+    // Remove the ability-check prefix
+    const content = query.substring(match[0].length).trim()
+    if (content && content.length > 2) {
+      // Convert to "اعطني X" or "اخبرني عن X" based on content type
+      const lowerContent = content.toLowerCase()
+      if (/(?:وصف|نبذة|وصفا|معلومات|شرح)/u.test(lowerContent)) {
+        return `اعطني ${content}`
+      } else if (/(?:اسم|أسماء|اسما|names)/u.test(lowerContent)) {
+        return `أعطني ${content}`
+      } else {
+        return `اخبرني عن ${content}`
+      }
+    }
+  }
+  
+  return query
+}
+
 function truncate(text: string, max: number): string {
   if (!text || text.length <= max) return text
   return text.substring(0, max) + "…"
@@ -491,6 +521,15 @@ async function processToolCall(
     const query = args.query || args.searchTerm || args.keyword || ""
     const suggestionsResponse = generateNoResultsSuggestions(query, { searchedCategory: args.category, attemptedAction: toolName })
     const failureKind = classifyToolFailure(result, true)
+
+    // When the original query names a specific person (honorific + name), add an
+    // explicit prohibition so the model does not invent an alternative person.
+    const HONORIFICS = ["الشيخ", "السيد", "سماحة", "العلامة", "سماحه", "العلامه"]
+    const isPersonQuery = HONORIFICS.some(h => String(query).includes(h))
+    const noSubstitutionNote = isPersonQuery
+      ? "\n[تعليمات للنموذج: لا تقترح محتوى لأي شخص آخر بديلاً عن الشخص المطلوب. اذكر فقط أن النتائج غير متاحة حالياً.]"
+      : ""
+
     return {
       tool_call_id: toolCallId,
       role: "tool",
@@ -499,7 +538,7 @@ async function processToolCall(
         empty_results: true,
         failure_kind: failureKind,
         retry_attempts: context.retryCounter?.count || 0,
-        message: `${buildToolFailureMessage(failureKind, context.traceId)}\n\n${formatSuggestionsForResponse(suggestionsResponse)}`,
+        message: `${buildToolFailureMessage(failureKind, context.traceId)}\n\n${formatSuggestionsForResponse(suggestionsResponse)}${noSubstitutionNote}`,
         suggestions: suggestionsResponse.suggestions,
         context: suggestionsResponse.context,
         original_query: query,
@@ -873,7 +912,9 @@ export async function executeFunctionCallingFlow(
   maxIterations: number = 3
 ): Promise<{ finalMessage: string; allMessages: ChatCompletionMessageParam[]; iterations: number }> {
   const rawUserQuery = getLastUserMessage(messages)
-  const userQuery = getResolvedUserQuery(messages, understandQuery(rawUserQuery))
+  // Normalize ability-check queries ("هل يمكنك الوصول الى X" → "اعطني X")
+  const normalizedQuery = normalizeAbilityCheckQuery(rawUserQuery)
+  const userQuery = getResolvedUserQuery(messages, understandQuery(normalizedQuery))
   const queryUnderstanding = understandQuery(userQuery)
 
   let currentMessages = [...messages]

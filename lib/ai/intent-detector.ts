@@ -22,6 +22,20 @@ export function normalizeArabicLight(text: string): string {
     .trim()
 }
 
+/**
+ * Returns true only if `pattern` appears as a whole word (or full phrase) in `text`.
+ * Short patterns (≤6 chars, no spaces) use word-boundary anchors to prevent
+ * substring collisions (e.g. "سيره" matching inside "بسيره").
+ * Multi-word patterns and long tokens fall back to safe substring matching.
+ */
+export function matchWholeWord(text: string, pattern: string): boolean {
+  if (!text || !pattern) return false
+  if (!text.includes(pattern)) return false
+  if (pattern.includes(" ") || pattern.trim().length > 6) return true
+  const re = new RegExp(`(^|\\s)${pattern}(\\s|$)`)
+  return re.test(text)
+}
+
 // ── Token extraction ────────────────────────────────────────────────
 
 const GENERIC_TOKENS = new Set([
@@ -82,8 +96,19 @@ const BIOGRAPHY_SIGNALS = [
  */
 export function isAbbasBiographyQuery(text: string): boolean {
   const norm = normalizeArabicLight(text)
-  if (SHRINE_ACTIVITY.some(p => norm.includes(p))) return false
-  return BIOGRAPHY_SIGNALS.some(p => norm.includes(p))
+  // Use word-boundary-aware check for short tokens that can appear as substrings
+  // (e.g. "بناء" inside "أبناء"). Only block on shrine activity when the token
+  // is clearly a standalone word — not embedded inside a longer word.
+  const shrineBlocked = SHRINE_ACTIVITY.some(p => {
+    if (!norm.includes(p)) return false
+    return matchWholeWord(norm, p)
+  })
+  if (shrineBlocked) return false
+  return BIOGRAPHY_SIGNALS.some(p => {
+    if (!norm.includes(p)) return false
+    // Delegate to the shared matchWholeWord helper for consistent boundary enforcement.
+    return matchWholeWord(norm, p)
+  })
 }
 
 // ── Knowledge layer routing ─────────────────────────────────────────
@@ -95,12 +120,12 @@ export function isKnowledgePriorityQuery(
   const norm = normalizeArabicLight(text)
   if (isAbbasBiographyQuery(text)) return true
   if (isOfficeHolderQuery(text)) return true
-  if (["سدنة", "سدانة", "كلدار", "الحرم"].some(p => norm.includes(p))) return true
+  if (["سدنه", "سدانه", "كلدار", "الحرم"].some(p => matchWholeWord(norm, normalizeArabicLight(p)))) return true
   if (understanding?.content_intent === "history") return true
   if (
     understanding?.extracted_entities.person?.length ||
     understanding?.extracted_entities.topic?.some(t =>
-      ["سدنة", "اخوات"].some(p => normalizeArabicLight(t).includes(p))
+      ["سدنه", "اخوات"].some(p => matchWholeWord(normalizeArabicLight(t), p))
     )
   ) return true
   return false
@@ -139,8 +164,8 @@ export function shouldUseKnowledgeLayer(
     const op = understanding.operation_intent
     if (op === "count" || op === "latest" || op === "list_items" || op === "browse") return false
   }
-  if (SKIP_KNOWLEDGE.some(p => norm.includes(p))) return false
-  if (DEEP_KNOWLEDGE.some(p => norm.includes(p))) return true
+  if (SKIP_KNOWLEDGE.some(p => matchWholeWord(norm, normalizeArabicLight(p)))) return false
+  if (DEEP_KNOWLEDGE.some(p => matchWholeWord(norm, normalizeArabicLight(p)))) return true
   return norm.length > 20
 }
 
