@@ -1,4 +1,4 @@
-import { normalizeQueryForTrace } from "./observability/chat-trace"
+﻿import { normalizeQueryForTrace } from "./observability/chat-trace"
 import type { PersonRelationSlot } from "../ai/paraphrase-intent"
 
 export type QueryContentIntent =
@@ -39,12 +39,18 @@ export interface QueryUnderstandingResult {
   extracted_entities: QueryExtractedEntities
   hinted_sources: string[]
   route_confidence: number
-  /**
-   * Set by LLMIntentResolver when the regex layer confidence is low.
-   * Downstream consumers (answer-shape-policy, paraphrase-intent) should
-   * prefer this over re-running detectAbbasRelationSlot when present.
-   */
   person_relation_slot?: PersonRelationSlot | null
+
+  clean_search_query?: string
+  main_topic?: string
+  keywords?: string[]
+  allowed_sources?: string[]
+  forbidden_sources?: string[]
+  needs_clarification?: boolean
+  clarification_question?: string
+  ai_confidence?: number
+  ai_reason?: string
+  understanding_source?: "ai" | "regex" | "ai+regex"
 }
 
 export interface RetrievalCapabilitySignals {
@@ -67,16 +73,17 @@ function getGenericContentTokens(text: string): string[] {
   const norm = normalizeQueryForTrace(text)
   if (!norm) return []
 
-  // Remove common Arabic question scaffolding while preserving content-bearing tokens.
-  const scaffoldStripped = norm
+  const stripped = norm
     .replace(/\b(?:ما|ماذا|من|هو|هي|هل|هناك|هنالك|عن|في|على|الى|إلى|او|أو|ثم|هذا|هذه|ذلك|تلك|مع|اذا|إذا|لكن|ولاكن|لي|لك|باسم|اسم|بعنوان)\b/gu, " ")
     .replace(/\b(?:اعطني|اعرض|ابحث|اشرح|حدثني|اخبرني|عرفني|كيف|كم|عدد)\b/gu, " ")
     .replace(/\s+/g, " ")
     .trim()
 
-  return scaffoldStripped
-    .split(/\s+/)
-    .filter(token => token.length >= 2)
+  return stripped.split(/\s+/).filter(t => t.length >= 2)
+}
+
+function hasExplicitQuestionCue(norm: string): boolean {
+  return /(?:^|\s)(?:ما|ماذا|من|هل|كم|كيف|متى|أين|لماذا|اشرح|عرفني|حدثني|اعطني|اعرض|اخبرني)(?:\s|$)/u.test(norm)
 }
 
 function isInstitutionalRelationQuery(norm: string): boolean {
@@ -110,16 +117,7 @@ function isTitleOrPhraseLookup(raw: string, norm: string, operationIntent: Query
   return hasArabicWords && !looksCommand
 }
 
-function hasExplicitQuestionCue(norm: string): boolean {
-  return /(?:^|\s)(?:ما|ماذا|من|هل|كم|كيف|متى|أين|لماذا|اشر?ح|عرفني|حدثني|اعطني|اعرض|اخبرني)(?:\s|$)/u.test(norm)
-}
-
-function detectQueryClarity(
-  raw: string,
-  norm: string,
-  contentIntent: QueryContentIntent,
-  operationIntent: QueryOperationIntent
-): QueryClarity {
+function detectQueryClarity(raw: string, norm: string, contentIntent: QueryContentIntent, operationIntent: QueryOperationIntent): QueryClarity {
   const rawTokens = raw.split(/\s+/).filter(Boolean)
   const contentTokens = getGenericContentTokens(raw)
   const isBareEntityQuery =
@@ -177,12 +175,11 @@ function isHistoricalShrineLifecycleQuery(norm: string): boolean {
 
 function detectContentIntent(norm: string): QueryContentIntent {
   if (/(?:وحي)/u.test(norm)) return "wahy"
-  if (/(?:فيديو|فديو|محاضر|مرئي|مقطع|يوتيوب|فيلم|الفيلم|افلام|أفلام|الافلام|الأفلام|وثائقي|الوثائقي|حلق[هة]|حلقات)/u.test(norm)) return "video"
+  if (/(?:فيديو|فديو|محاضر|مرئي|مقطع|يوتيوب|فيلم|الافلام|أفلام|الوثائقي|وثائقي|حلق[هة]|حلقات)/u.test(norm)) return "video"
   if (/(?:خطب|خطب[هة]?|جمع[هة]|خطيب|منبر)/u.test(norm)) return "sermon"
   if (/(?:من هو|من هي|سير[هة]|مولد|استشهاد|وفاة|وفاه|لقب|القاب|كنية|كنيه|زوج|ابناء|أبناء|اولاد)/u.test(norm)) return "biography"
   if (/(?:تاريخ|تاري?خ|مراحل|قرن|حقبه|حقبة|مرقد|ضريح|صحن|رواق|هدم|اعمار|إعمار|ترميم|تشييد|بناء)/u.test(norm)) return "history"
   if (/(?:خبر|اخبار|مقال|بيان|اعلان|أعلن|نشر|المتولي|الامين العام|أمين عام|مهرجان|فعالي[هة]|برنامج|مبادرة|حملة)/u.test(norm)) return "news"
-
   return "generic"
 }
 
@@ -199,17 +196,13 @@ function detectOperationIntent(norm: string): QueryOperationIntent {
 
   if (hasCount) return "count"
   if (hasFollowUpSummary && hasSummarize) return "summarize"
-  if (hasLatest) {
-    if (hasList) return "latest"
-    return "list_items"
-  }
+  if (hasLatest) return hasList ? "latest" : "list_items"
   if (hasList) return "list_items"
   if (hasSummarize) return "summarize"
   if (hasExplain) return "explain"
   if (hasClassify) return "classify"
   if (hasDirect) return "direct_answer"
   if (hasBrowse) return "browse"
-
   return "fact_question"
 }
 
@@ -224,9 +217,7 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
   if (/(?:^|\s)العباس(?:\s|$)/u.test(norm) && !institutionalAbbasContext) person.push("العباس")
 
   const sheikhNameMatch = rawQuery.match(/(?:^|\s)الشيخ\s+([\u0621-\u064A]{2,}(?:\s+[\u0621-\u064A]{2,}){1,2})/u)
-  if (sheikhNameMatch?.[1]) {
-    person.push(`الشيخ ${sheikhNameMatch[1].trim()}`)
-  }
+  if (sheikhNameMatch?.[1]) person.push(`الشيخ ${sheikhNameMatch[1].trim()}`)
 
   const contentTokens = getGenericContentTokens(rawQuery)
   if (contentTokens.length >= 2) topic.push(contentTokens.slice(0, 3).join(" "))
@@ -237,35 +228,25 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
 
   const asksBiographyAttribute = /(?:زوج|زوجات|ابناء|أبناء|اولاد|القاب|كنية|كنيه|عمر)/u.test(norm)
   if (person.length > 0 && asksBiographyAttribute) {
-    sourceSpecific.push("abbas_history_by_id")
-    sourceSpecific.push("shrine_history_sections")
+    sourceSpecific.push("abbas_history_by_id", "shrine_history_sections")
   }
 
   const asksHistoricalContext = /(?:تاريخ|تاري?خ|مراحل|قرن|حقبه|حقبة|هدم|بناء|ترميم|اعمار|إعمار|تشييد)/u.test(norm)
   if (asksHistoricalContext && place.length > 0) {
-    sourceSpecific.push("shrine_history_timeline")
-    sourceSpecific.push("shrine_history_sections")
+    sourceSpecific.push("shrine_history_timeline", "shrine_history_sections")
   }
 
   const asksFridaySermon = /(?:خطب[هة]?\s+الجمع[هة]|خطب[هة]\s+جمع[هة]|من\s+وحي\s+الجمع[هة]|خطب\s+جمع[هة])/u.test(norm)
-  if (asksFridaySermon) {
-    sourceSpecific.push("friday_sermons")
-  }
+  if (asksFridaySermon) sourceSpecific.push("friday_sermons")
+
   const asksWahyFriday = /(?:من\s+وحي\s+الجمع[هة]|وحي\s+الجمع[هة])/u.test(norm)
-  if (asksWahyFriday) {
-    sourceSpecific.push("wahy_friday")
-  }
+  if (asksWahyFriday) sourceSpecific.push("wahy_friday")
 
   const existentialLookup = /(?:^|\s)(?:هل|يوجد|هناك|هنالك)(?:\s|$)/u.test(norm)
   const isCountQuestion = /(?:^|\s)(?:كم|عدد|اجمالي|إجمالي|مجموع)(?:\s|$)/u.test(norm)
   const institutionalRelation = isInstitutionalRelationQuery(norm)
-  if (
-    existentialLookup &&
-    !isCountQuestion &&
-    contentTokens.length > 0 &&
-    !isHistoricalShrineLifecycleQuery(norm) &&
-    !institutionalRelation
-  ) {
+
+  if (existentialLookup && !isCountQuestion && contentTokens.length > 0 && !isHistoricalShrineLifecycleQuery(norm) && !institutionalRelation) {
     sourceSpecific.push("projects_query")
   }
 
@@ -273,7 +254,7 @@ function extractEntities(rawQuery: string, norm: string): QueryExtractedEntities
     person: uniq(person),
     topic: uniq(topic),
     place: uniq(place),
-    source_specific: uniq(sourceSpecific)
+    source_specific: uniq(sourceSpecific),
   }
 }
 
@@ -299,38 +280,27 @@ function deriveHintedSources(contentIntent: QueryContentIntent, entities: QueryE
     case "wahy":
       sources.push("wahy_friday")
       break
-    default:
-      break
   }
 
-  for (const entitySource of entities.source_specific) {
-    if (entitySource !== "projects_query") {
-      sources.push(entitySource)
-    }
+  for (const source of entities.source_specific) {
+    if (source !== "projects_query") sources.push(source)
   }
 
   sources.push("auto")
   return uniq(sources)
 }
 
-function computeConfidence(
-  contentIntent: QueryContentIntent,
-  operationIntent: QueryOperationIntent,
-  entities: QueryExtractedEntities
-): number {
+function computeConfidence(contentIntent: QueryContentIntent, operationIntent: QueryOperationIntent, entities: QueryExtractedEntities): number {
   let score = 0.45
-
   if (contentIntent !== "generic") score += 0.2
   if (operationIntent !== "fact_question") score += 0.15
   if (entities.person.length > 0) score += 0.08
   if (entities.topic.length > 0) score += 0.06
   if (entities.place.length > 0) score += 0.04
   if (entities.source_specific.length > 0) score += 0.07
-
   return Math.max(0.1, Math.min(0.99, Number(score.toFixed(2))))
 }
 
-// ── Query understanding cache (per-process, bounded at 200 entries) ────────────
 const _understandCache = new Map<string, QueryUnderstandingResult>()
 const _UNDERSTAND_CACHE_MAX = 200
 
@@ -338,7 +308,6 @@ export function understandQuery(query: string): QueryUnderstandingResult {
   const raw = String(query || "").trim()
   const norm = normalizeQueryForTrace(raw)
 
-  // Return cached result for identical normalized queries to avoid redundant parsing.
   const cacheKey = norm
   const cached = _understandCache.get(cacheKey)
   if (cached) return cached
@@ -349,9 +318,7 @@ export function understandQuery(query: string): QueryUnderstandingResult {
   const entities = extractEntities(raw, norm)
   const hintedSources = deriveHintedSources(contentIntent, entities)
   const baseConfidence = computeConfidence(contentIntent, operationIntent, entities)
-  const routeConfidence = clarity === "underspecified"
-    ? Math.max(0.1, Number((baseConfidence - 0.12).toFixed(2)))
-    : baseConfidence
+  const routeConfidence = clarity === "underspecified" ? Math.max(0.1, Number((baseConfidence - 0.12).toFixed(2))) : baseConfidence
 
   const result: QueryUnderstandingResult = {
     raw_query: raw,
@@ -361,10 +328,9 @@ export function understandQuery(query: string): QueryUnderstandingResult {
     clarity,
     extracted_entities: entities,
     hinted_sources: hintedSources,
-    route_confidence: routeConfidence
+    route_confidence: routeConfidence,
   }
 
-  // Evict oldest entry if cache is full
   if (_understandCache.size >= _UNDERSTAND_CACHE_MAX) {
     const firstKey = _understandCache.keys().next().value
     if (firstKey !== undefined) _understandCache.delete(firstKey)
@@ -375,11 +341,9 @@ export function understandQuery(query: string): QueryUnderstandingResult {
 
 export function deriveRetrievalCapabilitySignals(
   understanding: QueryUnderstandingResult,
-  rawQuery?: string
+  rawQuery?: string,
 ): RetrievalCapabilitySignals {
-  const norm = rawQuery
-    ? normalizeQueryForTrace(rawQuery)
-    : understanding.normalized_query
+  const norm = rawQuery ? normalizeQueryForTrace(rawQuery) : understanding.normalized_query
 
   const officeHolderFact = /(?:المتولي|الامين\s+العام|أمين\s+عام|مسؤول|رئيس\s+القسم)/u.test(norm)
   const namedEventOrProgram = /(?:مهرجان|فعالي[هة]|برنامج|مبادرة|حملة|اسبوع|أسبوع)/u.test(norm)
@@ -426,7 +390,7 @@ export function deriveRetrievalCapabilitySignals(
     title_or_phrase_lookup: titleOrPhraseLookup,
     underspecified_query: underspecifiedQuery,
     entity_first_mode: entityFirstMode,
-    entity_first_reason: entityFirstReason
+    entity_first_reason: entityFirstReason,
   }
 }
 
@@ -434,45 +398,33 @@ export function getQueryClassKey(understanding: QueryUnderstandingResult): strin
   return `${understanding.operation_intent}:${understanding.content_intent}`
 }
 
-/**
- * Async version of understandQuery that automatically calls the LLM fallback
- * when the regex pass returns low confidence (route_confidence < 0.55 or
- * generic intent on a multi-token query).
- *
- * Falls back silently to the regex result if:
- *  - ENABLE_LLM_INTENT_FALLBACK env is not "true"
- *  - LLM call fails for any reason
- *  - openaiApiKey is not provided
- *
- * @param query       Raw user query string
- * @param openaiApiKey  OpenAI API key (pass process.env.OPENAI_API_KEY)
- * @param model         OpenAI model name (defaults to gpt-4o-mini)
- */
 export async function understandQueryWithFallback(
   query: string,
   openaiApiKey?: string,
   model?: string,
 ): Promise<QueryUnderstandingResult> {
   const regexResult = understandQuery(query)
+  regexResult.understanding_source = "regex"
 
-  // Dynamic import keeps this file synchronous when LLM is disabled
-  const { shouldUseLLMFallback, resolveIntentWithLLM, mergeWithLLMPatch } =
-    await import("../ai/llm-intent-resolver")
+  if (process.env.ENABLE_AI_QUERY_UNDERSTANDING === "false") return regexResult
+  if (!openaiApiKey) return regexResult
 
-  if (!shouldUseLLMFallback(regexResult) || !openaiApiKey) {
-    return regexResult
-  }
+  const trimmed = query.trim()
+  if (trimmed.length < 3) return regexResult
 
   try {
-    const patch = await resolveIntentWithLLM(
+    const { resolveQueryUnderstandingWithAI, mapAIResultToUnderstanding } =
+      await import("../ai/llm-intent-resolver")
+
+    const ai = await resolveQueryUnderstandingWithAI(
       query,
       openaiApiKey,
       model ?? (process.env.OPENAI_MODEL || "gpt-4o-mini"),
     )
-    if (!patch) return regexResult
-    return mergeWithLLMPatch(regexResult, patch)
+    if (!ai) return regexResult
+
+    return mapAIResultToUnderstanding(query, ai, regexResult)
   } catch {
-    // Degrade gracefully — never block the main pipeline
     return regexResult
   }
 }

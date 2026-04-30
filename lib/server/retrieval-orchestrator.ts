@@ -249,6 +249,21 @@ function buildSourceConstraint(
     }
   }
 
+  // When AI explicitly chose videos_by_category (user specified a section/category),
+  // route there exclusively — do not fall back to videos_latest from other sections.
+  if (
+    intent === "video" &&
+    understanding.allowed_sources?.includes("videos_by_category") &&
+    !understanding.allowed_sources?.includes("videos_latest")
+  ) {
+    return {
+      intent: "video",
+      hardConstraint: true,
+      preferredSources: ["videos_by_category"],
+      allowedSources: ["videos_by_category"]
+    }
+  }
+
   switch (intent) {
     case "video":
       return {
@@ -445,11 +460,14 @@ export async function orchestrateRetrieval(
     return null
   }
 
-  const query = String(args.query || args.searchTerm || args.keyword || "").trim()
+  const rawQuery = String(args.query || args.searchTerm || args.keyword || "").trim()
   const maxAttempts = Math.max(1, Math.min(options.maxAttempts || 4, 4))
   const requestBudgetMs = clampRequestBudgetMs(options.requestBudgetMs)
-  const understanding = options.queryUnderstanding || understandQuery(query)
-  const plan = buildPlan(toolName, query, args, understanding, maxAttempts)
+  const understanding = options.queryUnderstanding || understandQuery(rawQuery)
+  // When AI extracted a clean search query (e.g. from dialectal Arabic), use it for retrieval
+  const query = understanding.clean_search_query?.trim() || rawQuery
+  const effectiveArgs = query !== rawQuery ? { ...args, query } : args
+  const plan = buildPlan(toolName, query, effectiveArgs, understanding, maxAttempts)
   const requestStartedAt = Date.now()
 
   if (options.traceId) {
@@ -550,7 +568,7 @@ export async function orchestrateRetrieval(
     }
 
     const attemptArgs = {
-      ...args,
+      ...effectiveArgs,
       source: attemptPlan.source
     }
     const attemptTimeoutMs = Math.max(MIN_ATTEMPT_TIMEOUT_MS, budgetRemainingBeforeAttempt)

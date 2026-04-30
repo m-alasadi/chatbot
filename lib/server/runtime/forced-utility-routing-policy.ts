@@ -29,6 +29,47 @@ function hasAnyKeyword(norm: string, keywords: string[]): boolean {
   return keywords.some(keyword => norm.includes(normalizeArabicLight(keyword)))
 }
 
+/**
+ * Architectural rule for forced-utility routing:
+ *
+ *   The latest-by-source / browse-by-source path can ONLY filter by a known
+ *   category or section. It has no mechanism to post-filter by an arbitrary
+ *   subject phrase. So if the user query — after we strip every word that the
+ *   forced-routing classifier already consumes (operation verbs, latest
+ *   adverbs, plural collection nouns, source-medium nouns and section-filter
+ *   nouns) — STILL contains content tokens, those tokens are a topic the
+ *   listing path cannot honour. In that case we must yield to the semantic
+ *   retrieval orchestrator (search_content) which can rank by topical
+ *   relevance and recency.
+ *
+ *   This rule purposely reuses the SAME vocabulary lists that the routing
+ *   branches consult, so it stays in sync without any new hard-coded words.
+ */
+function computeTopicalResidualLength(
+  norm: string,
+  consumedVocabularies: string[][]
+): number {
+  // Strip Arabic question scaffolding & connectors first (mirrors the policy
+  // used by query-understanding's getGenericContentTokens — kept as a small
+  // generic Arabic-grammar layer, not a topic vocabulary).
+  let stripped = norm
+    .replace(/(?:^|\s)(?:ما|ماذا|من|هو|هي|هل|هناك|هنالك|عن|في|على|الى|إلى|او|أو|ثم|هذا|هذه|ذلك|تلك|مع|اذا|إذا|لكن|ولاكن|لي|لك|باسم|اسم|بعنوان)(?=\s|$)/gu, " ")
+    .replace(/(?:^|\s)(?:كيف|كم|عدد|متى|اين|أين|لماذا|لمن)(?=\s|$)/gu, " ")
+
+  // Remove every token that any forced-routing branch already consumes.
+  const consumed = new Set<string>()
+  for (const list of consumedVocabularies) {
+    for (const w of list) {
+      const n = normalizeArabicLight(w)
+      if (n) consumed.add(n)
+    }
+  }
+
+  const tokens = stripped.split(/\s+/).filter(t => t.length >= 2)
+  const residual = tokens.filter(t => !consumed.has(t))
+  return residual.length
+}
+
 export function detectForcedUtilityIntent(
   userText: string,
   understanding: QueryUnderstandingResult | undefined,
@@ -61,6 +102,23 @@ export function detectForcedUtilityIntent(
   // want to flow through the section resolver instead of dropping to auto.
   const genericContentHints = ["منشور", "منشورين", "منشورات", "إصدار", "اصدار", "إصدارات", "اصدارات", "مادة", "مواد", "محتوى", "محتويات"]
   const sectionFilterHints = ["قسم", "القسم", "تصنيف", "التصنيف", "فئه", "فئة"]
+
+  // ── Topical-query guard (architectural, not vocabulary-specific) ───────
+  // Reuses the SAME hint lists already declared above as stop-words. If any
+  // residual content token survives stripping them, the query carries a
+  // subject the listing path cannot honour (e.g. "اخبار الاغاثة",
+  // "اخر خبر عن زيارة الاربعين", "احدث فيديو حول مشروع X"). Such queries
+  // must reach the semantic orchestrator instead of forced listing.
+  const topicalResidualLength = computeTopicalResidualLength(norm, [
+    newsHints, videoHints, wahyFridayHints, sermonHints,
+    latestKeywords, explicitListingWords, pluralCollectionHints,
+    genericContentHints, sectionFilterHints,
+    // Operation/quantity words that are not topic content.
+    ["عدد", "كم", "اجمالي", "كلي", "مجموع", "ابرز", "اليوم", "اول", "اقدم", "oldest", "first", "معلومات", "وصفيه", "وصفي", "ميتاداتا", "مصدر"],
+    // Honorific scaffolding around the source domain itself.
+    ["العتبه", "العتبة", "العباسيه", "العباسية", "المقدسه", "المقدسة"],
+  ])
+  const isTopicalQuery = topicalResidualLength > 0
   const isExplicitTopNewsRequest =
     (isNews || understoodNews) &&
     !(isVideo || understoodVideo) &&
@@ -108,11 +166,12 @@ export function detectForcedUtilityIntent(
     (isNews || understoodNews || norm.includes(normalizeArabicLight("العتبة العباسية"))) &&
     includesAnyLatestSingle(norm)
 
-  if (isExplicitSingleLatestNewsRequest) {
+  // Topical "latest" queries are semantic searches; defer to the orchestrator.
+  if (!isTopicalQuery && isExplicitSingleLatestNewsRequest) {
     return { tool: "get_latest_by_source", args: { source: "articles_latest", limit: 1, query: userText } }
   }
 
-  if (isExplicitLatestListing) {
+  if (!isTopicalQuery && isExplicitLatestListing) {
     if (isWahyFriday || understoodWahy) return { tool: "get_latest_by_source", args: { source: "wahy_friday", limit: 5, query: userText } }
     if (isSermon || understoodSermon) return { tool: "get_latest_by_source", args: { source: "friday_sermons", limit: 5, query: userText } }
     if ((isVideo || understoodVideo) && !(isNews || understoodNews)) return { tool: "get_latest_by_source", args: { source: "videos_latest", limit: 5, query: userText } }
@@ -120,7 +179,7 @@ export function detectForcedUtilityIntent(
   }
 
   // 4.1 "Latest" singular media request without explicit listing words (e.g. "اخر فيديو من قسم ...")
-  if (hasLatestKeyword && !isExplicitLatestListing) {
+  if (!isTopicalQuery && hasLatestKeyword && !isExplicitLatestListing) {
     const inferredLimit = hasAnyKeyword(norm, pluralCollectionHints) ? 5 : 1
     if (isWahyFriday || understoodWahy) return { tool: "get_latest_by_source", args: { source: "wahy_friday", limit: inferredLimit, query: userText } }
     if (isSermon || understoodSermon) return { tool: "get_latest_by_source", args: { source: "friday_sermons", limit: inferredLimit, query: userText } }

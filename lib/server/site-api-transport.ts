@@ -1,6 +1,7 @@
 import { getSiteAPIConfig } from "./site-api-config"
 import { sanitizeAPIResponse } from "./data-sanitizer"
 import { recordSourceFetchMetrics } from "./observability/runtime-metrics"
+import { debugLog } from "./debug-log"
 
 /**
  * إعدادات Timeout و Retry
@@ -8,6 +9,80 @@ import { recordSourceFetchMetrics } from "./observability/runtime-metrics"
 const API_TIMEOUT_MS = 30000 // 30 ثانية (API بطيء بسبب حجم البيانات)
 const MAX_RETRIES = 1 // محاولة واحدة فقط (البيانات كبيرة)
 const RETRY_DELAY_MS = 1000 // التأخير بين المحاولات
+
+/**
+ * قائمة hosts مسموح بها عند تمرير endpoint مطلق (defense-in-depth ضد SSRF).
+ * تشمل origin الـ baseUrl المضبوط في البيئة، والدومينات الرسمية لـ alkafeel.
+ * تدعم توسيعة عبر SITE_API_ALLOWED_HOSTS (فاصلة بينها).
+ */
+function getAllowedAbsoluteHosts(): Set<string> {
+  const hosts = new Set<string>()
+  try {
+    const cfg = getSiteAPIConfig()
+    hosts.add(new URL(cfg.baseUrl).host.toLowerCase())
+    hosts.add(new URL(cfg.allProjectsEndpoint).host.toLowerCase())
+  } catch {
+    /* config not ready — fall back to defaults below */
+  }
+  // دومينات رسمية معروفة
+  hosts.add("alkafeel.net")
+  hosts.add("projects.alkafeel.net")
+  hosts.add("www.alkafeel.net")
+  // توسيع عبر متغير بيئة للأراضي الإضافية
+  const extra = String(process.env.SITE_API_ALLOWED_HOSTS || "")
+    .split(",")
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean)
+  for (const h of extra) hosts.add(h)
+  return hosts
+}
+
+/**
+ * رفض absolute URLs غير المسموح بها (loopback / RFC1918 / metadata) مع فحص الـ host.
+ */
+function assertSafeAbsoluteUrl(rawUrl: string): void {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    throw new Error("عنوان URL غير صالح")
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("بروتوكول غير مسموح")
+  }
+  const host = parsed.hostname.toLowerCase()
+  // رفض loopback / link-local / metadata
+  const blocked = [
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "::1",
+    "169.254.169.254", // cloud metadata
+    "metadata.google.internal",
+  ]
+  if (blocked.includes(host)) {
+    throw new Error("host محظور")
+  }
+  // رفض IPv4 private ranges
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (ipv4) {
+    const a = Number(ipv4[1])
+    const b = Number(ipv4[2])
+    if (
+      a === 10 ||
+      a === 127 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254)
+    ) {
+      throw new Error("عنوان داخلي محظور")
+    }
+  }
+  const allowed = getAllowedAbsoluteHosts()
+  if (allowed.size > 0 && !allowed.has(host)) {
+    throw new Error(`host غير مسموح به: ${host}`)
+  }
+}
 
 /**
  * نتيجة استدعاء API
@@ -88,8 +163,7 @@ async function retryOperation<T>(
       }
 
       // سجل المحاولة
-      console.log(
-        `[API Retry] source=${contextLabel} attempt=${attempt + 1} retry_in_ms=${delayMs}`
+        debugLog(
       )
 
       // انتظر قبل المحاولة التالية
@@ -143,6 +217,7 @@ export async function callSiteAPI(
         // نركب الرابط على origin فقط لتجنب تكرار المسار.
         let url: string
         if (isAbsoluteEndpoint) {
+          assertSafeAbsoluteUrl(endpoint)
           url = endpoint
         } else if (normalizedEndpoint.startsWith("/alkafeel_back_test/")) {
           const baseOrigin = new URL(normalizedBase).origin
@@ -250,7 +325,7 @@ export async function callSiteAPI(
       timedOut: timeoutDetected
     })
     if (durationMs >= slowThresholdMs) {
-      console.log(
+      debugLog(
         `[SiteAPI SlowPath] source=${source || "unknown"} endpoint=${endpoint} duration_ms=${durationMs} timeout_ms=${timeout} retries=${retries}`
       )
     }

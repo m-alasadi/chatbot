@@ -9,6 +9,7 @@ import { getSiteAPIConfig } from "./site-api-config"
 import type { AllowedToolName } from "./site-tools-definitions"
 import { callSiteAPI } from "./site-api-transport"
 import type { APICallResult } from "./site-api-transport"
+import { debugLog } from "./debug-log"
 import {
   type SiteSourceName,
   type SourceFetchParams,
@@ -557,20 +558,20 @@ let projectsCacheTime: number = 0
 const CACHE_DURATION = 30 * 60 * 1000 // 30 دقيقة — تقليل استدعاءات API
 
 async function getAllProjects(): Promise<APICallResult> {
-  console.log("[getAllProjects] Starting...")
+  debugLog("[getAllProjects] Starting...")
   const config = getSiteAPIConfig()
 
   // تحقق من الـ cache
   const now = Date.now()
   if (projectsCache && now - projectsCacheTime < CACHE_DURATION) {
-    console.log("[getAllProjects] Returning cached data")
+    debugLog("[getAllProjects] Returning cached data")
     return {
       success: true,
       data: projectsCache
     }
   }
 
-  console.log("[getAllProjects] Cache miss, fetching from API...")
+  debugLog("[getAllProjects] Cache miss, fetching from API...")
 
   // The canonical projects API is paginated (Laravel-style: { data, current_page,
   // last_page, ... }). When it returns a single array (legacy/simple endpoints)
@@ -608,7 +609,7 @@ async function getAllProjects(): Promise<APICallResult> {
     ? normalizeProjectsDataset(result.data)
     : []
 
-  console.log(
+  debugLog(
     "[getAllProjects] API result:",
     result.success
       ? `Success (${normalizedProjects.length} projects)`
@@ -618,7 +619,7 @@ async function getAllProjects(): Promise<APICallResult> {
   if (result.success && normalizedProjects.length > 0) {
     projectsCache = normalizedProjects
     projectsCacheTime = now
-    console.log("[getAllProjects] Cached", normalizedProjects.length, "projects")
+    debugLog("[getAllProjects] Cached", normalizedProjects.length, "projects")
 
     return {
       success: true,
@@ -1117,7 +1118,7 @@ export async function siteSearchContent(
   )
 
   if (shouldUseOfficialNewsSearch) {
-    console.log(`[siteSearchContent] Official news search fallback for query="${query}"`)
+    debugLog(`[siteSearchContent] Official news search fallback for query="${query}"`)
     // للاستعلامات الطويلة: استخرج الكلمات الرئيسية (محتوى) فقط بدلاً من الجملة الكاملة
     // حتى لا يُعيد الـ API نتائج غير ذات صلة بسبب الكلمات الوظيفية
     const queryTokensRaw = tokenizeArabicQuery(query)
@@ -1133,7 +1134,7 @@ export async function siteSearchContent(
     const officialNewsResults = await fetchOfficialNewsSearchResults(officialSearchQuery, safeLimit, {
       preserveEntityTokens: capability.institutional_relation
     })
-    console.log(`[siteSearchContent] Official news search returned ${officialNewsResults.length} candidate(s)`)
+    debugLog(`[siteSearchContent] Official news search returned ${officialNewsResults.length} candidate(s)`)
     for (const item of officialNewsResults) {
       const key = `${item?.source_type || "source"}:${item?.id || item?.name || Math.random()}`
       if (!deduped.has(key)) {
@@ -1203,17 +1204,25 @@ export async function siteSearchContent(
       scored.sort((a, b) => b.score - a.score)
     }
   } else if (entityFirstMode) {
-    console.log("[siteSearchContent] Entity-first mode active, skipping broad expansion")
+    debugLog("[siteSearchContent] Entity-first mode active, skipping broad expansion")
   }
 
   const isTitleQ = looksLikeTitleQuery(query) || capability.title_or_phrase_lookup
   // Always run deep archive scan for bare title queries; partial-overlap
   // matches in news fallback are not the actual item the user is asking about.
   // The deep scan has its own internal HIGH_CONFIDENCE early-exit.
-  const shouldRunDeepTitleScan = isTitleQ
+  // Skip the (expensive, multi-page) scan when prior stages already produced
+  // a strong title hit, since the deep scan can otherwise burn 5-10s of the
+  // request budget for no improvement.
+  const STRONG_TITLE_SCORE_THRESHOLD = Number(
+    process.env.DEEP_SCAN_SKIP_SCORE || 100
+  )
+  const alreadyHasStrongTitleHit =
+    scored.length > 0 && (scored[0]?.score || 0) >= STRONG_TITLE_SCORE_THRESHOLD
+  const shouldRunDeepTitleScan = isTitleQ && !alreadyHasStrongTitleHit
 
   if (shouldRunDeepTitleScan) {
-    console.log("[siteSearchContent] Title-query detected, launching deep archive scan...")
+    debugLog("[siteSearchContent] Title-query detected, launching deep archive scan...")
     const deepSources = source === "auto"
       ? candidates.filter(s => EXPANDABLE_SOURCES.includes(s))
       : candidates.filter(s => EXPANDABLE_SOURCES.includes(s) || s === source)
@@ -1233,7 +1242,7 @@ export async function siteSearchContent(
       scored.sort((a, b) => b.score - a.score)
     }
   } else if (entityFirstMode && isTitleQ) {
-    console.log("[siteSearchContent] Entity-first mode active, skipping deep archive scan")
+    debugLog("[siteSearchContent] Entity-first mode active, skipping deep archive scan")
   }
 
   const results = scored.slice(0, safeLimit).map(x => ({
@@ -1650,7 +1659,7 @@ export async function executeToolByName(
   toolName: AllowedToolName,
   args: Record<string, any>
 ): Promise<APICallResult> {
-  console.log(`[Tool Execution] ${toolName}`, args)
+  debugLog(`[Tool Execution] ${toolName}`, args)
 
   try {
     switch (toolName) {

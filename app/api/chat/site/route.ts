@@ -1,4 +1,4 @@
-import {
+﻿import {
   getSiteSystemPrompt,
   getFallbackResponse
 } from "@/lib/server/system-prompts"
@@ -36,7 +36,7 @@ export const runtime: ServerRuntime = "edge"
  * Security Headers
  */
 function getSecurityHeaders(): HeadersInit {
-  // السماح لأي origin لأن الودجت يُضمّن في مواقع خارجية متعددة
+  // Ø§Ù„Ø³Ù…Ø§Ø­ Ù„Ø£ÙŠ origin Ù„Ø£Ù† Ø§Ù„ÙˆØ¯Ø¬Øª ÙŠÙØ¶Ù…Ù‘Ù† ÙÙŠ Ù…ÙˆØ§Ù‚Ø¹ Ø®Ø§Ø±Ø¬ÙŠØ© Ù…ØªØ¹Ø¯Ø¯Ø©
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -99,8 +99,8 @@ function classifyRuntimeFailure(error: any): "timeout" | "rate_limit" | "upstrea
 }
 
 function buildRuntimeFailureMessage(kind: ReturnType<typeof classifyRuntimeFailure>, traceId: string): string {
-  const traceSuffix = `\n\nرقم التتبع: ${traceId}`
-  const underDevelopmentMessage = `خدمة الرد الآلي قيد التطوير حاليًا وقد لا تتوفر الإجابة في هذه اللحظة. يرجى المحاولة بعد قليل.${traceSuffix}`
+  const traceSuffix = `\n\nØ±Ù‚Ù… Ø§Ù„ØªØªØ¨Ø¹: ${traceId}`
+  const underDevelopmentMessage = `Ø®Ø¯Ù…Ø© Ø§Ù„Ø±Ø¯ Ø§Ù„Ø¢Ù„ÙŠ Ù‚ÙŠØ¯ Ø§Ù„ØªØ·ÙˆÙŠØ± Ø­Ø§Ù„ÙŠÙ‹Ø§ ÙˆÙ‚Ø¯ Ù„Ø§ ØªØªÙˆÙØ± Ø§Ù„Ø¥Ø¬Ø§Ø¨Ø© ÙÙŠ Ù‡Ø°Ù‡ Ø§Ù„Ù„Ø­Ø¸Ø©. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ø¨Ø¹Ø¯ Ù‚Ù„ÙŠÙ„.${traceSuffix}`
   switch (kind) {
     case "auth":
       return underDevelopmentMessage
@@ -135,39 +135,39 @@ function includesAny(norm: string, values: string[]): boolean {
 function isStandaloneReferentialQuestion(text: string): boolean {
   const norm = normalizeArabicLight(text)
   const referentialSignals = [
-    "ألقابه",
-    "القابه",
-    "أبناؤه",
-    "ابناؤه",
-    "أولاده",
-    "اولاده",
-    "زوجته",
-    "زوجاته",
-    "اسم زوجته",
-    "شهادته",
-    "استشهاده"
+    "Ø£Ù„Ù‚Ø§Ø¨Ù‡",
+    "Ø§Ù„Ù‚Ø§Ø¨Ù‡",
+    "Ø£Ø¨Ù†Ø§Ø¤Ù‡",
+    "Ø§Ø¨Ù†Ø§Ø¤Ù‡",
+    "Ø£ÙˆÙ„Ø§Ø¯Ù‡",
+    "Ø§ÙˆÙ„Ø§Ø¯Ù‡",
+    "Ø²ÙˆØ¬ØªÙ‡",
+    "Ø²ÙˆØ¬Ø§ØªÙ‡",
+    "Ø§Ø³Ù… Ø²ÙˆØ¬ØªÙ‡",
+    "Ø´Ù‡Ø§Ø¯ØªÙ‡",
+    "Ø§Ø³ØªØ´Ù‡Ø§Ø¯Ù‡"
   ]
   const explicitSubjectSignals = [
-    "العباس",
-    "أبي الفضل",
-    "ابي الفضل",
-    "أبو الفضل",
-    "ابو الفضل",
-    "المتولي الشرعي",
-    "إذاعة الكفيل",
-    "اذاعة الكفيل",
-    "نداء العقيدة",
-    "أسبوع الإمامة",
-    "اسبوع الامامة",
-    "جامعة الكفيل",
-    "الشؤون النسوية"
+    "Ø§Ù„Ø¹Ø¨Ø§Ø³",
+    "Ø£Ø¨ÙŠ Ø§Ù„ÙØ¶Ù„",
+    "Ø§Ø¨ÙŠ Ø§Ù„ÙØ¶Ù„",
+    "Ø£Ø¨Ùˆ Ø§Ù„ÙØ¶Ù„",
+    "Ø§Ø¨Ùˆ Ø§Ù„ÙØ¶Ù„",
+    "Ø§Ù„Ù…ØªÙˆÙ„ÙŠ Ø§Ù„Ø´Ø±Ø¹ÙŠ",
+    "Ø¥Ø°Ø§Ø¹Ø© Ø§Ù„ÙƒÙÙŠÙ„",
+    "Ø§Ø°Ø§Ø¹Ø© Ø§Ù„ÙƒÙÙŠÙ„",
+    "Ù†Ø¯Ø§Ø¡ Ø§Ù„Ø¹Ù‚ÙŠØ¯Ø©",
+    "Ø£Ø³Ø¨ÙˆØ¹ Ø§Ù„Ø¥Ù…Ø§Ù…Ø©",
+    "Ø§Ø³Ø¨ÙˆØ¹ Ø§Ù„Ø§Ù…Ø§Ù…Ø©",
+    "Ø¬Ø§Ù…Ø¹Ø© Ø§Ù„ÙƒÙÙŠÙ„",
+    "Ø§Ù„Ø´Ø¤ÙˆÙ† Ø§Ù„Ù†Ø³ÙˆÙŠØ©"
   ]
 
   return includesAny(norm, referentialSignals) && !includesAny(norm, explicitSubjectSignals)
 }
 
 /**
- * معالجة OPTIONS request (CORS Preflight)
+ * Ù…Ø¹Ø§Ù„Ø¬Ø© OPTIONS request (CORS Preflight)
  */
 export async function OPTIONS(request: Request) {
   return new Response(null, {
@@ -180,7 +180,7 @@ interface ChatRequest {
   messages: ChatCompletionMessageParam[]
   temperature?: number
   max_tokens?: number
-  use_tools?: boolean // خيار لتفعيل/تعطيل الأدوات
+  use_tools?: boolean // Ø®ÙŠØ§Ø± Ù„ØªÙØ¹ÙŠÙ„/ØªØ¹Ø·ÙŠÙ„ Ø§Ù„Ø£Ø¯ÙˆØ§Øª
 }
 
 const DEFAULT_CHAT_TEMPERATURE = 0.2
@@ -188,12 +188,12 @@ const DEFAULT_CHAT_MAX_TOKENS = 1200
 const MAX_CONTEXT_MESSAGES = 12
 
 /**
- * Endpoint موحد للشات مع دعم Function Calling - المرحلة 2 + 4
+ * Endpoint Ù…ÙˆØ­Ø¯ Ù„Ù„Ø´Ø§Øª Ù…Ø¹ Ø¯Ø¹Ù… Function Calling - Ø§Ù„Ù…Ø±Ø­Ù„Ø© 2 + 4
  * 
- * التطويرات:
- * ✅ Phase 2: دعم Function Calling مع REST API
- * ✅ Phase 3: منع الهلوسة والاقتراحات الذكية
- * ✅ Phase 4: Rate Limiting + Security + Data Sanitization
+ * Ø§Ù„ØªØ·ÙˆÙŠØ±Ø§Øª:
+ * âœ… Phase 2: Ø¯Ø¹Ù… Function Calling Ù…Ø¹ REST API
+ * âœ… Phase 3: Ù…Ù†Ø¹ Ø§Ù„Ù‡Ù„ÙˆØ³Ø© ÙˆØ§Ù„Ø§Ù‚ØªØ±Ø§Ø­Ø§Øª Ø§Ù„Ø°ÙƒÙŠØ©
+ * âœ… Phase 4: Rate Limiting + Security + Data Sanitization
  */
 export async function POST(request: Request) {
   const traceId = buildTraceId()
@@ -221,13 +221,13 @@ export async function POST(request: Request) {
       forwardedFor.includes("127.0.0.1") ||
       forwardedFor.includes("::1")
 
-    // ✅ Phase 4.1: Rate Limiting - حماية من Spam
+    // âœ… Phase 4.1: Rate Limiting - Ø­Ù…Ø§ÙŠØ© Ù…Ù† Spam
     const rateLimitResult = isLocalLoopbackRequest
       ? { allowed: true, ip: "loopback" as string, retryAfter: undefined }
       : applyRateLimit(request, {
-          maxRequests: 20, // 20 طلب
-          windowMs: 60 * 1000, // لكل دقيقة
-          blockDurationMs: 5 * 60 * 1000 // حظر 5 دقائق عند التجاوز
+          maxRequests: 20, // 20 Ø·Ù„Ø¨
+          windowMs: 60 * 1000, // Ù„ÙƒÙ„ Ø¯Ù‚ÙŠÙ‚Ø©
+          blockDurationMs: 5 * 60 * 1000 // Ø­Ø¸Ø± 5 Ø¯Ù‚Ø§Ø¦Ù‚ Ø¹Ù†Ø¯ Ø§Ù„ØªØ¬Ø§ÙˆØ²
         })
 
     if (!rateLimitResult.allowed) {
@@ -237,11 +237,11 @@ export async function POST(request: Request) {
 
       return createRateLimitResponse(
         rateLimitResult.retryAfter!,
-        "تجاوزت الحد المسموح من الطلبات. يُرجى المحاولة بعد قليل."
+        "ØªØ¬Ø§ÙˆØ²Øª Ø§Ù„Ø­Ø¯ Ø§Ù„Ù…Ø³Ù…ÙˆØ­ Ù…Ù† Ø§Ù„Ø·Ù„Ø¨Ø§Øª. ÙŠÙØ±Ø¬Ù‰ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ø¨Ø¹Ø¯ Ù‚Ù„ÙŠÙ„."
       )
     }
 
-    // قراءة البيانات
+    // Ù‚Ø±Ø§Ø¡Ø© Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª
     const json = await request.json()
     const {
       messages,
@@ -250,7 +250,7 @@ export async function POST(request: Request) {
       use_tools = true
     } = json as ChatRequest
 
-    // توحيد السلوك بين الواجهة والاختبارات عبر ضبط حدود المعلمات.
+    // ØªÙˆØ­ÙŠØ¯ Ø§Ù„Ø³Ù„ÙˆÙƒ Ø¨ÙŠÙ† Ø§Ù„ÙˆØ§Ø¬Ù‡Ø© ÙˆØ§Ù„Ø§Ø®ØªØ¨Ø§Ø±Ø§Øª Ø¹Ø¨Ø± Ø¶Ø¨Ø· Ø­Ø¯ÙˆØ¯ Ø§Ù„Ù…Ø¹Ù„Ù…Ø§Øª.
     const boundedTemperature = Number.isFinite(temperature)
       ? Math.max(0, Math.min(0.3, temperature))
       : DEFAULT_CHAT_TEMPERATURE
@@ -258,18 +258,18 @@ export async function POST(request: Request) {
       ? Math.max(256, Math.min(DEFAULT_CHAT_MAX_TOKENS, Math.trunc(max_tokens)))
       : DEFAULT_CHAT_MAX_TOKENS
 
-    // التحقق من وجود رسائل
+    // Ø§Ù„ØªØ­Ù‚Ù‚ Ù…Ù† ÙˆØ¬ÙˆØ¯ Ø±Ø³Ø§Ø¦Ù„
     if (!messages || messages.length === 0) {
       return new Response(
         JSON.stringify({
-          error: "يجب إرسال رسالة واحدة على الأقل"
+          error: "ÙŠØ¬Ø¨ Ø¥Ø±Ø³Ø§Ù„ Ø±Ø³Ø§Ù„Ø© ÙˆØ§Ø­Ø¯Ø© Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„"
         }),
         { status: 400, headers: securityHeaders }
       )
     }
 
-    // ✅ Phase 4.2: Data Sanitization - تنظيف المدخلات
-    // تحويل messages لنوع بسيط للتنظيف
+    // âœ… Phase 4.2: Data Sanitization - ØªÙ†Ø¸ÙŠÙ Ø§Ù„Ù…Ø¯Ø®Ù„Ø§Øª
+    // ØªØ­ÙˆÙŠÙ„ messages Ù„Ù†ÙˆØ¹ Ø¨Ø³ÙŠØ· Ù„Ù„ØªÙ†Ø¸ÙŠÙ
     const simpleMessages = messages.map(msg => ({
       role: msg.role,
       content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
@@ -281,13 +281,13 @@ export async function POST(request: Request) {
     if (boundedMessages.length === 0) {
       return new Response(
         JSON.stringify({
-          error: "الرسائل غير صالحة بعد التنظيف"
+          error: "Ø§Ù„Ø±Ø³Ø§Ø¦Ù„ ØºÙŠØ± ØµØ§Ù„Ø­Ø© Ø¨Ø¹Ø¯ Ø§Ù„ØªÙ†Ø¸ÙŠÙ"
         }),
         { status: 400, headers: securityHeaders }
       )
     }
 
-    // التحقق من صحة آخر رسالة (من المستخدم)
+    // Ø§Ù„ØªØ­Ù‚Ù‚ Ù…Ù† ØµØ­Ø© Ø¢Ø®Ø± Ø±Ø³Ø§Ù„Ø© (Ù…Ù† Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…)
     const lastMessage = boundedMessages[boundedMessages.length - 1]
     const requestUnderstanding = await understandQueryWithFallback(
       lastMessage?.content || "",
@@ -306,13 +306,26 @@ export async function POST(request: Request) {
       !boundedMessages.some(message => message.role === "assistant") &&
       isStandaloneReferentialQuestion(lastMessage.content || "")
     ) {
-      const clarification = "هذا السؤال يعتمد على السياق السابق. اذكر الاسم أو الموضوع المقصود أولاً ثم سأجيبك بدقة."
+      const clarification = "Ù‡Ø°Ø§ Ø§Ù„Ø³Ø¤Ø§Ù„ ÙŠØ¹ØªÙ…Ø¯ Ø¹Ù„Ù‰ Ø§Ù„Ø³ÙŠØ§Ù‚ Ø§Ù„Ø³Ø§Ø¨Ù‚. Ø§Ø°ÙƒØ± Ø§Ù„Ø§Ø³Ù… Ø£Ùˆ Ø§Ù„Ù…ÙˆØ¶ÙˆØ¹ Ø§Ù„Ù…Ù‚ØµÙˆØ¯ Ø£ÙˆÙ„Ø§Ù‹ Ø«Ù… Ø³Ø£Ø¬ÙŠØ¨Ùƒ Ø¨Ø¯Ù‚Ø©."
       return new Response(clarification, {
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           ...securityHeaders
         },
         status: 200
+      })
+    }
+
+    if (
+      lastMessage?.role === "user" &&
+      requestUnderstanding.needs_clarification === true &&
+      typeof requestUnderstanding.clarification_question === "string" &&
+      requestUnderstanding.clarification_question.trim().length > 0 &&
+      (requestUnderstanding.ai_confidence ?? 1) < 0.6
+    ) {
+      return new Response(requestUnderstanding.clarification_question.trim(), {
+        headers: { "Content-Type": "text/plain; charset=utf-8", ...securityHeaders },
+        status: 200,
       })
     }
 
@@ -346,32 +359,32 @@ export async function POST(request: Request) {
 
         return new Response(
           JSON.stringify({
-            error: "المدخلات غير صالحة",
+            error: "Ø§Ù„Ù…Ø¯Ø®Ù„Ø§Øª ØºÙŠØ± ØµØ§Ù„Ø­Ø©",
             details: validation.error
           }),
           { status: 400, headers: securityHeaders }
         )
       }
 
-      // استخدام النص النظيف
+      // Ø§Ø³ØªØ®Ø¯Ø§Ù… Ø§Ù„Ù†Øµ Ø§Ù„Ù†Ø¸ÙŠÙ
       lastMessage.content = validation.sanitized!
     }
 
-    // الحصول على OpenAI API Key من البيئة (لا نحتاج Supabase لـ site API)
+    // Ø§Ù„Ø­ØµÙˆÙ„ Ø¹Ù„Ù‰ OpenAI API Key Ù…Ù† Ø§Ù„Ø¨ÙŠØ¦Ø© (Ù„Ø§ Ù†Ø­ØªØ§Ø¬ Supabase Ù„Ù€ site API)
     const openaiApiKey = process.env.OPENAI_API_KEY
     if (!openaiApiKey) {
       throw new Error("OPENAI_API_KEY not found in environment")
     }
 
-    // الحصول على النموذج من البيئة
+    // Ø§Ù„Ø­ØµÙˆÙ„ Ø¹Ù„Ù‰ Ø§Ù„Ù†Ù…ÙˆØ°Ø¬ Ù…Ù† Ø§Ù„Ø¨ÙŠØ¦Ø©
     const model = getOpenAIModel()
 
-    // إنشاء عميل OpenAI
+    // Ø¥Ù†Ø´Ø§Ø¡ Ø¹Ù…ÙŠÙ„ OpenAI
     const openai = new OpenAI({
       apiKey: openaiApiKey
     })
 
-    // حقن System Prompt مع فهرس الكيانات الديناميكي
+    // Ø­Ù‚Ù† System Prompt Ù…Ø¹ ÙÙ‡Ø±Ø³ Ø§Ù„ÙƒÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¯ÙŠÙ†Ø§Ù…ÙŠÙƒÙŠ
     const entityCatalog = await buildEntityCatalogSnippet()
     const systemPrompt = getSiteSystemPrompt(entityCatalog)
     const messagesWithSystem: ChatCompletionMessageParam[] = [
@@ -401,7 +414,7 @@ export async function POST(request: Request) {
           }
         })
 
-        // الخطوة 1: حل جميع tool calls (بدون stream)
+        // Ø§Ù„Ø®Ø·ÙˆØ© 1: Ø­Ù„ Ø¬Ù…ÙŠØ¹ tool calls (Ø¨Ø¯ÙˆÙ† stream)
         // Pass { traceId } and the pre-computed understanding to the handler.
         const traceOpts = { traceId }
         toolResult = await resolveToolCalls(
@@ -446,7 +459,7 @@ export async function POST(request: Request) {
 
         console.log(`[Chat API] Tools resolved in ${toolResult.iterations} iteration(s), needsFinalCall: ${toolResult.needsFinalCall}`)
 
-        // إذا كان هناك إجابة مباشرة (من evidence عالي الثقة) → أرجعها فوراً
+        // Ø¥Ø°Ø§ ÙƒØ§Ù† Ù‡Ù†Ø§Ùƒ Ø¥Ø¬Ø§Ø¨Ø© Ù…Ø¨Ø§Ø´Ø±Ø© (Ù…Ù† evidence Ø¹Ø§Ù„ÙŠ Ø§Ù„Ø«Ù‚Ø©) â†’ Ø£Ø±Ø¬Ø¹Ù‡Ø§ ÙÙˆØ±Ø§Ù‹
         if (toolResult.directAnswer) {
           const directAnswerText = toolResult.directAnswer
           console.log(`[Chat API] Returning direct grounded answer (bypassing final LLM call)`)
@@ -489,11 +502,11 @@ export async function POST(request: Request) {
           })
         }
 
-        // ✅ الخطوة 2: streaming حقيقي من OpenAI (يشتغل على Vercel)
-        // سواء كان رد مباشر أو بعد tool calls — دائماً نستخدم stream حقيقي
+        // âœ… Ø§Ù„Ø®Ø·ÙˆØ© 2: streaming Ø­Ù‚ÙŠÙ‚ÙŠ Ù…Ù† OpenAI (ÙŠØ´ØªØºÙ„ Ø¹Ù„Ù‰ Vercel)
+        // Ø³ÙˆØ§Ø¡ ÙƒØ§Ù† Ø±Ø¯ Ù…Ø¨Ø§Ø´Ø± Ø£Ùˆ Ø¨Ø¹Ø¯ tool calls â€” Ø¯Ø§Ø¦Ù…Ø§Ù‹ Ù†Ø³ØªØ®Ø¯Ù… stream Ø­Ù‚ÙŠÙ‚ÙŠ
         const streamMessages = toolResult.needsFinalCall
-          ? toolResult.resolvedMessages  // بعد tool calls
-          : messagesWithSystem           // سؤال بسيط بدون أدوات
+          ? toolResult.resolvedMessages  // Ø¨Ø¹Ø¯ tool calls
+          : messagesWithSystem           // Ø³Ø¤Ø§Ù„ Ø¨Ø³ÙŠØ· Ø¨Ø¯ÙˆÙ† Ø£Ø¯ÙˆØ§Øª
 
         logChatTrace({
           trace_id: traceId,
@@ -620,7 +633,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // ===== Fallback: بدون أدوات =====
+    // ===== Fallback: Ø¨Ø¯ÙˆÙ† Ø£Ø¯ÙˆØ§Øª =====
     console.log("[Chat API] Standard mode (no tools)")
 
     const response = await openai.chat.completions.create({
@@ -682,11 +695,11 @@ export async function POST(request: Request) {
       unavailable_reason: error?.message || "unknown_error"
     })
 
-    // الحصول على origin للـ security headers
+    // Ø§Ù„Ø­ØµÙˆÙ„ Ø¹Ù„Ù‰ origin Ù„Ù„Ù€ security headers
     const errorSecurityHeaders = getSecurityHeaders()
 
-    // معالجة أنواع الأخطاء المختلفة
-    const underDevelopmentErrorMessage = `خدمة الرد الآلي قيد التطوير حاليًا وقد لا تتوفر الإجابة في هذه اللحظة. يرجى المحاولة بعد قليل.\n\nرقم التتبع: ${traceId}`
+    // Ù…Ø¹Ø§Ù„Ø¬Ø© Ø£Ù†ÙˆØ§Ø¹ Ø§Ù„Ø£Ø®Ø·Ø§Ø¡ Ø§Ù„Ù…Ø®ØªÙ„ÙØ©
+    const underDevelopmentErrorMessage = `Ø®Ø¯Ù…Ø© Ø§Ù„Ø±Ø¯ Ø§Ù„Ø¢Ù„ÙŠ Ù‚ÙŠØ¯ Ø§Ù„ØªØ·ÙˆÙŠØ± Ø­Ø§Ù„ÙŠÙ‹Ø§ ÙˆÙ‚Ø¯ Ù„Ø§ ØªØªÙˆÙØ± Ø§Ù„Ø¥Ø¬Ø§Ø¨Ø© ÙÙŠ Ù‡Ø°Ù‡ Ø§Ù„Ù„Ø­Ø¸Ø©. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ø¨Ø¹Ø¯ Ù‚Ù„ÙŠÙ„.\n\nØ±Ù‚Ù… Ø§Ù„ØªØªØ¨Ø¹: ${traceId}`
     let errorMessage = underDevelopmentErrorMessage
     let statusCode = 500
     let fallbackType: "api_error" | "api_quota_exceeded" = "api_error"
@@ -712,7 +725,7 @@ export async function POST(request: Request) {
       errorMessage = underDevelopmentErrorMessage
     }
 
-    // إرجاع رد fallback
+    // Ø¥Ø±Ø¬Ø§Ø¹ Ø±Ø¯ fallback
     return new Response(
       JSON.stringify({
         error: errorMessage,

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 interface Message {
   role: "user" | "assistant"
@@ -11,6 +11,32 @@ interface ChatWidgetProps {
   apiEndpoint?: string
   title?: string
   subtitle?: string
+}
+
+// Maximum input length matches server-side validation (see app/api/chat/site/route.ts).
+const MAX_INPUT_LENGTH = 5000
+// Hard cap on a single request to surface server hangs to the user.
+const REQUEST_TIMEOUT_MS = 30000
+
+// Sanitize URLs allowed inside chat-rendered links: only http/https/mailto + relative paths.
+function sanitizeLinkHref(raw: string): string {
+  const trimmed = (raw || "").trim()
+  if (!trimmed) return "#"
+  // Block dangerous schemes (case-insensitive, ignores leading control chars).
+  const lowered = trimmed.toLowerCase().replace(/[\s\u0000-\u001f]/g, "")
+  if (
+    lowered.startsWith("javascript:") ||
+    lowered.startsWith("data:") ||
+    lowered.startsWith("vbscript:") ||
+    lowered.startsWith("file:")
+  ) {
+    return "#"
+  }
+  // Allow http(s), mailto, anchors, and relative paths.
+  if (/^(https?:|mailto:|tel:|#|\/|\.{0,2}\/)/i.test(trimmed)) {
+    return trimmed.replace(/"/g, "&quot;")
+  }
+  return "#"
 }
 
 export default function ChatWidget({
@@ -24,20 +50,28 @@ export default function ChatWidget({
   const [showWelcome, setShowWelcome] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Synchronous guard against double-submit (state updates are async, refs are not).
+  const inFlightRef = useRef(false)
+  const abortRef = useRef<AbortController | null>(null)
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-    }, 50)
-  }
+    })
+  }, [])
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, scrollToBottom])
 
-  const sendMessage = async (text?: string) => {
-    const messageText = (text || input).trim()
-    if (!messageText || isLoading) return
+  // Cancel any in-flight request when the component unmounts.
+  useEffect(() => () => abortRef.current?.abort(), [])
+
+  const sendMessage = useCallback(async (text?: string) => {
+    const messageText = (text || input).trim().slice(0, MAX_INPUT_LENGTH)
+    if (!messageText) return
+    if (inFlightRef.current) return
+    inFlightRef.current = true
 
     setShowWelcome(false)
     setInput("")
@@ -49,6 +83,10 @@ export default function ChatWidget({
     setMessages(newMessages)
     setIsLoading(true)
 
+    const controller = new AbortController()
+    abortRef.current = controller
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
     try {
       const response = await fetch(apiEndpoint, {
         method: "POST",
@@ -58,7 +96,8 @@ export default function ChatWidget({
           temperature: 0.2,
           max_tokens: 1200,
           use_tools: true
-        })
+        }),
+        signal: controller.signal
       })
 
       if (!response.ok) throw new Error("خطأ " + response.status)
@@ -67,11 +106,9 @@ export default function ChatWidget({
       let botReply = ""
 
       if (contentType.includes("application/json")) {
-        // Function Calling mode — JSON response
         const data = await response.json()
         botReply = data.message || "لم أتمكن من فهم الرد."
       } else if (response.body) {
-        // Standard fallback — streaming text
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
         while (true) {
@@ -80,7 +117,7 @@ export default function ChatWidget({
           botReply += decoder.decode(value, { stream: true })
         }
       } else {
-        botReply = await response.text() || "لم يتم استلام رد."
+        botReply = (await response.text()) || "لم يتم استلام رد."
       }
 
       setMessages([
@@ -89,7 +126,9 @@ export default function ChatWidget({
       ])
     } catch (err: any) {
       let errorMsg = "⚠️ حدث خطأ في الاتصال. حاول مرة أخرى."
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
+      if (err?.name === "AbortError") {
+        errorMsg = "⏱️ استغرق الرد وقتاً أطول من المعتاد. يرجى المحاولة مرة أخرى."
+      } else if (typeof navigator !== "undefined" && !navigator.onLine) {
         errorMsg = "📵 لا يوجد اتصال بالإنترنت. يرجى التحقق من شبكتك والمحاولة مرة أخرى."
       } else if (err?.name === "TypeError" || err?.message?.toLowerCase().includes("fetch")) {
         errorMsg = "⚠️ تعذّر الوصول إلى الخادم. يرجى التحقق من اتصالك والمحاولة مرة أخرى."
@@ -99,24 +138,28 @@ export default function ChatWidget({
         { role: "assistant", content: errorMsg }
       ])
     } finally {
+      clearTimeout(timeoutId)
+      abortRef.current = null
+      inFlightRef.current = false
       setIsLoading(false)
       textareaRef.current?.focus()
     }
-  }
+  }, [apiEndpoint, input, messages])
 
-  const clearChat = () => {
+  const clearChat = useCallback(() => {
+    abortRef.current?.abort()
     setMessages([])
     setShowWelcome(true)
-  }
+  }, [])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       sendMessage()
     }
-  }
+  }, [sendMessage])
 
-  const renderMarkdown = (text: string) => {
+  const renderMarkdown = useCallback((text: string) => {
     if (!text) return ""
     let html = text
       .replace(/&/g, "&amp;")
@@ -125,13 +168,15 @@ export default function ChatWidget({
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(
         /\[([^\]]+)\]\(([^)]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener">$1</a>'
+        (_m, label: string, href: string) => {
+          const safeHref = sanitizeLinkHref(href)
+          return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`
+        }
       )
       .replace(/^(\d+)\.\s+(.+)$/gm, "<li>$2</li>")
       .replace(/^[-•]\s+(.+)$/gm, "<li>$1</li>")
       .replace(/^### (.+)$/gm, "<h3>$1</h3>")
       .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-      // Suggestion divider: line containing only ---
       .replace(/^---$/gm,
         '<hr class="chat-suggestion-divider"><span class="chat-suggestion-label">📎 قد يهمك أيضاً</span>')
       .replace(/\n/g, "<br>")
@@ -142,9 +187,9 @@ export default function ChatWidget({
     })
 
     return html
-  }
+  }, [])
 
-  const quickButtons = [
+  const quickButtons = useMemo(() => [
     { emoji: "📚", label: "المشاريع الثقافية", query: "أعرض لي المشاريع الثقافية" },
     { emoji: "🎓", label: "المشاريع التعليمية", query: "أعرض لي المشاريع التعليمية" },
     { emoji: "🕌", label: "مشاريع الصحن ومقترباته", query: "أعرض لي مشاريع الصحن ومقترباته" },
@@ -152,7 +197,7 @@ export default function ChatWidget({
     { emoji: "📈", label: "المشاريع التنموية", query: "أعرض لي المشاريع التنموية" },
     { emoji: "🔧", label: "خدمات عامة", query: "أعرض لي خدمات عامة" },
     { emoji: "🏛️", label: "تشكيلات إدارية", query: "أعرض لي تشكيلات إدارية" }
-  ]
+  ], [])
 
   return (
     <>
@@ -464,7 +509,11 @@ export default function ChatWidget({
         }
       `}</style>
 
-      <div className="chat-widget-container">
+      <div
+        className="chat-widget-container"
+        role="region"
+        aria-label="مساعد العتبة العباسية"
+      >
         {/* Header */}
         <div className="chat-widget-header">
           <div className="chat-widget-header-text">
@@ -475,6 +524,7 @@ export default function ChatWidget({
             <button
               onClick={clearChat}
               className="chat-widget-clear-btn"
+              aria-label="مسح المحادثة"
             >
               مسح المحادثة
             </button>
@@ -482,7 +532,12 @@ export default function ChatWidget({
         </div>
 
         {/* Messages Area */}
-        <div className="chat-widget-messages">
+        <div
+          className="chat-widget-messages"
+          role="log"
+          aria-live="polite"
+          aria-label="رسائل المحادثة"
+        >
           {showWelcome && messages.length === 0 && (
             <div className="chat-widget-welcome">
               <h3>👋 مرحباً بك!</h3>
@@ -561,16 +616,20 @@ export default function ChatWidget({
               ref={textareaRef}
               className="chat-widget-textarea"
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={e => setInput(e.target.value.slice(0, MAX_INPUT_LENGTH))}
               onKeyDown={handleKeyDown}
               placeholder="اكتب سؤالك هنا..."
               rows={1}
               disabled={isLoading}
+              maxLength={MAX_INPUT_LENGTH}
+              aria-label="صندوق إدخال الرسالة"
             />
             <button
               onClick={() => sendMessage()}
               disabled={!input.trim() || isLoading}
               className="chat-widget-send-btn"
+              aria-label="إرسال الرسالة"
+              aria-disabled={!input.trim() || isLoading}
             >
               {isLoading ? "..." : "إرسال"}
             </button>

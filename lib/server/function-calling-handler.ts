@@ -23,6 +23,7 @@ import { logChatTrace, normalizeQueryForTrace } from "./observability/chat-trace
 import { orchestrateRetrieval } from "./retrieval-orchestrator"
 import { deriveRetrievalCapabilitySignals, understandQuery, type QueryUnderstandingResult } from "./query-understanding"
 import { getLastUserMessage, getResolvedUserQuery } from "./runtime/dialog-context-policy"
+import { debugLog } from "./debug-log"
 import { isOutOfScopeQuery, isSmallTalkQuery } from "./runtime/query-scope-policy"
 import { buildAnswerShapeInstruction, getDeterministicDirectAnswer } from "./runtime/answer-shape-policy"
 import { detectForcedUtilityIntent } from "./runtime/forced-utility-routing-policy"
@@ -417,7 +418,7 @@ async function processToolCall(
 ): Promise<{ tool_call_id: string; role: "tool"; content: string }> {
   const toolName = toolCall.function.name
   const toolCallId = toolCall.id
-  console.log(`[Function Call] Tool: ${toolName}, ID: ${toolCallId}`)
+  debugLog(`[Function Call] Tool: ${toolName}, ID: ${toolCallId}`)
 
   if (!isAllowedTool(toolName)) {
     console.error(`[Function Call] Rejected: ${toolName} not in whitelist`)
@@ -506,7 +507,7 @@ async function processToolCall(
   }
 
   if (result.success && isEmptyAPIResponse(result.data)) {
-    console.log(`[Function Call] Empty results — generating suggestions`)
+    debugLog(`[Function Call] Empty results — generating suggestions`)
     if (context.traceId) {
       logChatTrace({
         trace_id: context.traceId,
@@ -575,7 +576,7 @@ async function processToolCall(
     }
   }
 
-  console.log(`[Function Call] Result: ${result.success ? "Success" : "Failed"}`)
+  debugLog(`[Function Call] Result: ${result.success ? "Success" : "Failed"}`)
   return { tool_call_id: toolCallId, role: "tool" as const, content: JSON.stringify(cleanResultForGPT(result)) }
 }
 

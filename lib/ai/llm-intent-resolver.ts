@@ -326,3 +326,358 @@ export function shouldUseLLMFallback(result: QueryUnderstandingResult): boolean 
   if (result.content_intent === "generic" && tokenCount >= 3) return true
   return false
 }
+
+// ════════════════════════════════════════════════════════════════════
+//  AI-FIRST PRIMARY RESOLVER
+// ════════════════════════════════════════════════════════════════════
+//
+//  Design contract:
+//    1. AI is the PRIMARY analyser — it returns a COMPLETE result, not a patch.
+//    2. Bounded by a 4 s timeout; failures return null so the caller falls back.
+//    3. Cached per normalised query for 30 min (shared process memory).
+//    4. Source IDs are validated against the allowed set; unknown IDs are dropped.
+
+// ── Available source IDs (single source of truth for validation) ─────────────
+const ALLOWED_SOURCE_IDS = new Set([
+  "articles_latest",
+  "videos_latest",
+  "videos_by_category",
+  "videos_categories",
+  "friday_sermons",
+  "wahy_friday",
+  "shrine_history_sections",
+  "shrine_history_timeline",
+  "shrine_history_by_section",
+  "abbas_history_by_id",
+  "projects_dataset",
+  "lang_words_ar",
+  "auto",
+])
+
+// ── Mapping from AI content_type → legacy QueryContentIntent ─────────────────
+const CONTENT_TYPE_TO_INTENT: Record<string, QueryContentIntent> = {
+  news:      "news",
+  video:     "video",
+  sermon:    "sermon",
+  wahy:      "wahy",
+  biography: "biography",
+  history:   "history",
+  project:   "generic",
+  article:   "news",
+  general:   "generic",
+  unknown:   "generic",
+}
+
+// ── Full AI result shape ──────────────────────────────────────────────────────
+export interface AIQueryUnderstandingResult {
+  intent: string
+  content_type: string
+  operation: string
+  main_topic: string
+  clean_search_query: string
+  keywords: string[]
+  entities: {
+    persons: string[]
+    places: string[]
+    organizations: string[]
+    events: string[]
+    dates: string[]
+  }
+  time_filter: { type: string; value: string | null }
+  allowed_sources: string[]
+  forbidden_sources: string[]
+  needs_clarification: boolean
+  clarification_question: string | null
+  confidence: number
+  reason: string
+}
+
+// ── System prompt with few-shot examples ─────────────────────────────────────
+const AI_UNDERSTANDING_SYSTEM_PROMPT = `أنت محلل نية لسؤال مستخدم داخل شات بوت خاص بموقع العتبة العباسية المقدسة (alkafeel.net).
+مهمتك ليست الإجابة على السؤال. مهمتك فقط فهم السؤال وإرجاع JSON صالح.
+
+المصادر المتاحة (استعمل هذه القيم فقط في allowed_sources/forbidden_sources):
+- articles_latest        → الأخبار والمقالات
+- videos_latest          → الفيديوهات (آخر الفيديوهات)
+- videos_by_category     → فيديوهات قسم أو موضوع محدد
+- friday_sermons         → خطب الجمعة
+- wahy_friday            → من وحي الجمعة
+- shrine_history_sections, shrine_history_timeline → تاريخ العتبة وبنائها
+- abbas_history_by_id    → سيرة العباس بن علي (ع) الشخصية
+- projects_dataset       → مشاريع/مؤسسات/مرافق العتبة (جامعات، كليات، مستشفيات...)
+- auto                   → استعمل فقط إذا كان السؤال غامضًا أو متعدد الأنواع
+
+قواعد التوجيه:
+- لا تختر أكثر من مصدر واحد أو اثنين إلا عند الحاجة الفعلية.
+- لا تستخدم auto إذا كان السؤال يذكر نوعًا واضحًا (فيديو / خبر / خطبة / تاريخ / مشروع).
+- إذا كان السؤال غامضًا جداً (كلمة واحدة عامة بأكثر من معنى) → needs_clarification=true + سؤال توضيحي قصير.
+- clean_search_query: صيغة بحث (2-5 كلمات) بدون أدوات الاستفهام أو "اعطني/اعرض/أحدث".
+- main_topic: الكيان أو الموضوع الجوهري ("زيارة الأربعين"، "صحن العقيلة"، ...).
+- confidence من 0 إلى 1 — انخفاضه يعني احتمال تفسيرات متعددة.
+- intent: أحد: news_lookup, video_lookup, sermon_lookup, wahy_lookup, project_info, person_info, history_lookup, latest_content, search_content, explain_topic, small_talk, clarification_needed.
+- content_type: أحد: news, video, sermon, wahy, project, biography, history, general, unknown.
+- operation: أحد: answer, list, latest, summarize, explain, count, compare, browse.
+- time_filter.type: أحد: latest, today, this_week, specific_date, none.
+
+أرجع JSON فقط بدون أي نص خارج الـ JSON.
+
+—— أمثلة ——
+
+سؤال: ما آخر أخبار العتبة؟
+{"intent":"news_lookup","content_type":"news","operation":"latest","main_topic":"أخبار العتبة العباسية","clean_search_query":"أخبار العتبة العباسية","keywords":["أخبار","العتبة"],"entities":{"persons":[],"places":[],"organizations":["العتبة العباسية"],"events":[],"dates":[]},"time_filter":{"type":"latest","value":null},"allowed_sources":["articles_latest"],"forbidden_sources":["videos_latest","projects_dataset"],"needs_clarification":false,"clarification_question":null,"confidence":0.93,"reason":"السؤال يطلب آخر الأخبار"}
+
+سؤال: اعطني آخر فيديو عن زيارة الأربعين
+{"intent":"video_lookup","content_type":"video","operation":"latest","main_topic":"زيارة الأربعين","clean_search_query":"زيارة الأربعين","keywords":["زيارة","الأربعين"],"entities":{"persons":[],"places":[],"organizations":[],"events":["زيارة الأربعين"],"dates":[]},"time_filter":{"type":"latest","value":null},"allowed_sources":["videos_latest"],"forbidden_sources":["articles_latest","projects_dataset"],"needs_clarification":false,"clarification_question":null,"confidence":0.95,"reason":"السؤال يطلب أحدث فيديو عن موضوع محدد"}
+
+سؤال: خطبة الجمعة الأخيرة
+{"intent":"sermon_lookup","content_type":"sermon","operation":"latest","main_topic":"خطبة الجمعة","clean_search_query":"خطبة الجمعة الأخيرة","keywords":["خطبة","الجمعة"],"entities":{"persons":[],"places":[],"organizations":[],"events":[],"dates":[]},"time_filter":{"type":"latest","value":null},"allowed_sources":["friday_sermons"],"forbidden_sources":["articles_latest","videos_latest"],"needs_clarification":false,"clarification_question":null,"confidence":0.95,"reason":"السؤال يطلب أحدث خطبة جمعة"}
+
+سؤال: من وحي الجمعة عن الصبر
+{"intent":"wahy_lookup","content_type":"wahy","operation":"answer","main_topic":"الصبر","clean_search_query":"وحي الجمعة الصبر","keywords":["وحي","الجمعة","الصبر"],"entities":{"persons":[],"places":[],"organizations":[],"events":[],"dates":[]},"time_filter":{"type":"none","value":null},"allowed_sources":["wahy_friday"],"forbidden_sources":[],"needs_clarification":false,"clarification_question":null,"confidence":0.85,"reason":"السؤال يطلب محتوى من وحي الجمعة عن موضوع الصبر"}
+
+سؤال: من هو المتولي الشرعي؟
+{"intent":"person_info","content_type":"news","operation":"answer","main_topic":"المتولي الشرعي للعتبة العباسية","clean_search_query":"المتولي الشرعي العتبة العباسية","keywords":["المتولي","الشرعي"],"entities":{"persons":[],"places":[],"organizations":["العتبة العباسية"],"events":[],"dates":[]},"time_filter":{"type":"none","value":null},"allowed_sources":["articles_latest"],"forbidden_sources":["videos_latest"],"needs_clarification":false,"clarification_question":null,"confidence":0.88,"reason":"سؤال عن منصب رسمي يُذكر في الأخبار"}
+
+سؤال: هل لدى العتبة جامعة؟
+{"intent":"project_info","content_type":"project","operation":"answer","main_topic":"جامعات العتبة العباسية","clean_search_query":"جامعة العتبة العباسية","keywords":["جامعة","العتبة"],"entities":{"persons":[],"places":[],"organizations":["العتبة العباسية"],"events":[],"dates":[]},"time_filter":{"type":"none","value":null},"allowed_sources":["projects_dataset"],"forbidden_sources":["videos_latest","articles_latest"],"needs_clarification":false,"clarification_question":null,"confidence":0.9,"reason":"سؤال عن مؤسسة تعليمية تابعة للعتبة"}
+
+سؤال: اشرح مشروع صحن العقيلة
+{"intent":"project_info","content_type":"project","operation":"explain","main_topic":"صحن العقيلة","clean_search_query":"مشروع صحن العقيلة","keywords":["مشروع","صحن","العقيلة"],"entities":{"persons":[],"places":[],"organizations":["العتبة العباسية"],"events":[],"dates":[]},"time_filter":{"type":"none","value":null},"allowed_sources":["projects_dataset"],"forbidden_sources":[],"needs_clarification":false,"clarification_question":null,"confidence":0.95,"reason":"السؤال يطلب شرحاً عن مشروع محدد"}
+
+سؤال: حدثني عن الزيارة
+{"intent":"clarification_needed","content_type":"unknown","operation":"explain","main_topic":"الزيارة","clean_search_query":"الزيارة","keywords":["الزيارة"],"entities":{"persons":[],"places":[],"organizations":[],"events":[],"dates":[]},"time_filter":{"type":"none","value":null},"allowed_sources":[],"forbidden_sources":[],"needs_clarification":true,"clarification_question":"هل تقصد زيارة الأربعين، زيارة عاشوراء، أم زيارة الإمام الحسين عليه السلام؟","confidence":0.45,"reason":"كلمة الزيارة عامة ولها أكثر من معنى"}
+
+سؤال: السلام عليكم
+{"intent":"small_talk","content_type":"general","operation":"answer","main_topic":"تحية","clean_search_query":"","keywords":[],"entities":{"persons":[],"places":[],"organizations":[],"events":[],"dates":[]},"time_filter":{"type":"none","value":null},"allowed_sources":[],"forbidden_sources":[],"needs_clarification":false,"clarification_question":null,"confidence":0.99,"reason":"تحية"}
+
+—— ملاحظة: اللهجة العراقية ——
+بعض الكلمات العراقية الدارجة وما تعنيه بالعربية الفصحى:
+- "اكو" = يوجد / هل يوجد
+- "ماكو" = لا يوجد
+- "مال / تبع / يرجع لـ" = خاص بـ / تابع لـ
+- "شنو / شنهو / شنو اسمه" = ما هو / ما اسمه
+- "شلون / كيف" = كيف
+- "هواية / كثير" = كثير
+- "يمه / أمه" = أمه (حرف الجر)
+استخرج الكلمات الجوهرية بالعربية الفصحى في clean_search_query بغض النظر عن اللهجة.
+
+سؤال: اكو مشروع مال الواح طاقة شمسية شنو اسمه
+{"intent":"project_info","content_type":"project","operation":"answer","main_topic":"مشروع ألواح الطاقة الشمسية","clean_search_query":"مشروع ألواح طاقة شمسية","keywords":["مشروع","ألواح","طاقة شمسية"],"entities":{"persons":[],"places":[],"organizations":["العتبة العباسية"],"events":[],"dates":[]},"time_filter":{"type":"none","value":null},"allowed_sources":["projects_dataset"],"forbidden_sources":[],"needs_clarification":false,"clarification_question":null,"confidence":0.87,"reason":"سؤال بلهجة عراقية عن مشروع طاقة شمسية تابع للعتبة"}
+
+سؤال: اكو فيديو يرجع للأربعين
+{"intent":"video_lookup","content_type":"video","operation":"latest","main_topic":"زيارة الأربعين","clean_search_query":"فيديو الأربعين","keywords":["فيديو","الأربعين"],"entities":{"persons":[],"places":[],"organizations":[],"events":["زيارة الأربعين"],"dates":[]},"time_filter":{"type":"latest","value":null},"allowed_sources":["videos_latest","videos_by_category"],"forbidden_sources":[],"needs_clarification":false,"clarification_question":null,"confidence":0.88,"reason":"سؤال بلهجة عراقية عن فيديوهات الأربعين"}
+
+سؤال: اعطني فيديوهات من قسم افلام
+{"intent":"video_lookup","content_type":"video","operation":"list","main_topic":"أفلام","clean_search_query":"أفلام","keywords":["أفلام","قسم"],"entities":{"persons":[],"places":[],"organizations":[],"events":[],"dates":[]},"time_filter":{"type":"none","value":null},"allowed_sources":["videos_by_category"],"forbidden_sources":["videos_latest","articles_latest"],"needs_clarification":false,"clarification_question":null,"confidence":0.95,"reason":"المستخدم طلب فيديوهات من قسم محدد، يجب البحث في videos_by_category فقط"}
+
+سؤال: أحتاج فيديوهات من قسم المناسبات الدينية
+{"intent":"video_lookup","content_type":"video","operation":"list","main_topic":"المناسبات الدينية","clean_search_query":"مناسبات دينية","keywords":["مناسبات","دينية","قسم"],"entities":{"persons":[],"places":[],"organizations":[],"events":[],"dates":[]},"time_filter":{"type":"none","value":null},"allowed_sources":["videos_by_category"],"forbidden_sources":["videos_latest","articles_latest"],"needs_clarification":false,"clarification_question":null,"confidence":0.95,"reason":"طلب فيديوهات من قسم محدد — videos_by_category فقط"}
+`
+
+// ── In-process cache ──────────────────────────────────────────────────────────
+const _aiCache = new Map<string, { result: AIQueryUnderstandingResult; ts: number }>()
+const AI_CACHE_TTL_MS = 30 * 60 * 1000
+const AI_CACHE_MAX = 500
+
+function aiCacheGet(key: string): AIQueryUnderstandingResult | null {
+  const e = _aiCache.get(key)
+  if (!e) return null
+  if (Date.now() - e.ts > AI_CACHE_TTL_MS) { _aiCache.delete(key); return null }
+  return e.result
+}
+
+function aiCachePut(key: string, result: AIQueryUnderstandingResult): void {
+  if (_aiCache.size >= AI_CACHE_MAX) {
+    const first = _aiCache.keys().next().value
+    if (first !== undefined) _aiCache.delete(first)
+  }
+  _aiCache.set(key, { result, ts: Date.now() })
+}
+
+// ── Validation ────────────────────────────────────────────────────────────────
+function validateAIResult(raw: unknown): AIQueryUnderstandingResult | null {
+  if (!raw || typeof raw !== "object") return null
+  const o = raw as Record<string, unknown>
+
+  const intent   = typeof o.intent        === "string" ? o.intent        : null
+  const content_type = typeof o.content_type === "string" ? o.content_type : null
+  const operation    = typeof o.operation    === "string" ? o.operation    : null
+  if (!intent || !content_type || !operation) return null
+
+  const filterSources = (input: unknown): string[] =>
+    (Array.isArray(input) ? input : [])
+      .filter((x): x is string => typeof x === "string")
+      .filter(s => ALLOWED_SOURCE_IDS.has(s))
+
+  const filterStrings = (input: unknown): string[] =>
+    (Array.isArray(input) ? input : []).filter((x): x is string => typeof x === "string" && x.length > 0)
+
+  const ent = (o.entities as Record<string, unknown> | undefined) ?? {}
+  const timeRaw = (o.time_filter as Record<string, unknown> | undefined) ?? {}
+
+  return {
+    intent,
+    content_type,
+    operation,
+    main_topic:          typeof o.main_topic          === "string" ? o.main_topic          : "",
+    clean_search_query:  typeof o.clean_search_query  === "string" ? o.clean_search_query  : "",
+    keywords:            filterStrings(o.keywords),
+    entities: {
+      persons:       filterStrings(ent.persons),
+      places:        filterStrings(ent.places),
+      organizations: filterStrings(ent.organizations),
+      events:        filterStrings(ent.events),
+      dates:         filterStrings(ent.dates),
+    },
+    time_filter: {
+      type:  typeof timeRaw.type  === "string" ? timeRaw.type  : "none",
+      value: typeof timeRaw.value === "string" ? timeRaw.value : null,
+    },
+    allowed_sources:      filterSources(o.allowed_sources),
+    forbidden_sources:    filterSources(o.forbidden_sources),
+    needs_clarification:  Boolean(o.needs_clarification),
+    clarification_question: typeof o.clarification_question === "string" ? o.clarification_question : null,
+    confidence: typeof o.confidence === "number" ? Math.max(0, Math.min(1, o.confidence)) : 0.5,
+    reason:     typeof o.reason     === "string" ? o.reason     : "",
+  }
+}
+
+// ── Primary resolver ──────────────────────────────────────────────────────────
+/**
+ * Calls the OpenAI API and returns a complete AIQueryUnderstandingResult.
+ * Returns null on any failure so the caller can silently fall back to regex.
+ */
+export async function resolveQueryUnderstandingWithAI(
+  query: string,
+  openaiApiKey: string,
+  model = "gpt-4o-mini",
+  timeoutMs = 4000,
+): Promise<AIQueryUnderstandingResult | null> {
+  if (!query.trim()) return null
+
+  const cacheKey = query.trim().replace(/\s+/g, " ")
+  const cached = aiCacheGet(cacheKey)
+  if (cached) return cached
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0,
+        max_tokens: 400,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: AI_UNDERSTANDING_SYSTEM_PROMPT },
+          { role: "user",   content: query.trim() },
+        ],
+      }),
+    })
+
+    if (!response.ok) return null
+
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> }
+    const content = data?.choices?.[0]?.message?.content
+    if (!content) return null
+
+    let parsed: unknown
+    try { parsed = JSON.parse(content) } catch { return null }
+
+    const result = validateAIResult(parsed)
+    if (!result) return null
+
+    aiCachePut(cacheKey, result)
+    return result
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+// ── Mapper: AI result → legacy QueryUnderstandingResult ──────────────────────
+/**
+ * Merges a full AI result onto the regex baseline so every downstream
+ * consumer (forced-utility-routing-policy, retrieval-orchestrator,
+ * answer-shape-policy, …) keeps working without changes.
+ *
+ * The AI fields are written into the new optional slots; the legacy slots
+ * (content_intent, operation_intent, hinted_sources, …) are kept in sync.
+ */
+export function mapAIResultToUnderstanding(
+  query: string,
+  ai: AIQueryUnderstandingResult,
+  regexBaseline: QueryUnderstandingResult,
+): QueryUnderstandingResult {
+  const content_intent: QueryContentIntent =
+    CONTENT_TYPE_TO_INTENT[ai.content_type] ?? "generic"
+
+  const opMap: Record<string, QueryOperationIntent> = {
+    answer:    "fact_question",
+    list:      "list_items",
+    latest:    "latest",
+    summarize: "summarize",
+    explain:   "explain",
+    count:     "count",
+    compare:   "classify",
+    browse:    "browse",
+  }
+  const operation_intent: QueryOperationIntent =
+    opMap[ai.operation] ?? regexBaseline.operation_intent
+
+  const clarity: QueryClarity = ai.needs_clarification ? "underspecified" : "clear"
+
+  // Merge entity lists
+  const personMerged = [...new Set([...regexBaseline.extracted_entities.person, ...ai.entities.persons])]
+  const placeMerged  = [...new Set([...regexBaseline.extracted_entities.place,  ...ai.entities.places])]
+  const topicMerged  = [...new Set([
+    ...regexBaseline.extracted_entities.topic,
+    ...ai.keywords,
+    ...(ai.main_topic ? [ai.main_topic] : []),
+  ].filter(Boolean))]
+
+  // AI allowed_sources → hinted_sources (AI first, then regex remainder minus forbidden)
+  const hintedMerged: string[] = []
+  for (const s of ai.allowed_sources) {
+    if (!hintedMerged.includes(s)) hintedMerged.push(s)
+  }
+  for (const s of regexBaseline.hinted_sources) {
+    if (!hintedMerged.includes(s) && !ai.forbidden_sources.includes(s)) hintedMerged.push(s)
+  }
+  if (!hintedMerged.includes("auto")) hintedMerged.push("auto")
+
+  return {
+    ...regexBaseline,
+    raw_query: query,
+    content_intent,
+    operation_intent,
+    clarity,
+    extracted_entities: {
+      person:          personMerged,
+      topic:           topicMerged,
+      place:           placeMerged,
+      source_specific: regexBaseline.extracted_entities.source_specific,
+    },
+    hinted_sources:  hintedMerged,
+    route_confidence: Math.max(regexBaseline.route_confidence, ai.confidence),
+    // ── AI-first fields ──
+    clean_search_query:     ai.clean_search_query || query.trim(),
+    main_topic:             ai.main_topic,
+    keywords:               ai.keywords,
+    allowed_sources:        ai.allowed_sources,
+    forbidden_sources:      ai.forbidden_sources,
+    needs_clarification:    ai.needs_clarification,
+    clarification_question: ai.clarification_question ?? undefined,
+    ai_confidence:          ai.confidence,
+    ai_reason:              ai.reason,
+    understanding_source:   "ai+regex",
+  }
+}
