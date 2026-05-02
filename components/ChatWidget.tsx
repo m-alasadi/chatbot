@@ -1,11 +1,19 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  CHAT_DOMAINS,
+  type ChatDomain,
+  getChatDomainLabel,
+  normalizeChatDomain
+} from "../lib/shared/chat-domains"
 
 interface Message {
-  role: "user" | "assistant"
+  role: "user" | "assistant" | "system_local"
   content: string
 }
+
+const DOMAIN_STORAGE_KEY = "alkafeel_widget_domain"
 
 interface ChatWidgetProps {
   apiEndpoint?: string
@@ -47,7 +55,8 @@ export default function ChatWidget({
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [showWelcome, setShowWelcome] = useState(true)
+  const [preferredDomain, setPreferredDomain] = useState<ChatDomain | null>(null)
+  const [showDomainCard, setShowDomainCard] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   // Synchronous guard against double-submit (state updates are async, refs are not).
@@ -67,13 +76,27 @@ export default function ChatWidget({
   // Cancel any in-flight request when the component unmounts.
   useEffect(() => () => abortRef.current?.abort(), [])
 
+  // عند فتح الودجت أول مرة: استرجع المجال المحفوظ إن وُجد.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const stored = window.localStorage.getItem(DOMAIN_STORAGE_KEY)
+      if (stored) {
+        const normalized = normalizeChatDomain(stored)
+        setPreferredDomain(normalized)
+        setShowDomainCard(false)
+      }
+    } catch {
+      // localStorage قد يكون معطّلاً (وضع التصفح الخاص) — نتجاهل بصمت.
+    }
+  }, [])
+
   const sendMessage = useCallback(async (text?: string) => {
     const messageText = (text || input).trim().slice(0, MAX_INPUT_LENGTH)
     if (!messageText) return
     if (inFlightRef.current) return
     inFlightRef.current = true
 
-    setShowWelcome(false)
     setInput("")
 
     const newMessages: Message[] = [
@@ -88,14 +111,21 @@ export default function ChatWidget({
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
     try {
+      // نُرسل فقط رسائل المحادثة الحقيقية (user/assistant) إلى الخادم.
+      // الرسائل المحلية (system_local) لا تُرسل إلى الذكاء الاصطناعي.
+      const wireMessages = newMessages
+        .filter(m => m.role === "user" || m.role === "assistant")
+        .map(m => ({ role: m.role, content: m.content }))
+
       const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: newMessages,
+          messages: wireMessages,
           temperature: 0.2,
           max_tokens: 1200,
-          use_tools: true
+          use_tools: true,
+          preferredDomain: preferredDomain || "general"
         }),
         signal: controller.signal
       })
@@ -144,12 +174,30 @@ export default function ChatWidget({
       setIsLoading(false)
       textareaRef.current?.focus()
     }
-  }, [apiEndpoint, input, messages])
+  }, [apiEndpoint, input, messages, preferredDomain])
+
+  const selectDomain = useCallback((domain: ChatDomain) => {
+    setPreferredDomain(domain)
+    setShowDomainCard(false)
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(DOMAIN_STORAGE_KEY, domain)
+      }
+    } catch {
+      // تجاهل أخطاء localStorage بصمت.
+    }
+    // لا نعرض أي رسالة — الاختيار صامت، والتأكيد يظهر فقط في شريط المجال أعلى المحادثة.
+    textareaRef.current?.focus()
+  }, [])
+
+  const openDomainCard = useCallback(() => {
+    setShowDomainCard(true)
+  }, [])
 
   const clearChat = useCallback(() => {
     abortRef.current?.abort()
     setMessages([])
-    setShowWelcome(true)
+    // لا نمسح المجال المختار عند مسح المحادثة — يبقى تفضيل المستخدم.
   }, [])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -188,16 +236,6 @@ export default function ChatWidget({
 
     return html
   }, [])
-
-  const quickButtons = useMemo(() => [
-    { emoji: "📚", label: "المشاريع الثقافية", query: "أعرض لي المشاريع الثقافية" },
-    { emoji: "🎓", label: "المشاريع التعليمية", query: "أعرض لي المشاريع التعليمية" },
-    { emoji: "🕌", label: "مشاريع الصحن ومقترباته", query: "أعرض لي مشاريع الصحن ومقترباته" },
-    { emoji: "🏥", label: "المشاريع الطبية", query: "أعرض لي المشاريع الطبية" },
-    { emoji: "📈", label: "المشاريع التنموية", query: "أعرض لي المشاريع التنموية" },
-    { emoji: "🔧", label: "خدمات عامة", query: "أعرض لي خدمات عامة" },
-    { emoji: "🏛️", label: "تشكيلات إدارية", query: "أعرض لي تشكيلات إدارية" }
-  ], [])
 
   return (
     <>
@@ -507,6 +545,116 @@ export default function ChatWidget({
           opacity: 0.5;
           cursor: not-allowed;
         }
+
+        /* ── Domain selection card ── */
+        .chat-widget-domain-card {
+          background: #1e293b;
+          border: 1px solid #334155;
+          border-radius: 12px;
+          padding: 18px 16px;
+          margin: 0 auto 16px;
+          max-width: 100%;
+          color: #e2e8f0;
+          text-align: right;
+        }
+        .chat-widget-domain-card h3 {
+          margin: 0 0 6px 0;
+          font-size: 16px;
+          color: #ffffff;
+          font-weight: 600;
+        }
+        .chat-widget-domain-card p {
+          margin: 0 0 14px 0;
+          font-size: 13px;
+          color: #94a3b8;
+          line-height: 1.6;
+        }
+        .chat-widget-domain-options {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: wrap;
+          gap: 6px;
+          justify-content: flex-start;
+        }
+        .chat-widget-domain-option {
+          background: #0f172a;
+          border: 1px solid #334155;
+          border-radius: 999px;
+          padding: 4px 10px;
+          color: #e2e8f0;
+          font-size: 10px;
+          cursor: pointer;
+          transition: all 0.15s;
+          text-align: center;
+          font-family: inherit;
+          line-height: 1.3;
+          flex: 0 0 auto;
+          width: auto;
+          white-space: nowrap;
+          display: inline-flex;
+          align-items: center;
+        }
+        .chat-widget-domain-option:hover,
+        .chat-widget-domain-option:focus-visible {
+          background: #334155;
+          border-color: #60a5fa;
+          outline: none;
+        }
+        .chat-widget-domain-option-label {
+          display: inline;
+          font-weight: 600;
+          color: #ffffff;
+          margin-bottom: 0;
+        }
+        .chat-widget-domain-option-desc {
+          display: none;
+        }
+
+        /* ── Change-domain bar ── */
+        .chat-widget-domain-bar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          margin-bottom: 12px;
+          background: rgba(30, 64, 175, 0.12);
+          border: 1px solid rgba(96, 165, 250, 0.25);
+          border-radius: 8px;
+          font-size: 12px;
+          color: #cbd5e1;
+        }
+        .chat-widget-change-domain-btn {
+          background: transparent;
+          border: 1px solid #475569;
+          color: #e2e8f0;
+          padding: 4px 10px;
+          border-radius: 6px;
+          font-size: 12px;
+          cursor: pointer;
+          font-family: inherit;
+          transition: all 0.15s;
+        }
+        .chat-widget-change-domain-btn:hover {
+          background: #334155;
+          border-color: #60a5fa;
+        }
+
+        /* ── Local system notice (not sent to AI) ── */
+        .chat-widget-system-local {
+          margin: 10px 0;
+          padding: 8px 12px;
+          background: rgba(16, 185, 129, 0.10);
+          border: 1px dashed rgba(16, 185, 129, 0.35);
+          border-radius: 8px;
+          color: #cbd5e1;
+          font-size: 13px;
+          line-height: 1.6;
+          text-align: center;
+        }
+        .chat-widget-system-local strong {
+          color: #ffffff;
+        }
       `}</style>
 
       <div
@@ -538,51 +686,79 @@ export default function ChatWidget({
           aria-live="polite"
           aria-label="رسائل المحادثة"
         >
-          {showWelcome && messages.length === 0 && (
-            <div className="chat-widget-welcome">
-              <h3>👋 مرحباً بك!</h3>
-              <p>أنا مساعدك الذكي للاستعلام عن مشاريع العتبة العباسية المقدسة</p>
-              <p style={{ fontSize: "13px", marginBottom: "10px" }}>جرّب الأسئلة السريعة:</p>
-              <div className="chat-widget-quick-buttons">
-                {quickButtons.map((btn, i) => (
+          {showDomainCard && (
+            <div className="chat-widget-domain-card" role="group" aria-label="اختيار المجال">
+              <h3>مرحبًا بك في مساعد العتبة العباسية المقدسة</h3>
+              <p>اختر المجال الأقرب لسؤالك حتى أبحث لك في المصدر الأنسب:</p>
+              <div className="chat-widget-domain-options">
+                {CHAT_DOMAINS.map(domain => (
                   <button
-                    key={i}
-                    onClick={() => sendMessage(btn.query)}
-                    className="chat-widget-quick-btn"
+                    key={domain.id}
+                    type="button"
+                    onClick={() => selectDomain(domain.id)}
+                    className="chat-widget-domain-option"
+                    aria-label={domain.label}
+                    title={domain.description}
                   >
-                    <span>{btn.emoji}</span>
-                    <span>{btn.label}</span>
+                    <span className="chat-widget-domain-option-label">{domain.label}</span>
+                    <span className="chat-widget-domain-option-desc">{domain.description}</span>
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`chat-widget-message ${msg.role}`}
-            >
-              <div className="chat-widget-avatar">
-                {msg.role === "user" ? "👤" : (
-                  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="10" cy="2" r="1.5" fill="white"/>
-                    <line x1="10" y1="3.5" x2="10" y2="6" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-                    <rect x="3" y="6" width="14" height="12" rx="4" stroke="white" strokeWidth="1.5"/>
-                    <circle cx="7.5" cy="11" r="1.5" fill="white"/>
-                    <circle cx="12.5" cy="11" r="1.5" fill="white"/>
-                    <path d="M7 15 Q10 17 13 15" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-                  </svg>
-                )}
-              </div>
-              <div
-                className="chat-widget-message-content"
-                dangerouslySetInnerHTML={{
-                  __html: renderMarkdown(msg.content)
-                }}
-              />
+          {!showDomainCard && preferredDomain && (
+            <div className="chat-widget-domain-bar">
+              <span>المجال الحالي: <strong>{getChatDomainLabel(preferredDomain)}</strong></span>
+              <button
+                type="button"
+                onClick={openDomainCard}
+                className="chat-widget-change-domain-btn"
+                aria-label="تغيير المجال"
+              >
+                تغيير المجال
+              </button>
             </div>
-          ))}
+          )}
+
+          {messages.map((msg, i) => {
+            if (msg.role === "system_local") {
+              return (
+                <div
+                  key={i}
+                  className="chat-widget-system-local"
+                  role="status"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                />
+              )
+            }
+            return (
+              <div
+                key={i}
+                className={`chat-widget-message ${msg.role}`}
+              >
+                <div className="chat-widget-avatar">
+                  {msg.role === "user" ? "👤" : (
+                    <svg viewBox="0 0 20 20" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="10" cy="2" r="1.5" fill="white"/>
+                      <line x1="10" y1="3.5" x2="10" y2="6" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                      <rect x="3" y="6" width="14" height="12" rx="4" stroke="white" strokeWidth="1.5"/>
+                      <circle cx="7.5" cy="11" r="1.5" fill="white"/>
+                      <circle cx="12.5" cy="11" r="1.5" fill="white"/>
+                      <path d="M7 15 Q10 17 13 15" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+                    </svg>
+                  )}
+                </div>
+                <div
+                  className="chat-widget-message-content"
+                  dangerouslySetInnerHTML={{
+                    __html: renderMarkdown(msg.content)
+                  }}
+                />
+              </div>
+            )
+          })}
 
           {isLoading && (
             <div className="chat-widget-message assistant">

@@ -24,8 +24,13 @@ import {
   startRuntimeRequestMetrics,
   finishRuntimeRequestMetrics
 } from "@/lib/server/observability/runtime-metrics"
-import { understandQuery, understandQueryWithFallback, getQueryClassKey } from "@/lib/server/query-understanding"
+import { understandQuery, understandQueryWithFallback, getQueryClassKey, type QueryContentIntent } from "@/lib/server/query-understanding"
 import { requiresPriorConversationContext } from "@/lib/server/runtime/dialog-context-policy"
+import {
+  normalizeChatDomain,
+  getDomainPreferredSources,
+  getChatDomainLabel
+} from "@/lib/shared/chat-domains"
 import type { ServerRuntime } from "next"
 import OpenAI from "openai"
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions.mjs"
@@ -180,7 +185,9 @@ interface ChatRequest {
   messages: ChatCompletionMessageParam[]
   temperature?: number
   max_tokens?: number
-  use_tools?: boolean // Ø®ÙŠØ§Ø± Ù„ØªÙØ¹ÙŠÙ„/ØªØ¹Ø·ÙŠÙ„ Ø§Ù„Ø£Ø¯ÙˆØ§Øª
+  use_tools?: boolean
+  forced_source?: string   // legacy — محفوظ للتوافق مع العملاء القدامى
+  preferredDomain?: string  // المجال المختار من بطاقة اختيار الوجهة
 }
 
 const DEFAULT_CHAT_TEMPERATURE = 0.2
@@ -247,7 +254,9 @@ export async function POST(request: Request) {
       messages,
       temperature = DEFAULT_CHAT_TEMPERATURE,
       max_tokens = DEFAULT_CHAT_MAX_TOKENS,
-      use_tools = true
+      use_tools = true,
+      forced_source,
+      preferredDomain: rawPreferredDomain
     } = json as ChatRequest
 
     // ØªÙˆØ­ÙŠØ¯ Ø§Ù„Ø³Ù„ÙˆÙƒ Ø¨ÙŠÙ† Ø§Ù„ÙˆØ§Ø¬Ù‡Ø© ÙˆØ§Ù„Ø§Ø®ØªØ¨Ø§Ø±Ø§Øª Ø¹Ø¨Ø± Ø¶Ø¨Ø· Ø­Ø¯ÙˆØ¯ Ø§Ù„Ù…Ø¹Ù„Ù…Ø§Øª.
@@ -293,6 +302,38 @@ export async function POST(request: Request) {
       lastMessage?.content || "",
       process.env.OPENAI_API_KEY,
     )
+
+    // أولوية بحث بناءً على ما اختاره المستخدم (preferredDomain — ليس فلتراً صارماً)
+    const validatedDomain = normalizeChatDomain(rawPreferredDomain)
+    if (validatedDomain !== "general") {
+      const domainSources = getDomainPreferredSources(validatedDomain)
+      // اضبط hinted_sources + allowed_sources بمصادر المجال فقط
+      // allowed_sources يمنع الأوركيستريتور من الخروج لمصادر خارج المجال
+      requestUnderstanding.hinted_sources   = [...domainSources, "auto"]
+      requestUnderstanding.allowed_sources  = [...domainSources, "auto"]
+      // اضبط content_intent ليتطابق مع المجال دائماً (ليس فقط عند "generic")
+      // هذا يتجاوز مسار underspecified في الأوركيستريتور
+      const domainIntentMap: Record<string, QueryContentIntent> = {
+        news:      "news",
+        videos:    "video",
+        sermons:   "sermon",
+        history:   "history",
+        abbas_bio: "biography",
+      }
+      const mappedIntent = domainIntentMap[validatedDomain]
+      if (mappedIntent) {
+        requestUnderstanding.content_intent = mappedIntent
+      }
+      // إذا كان الاستعلام غير واضح، نعتبره "clear" لأن المجال المختار يُوضح النية
+      if (requestUnderstanding.clarity === "underspecified") {
+        requestUnderstanding.clarity = "clear"
+      }
+    }
+    // الدعم القديم: forced_source (legacy API)
+    if (!rawPreferredDomain && forced_source && typeof forced_source === "string") {
+      requestUnderstanding.hinted_sources = [forced_source]
+      requestUnderstanding.allowed_sources = [forced_source]
+    }
     const keepConversationContext =
       lastMessage?.role === "user" &&
       requiresPriorConversationContext(lastMessage.content || "", requestUnderstanding)
@@ -300,7 +341,12 @@ export async function POST(request: Request) {
       ? boundedMessages
       : boundedMessages.slice(-1)
 
+    // إذا اختار المستخدم مجالاً محدداً (غير "general") نتجاوز أسئلة التوضيح التلقائية
+    // لأن المجال المختار يُوضح نية المستخدم بشكل كافٍ — نبحث مباشرةً
+    const userChoseDomain = validatedDomain !== "general"
+
     if (
+      !userChoseDomain &&
       lastMessage?.role === "user" &&
       keepConversationContext &&
       !boundedMessages.some(message => message.role === "assistant") &&
@@ -317,6 +363,7 @@ export async function POST(request: Request) {
     }
 
     if (
+      !userChoseDomain &&
       lastMessage?.role === "user" &&
       requestUnderstanding.needs_clarification === true &&
       typeof requestUnderstanding.clarification_question === "string" &&
@@ -386,7 +433,12 @@ export async function POST(request: Request) {
 
     // Ø­Ù‚Ù† System Prompt Ù…Ø¹ ÙÙ‡Ø±Ø³ Ø§Ù„ÙƒÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¯ÙŠÙ†Ø§Ù…ÙŠÙƒÙŠ
     const entityCatalog = await buildEntityCatalogSnippet()
-    const systemPrompt = getSiteSystemPrompt(entityCatalog)
+    // أبلغ الذكاء الاصطناعي بالمجال المختار حتى يكيّف إجابته وفقه.
+    const domainInstruction =
+      validatedDomain !== "general"
+        ? `\n\n## تفضيل المجال:\nاختار المستخدم مجال \"${getChatDomainLabel(validatedDomain)}\".، ابدأ بالبحث في مصادر هذا المجال أولاً، وعند عدم كفاية النتائج لا تتردد في استخدام مصادر أخرى. المجال المختار أولوية وليس قيدًا صارماً.`
+        : ""
+    const systemPrompt = getSiteSystemPrompt(entityCatalog, domainInstruction || undefined)
     const messagesWithSystem: ChatCompletionMessageParam[] = [
       {
         role: "system",

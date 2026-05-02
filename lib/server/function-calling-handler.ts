@@ -639,6 +639,28 @@ export async function resolveToolCalls(
   if (options.queryUnderstanding?.person_relation_slot !== undefined) {
     ;(queryUnderstanding as any).person_relation_slot = options.queryUnderstanding.person_relation_slot
   }
+  // Honor caller-provided routing overrides (e.g. preferredDomain selected by
+  // the user via the chat widget). Without this merge, route.ts setting
+  // `allowed_sources`/`content_intent`/`clarity`/`hinted_sources` would be
+  // silently dropped here when the handler rebuilds understanding from raw
+  // query text. Keep heuristic-derived fields untouched unless explicitly
+  // overridden by the caller.
+  const callerUnderstanding = options.queryUnderstanding
+  if (callerUnderstanding) {
+    if (Array.isArray(callerUnderstanding.allowed_sources) && callerUnderstanding.allowed_sources.length > 0) {
+      queryUnderstanding.allowed_sources = callerUnderstanding.allowed_sources
+    }
+    if (Array.isArray(callerUnderstanding.hinted_sources) && callerUnderstanding.hinted_sources.length > 0) {
+      queryUnderstanding.hinted_sources = callerUnderstanding.hinted_sources
+    }
+    if (callerUnderstanding.content_intent && callerUnderstanding.content_intent !== "generic") {
+      queryUnderstanding.content_intent = callerUnderstanding.content_intent
+    }
+    if (callerUnderstanding.clarity && callerUnderstanding.clarity !== queryUnderstanding.clarity) {
+      // Caller can promote underspecified→clear when a domain choice disambiguates intent.
+      queryUnderstanding.clarity = callerUnderstanding.clarity
+    }
+  }
   const capability = deriveRetrievalCapabilitySignals(queryUnderstanding, userQuery)
 
   // Inject answer-shape and compound-coverage instructions

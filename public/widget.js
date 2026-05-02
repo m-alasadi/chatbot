@@ -117,6 +117,31 @@
     '.alkw-welcome-icon img{width:70px;height:70px;border-radius:50%;object-fit:cover;display:inline-block}',
     '.alkw-welcome h3{color:#9ca3af;margin:0 0 8px;font-size:16px;font-weight:600;display:block;text-align:center}',
     '.alkw-welcome p{margin:0 0 16px;font-size:13px;line-height:1.8;color:#6b7280;display:block;text-align:center}',
+    /* domain-selection buttons */
+    '.alkw-domain-options{display:flex;flex-direction:row;flex-wrap:wrap;gap:6px;margin-top:4px;justify-content:flex-start}',
+    '.alkw-domain-btn{',
+      'all:initial;background:#1f2937;border:1px solid #374151;border-radius:999px;',
+      'padding:4px 10px;color:#d1d5db;font-size:10px;cursor:pointer;',
+      'transition:all .15s;display:inline-flex;align-items:center;',
+      'text-align:center;font-family:inherit;flex:0 0 auto;width:auto;white-space:nowrap;box-sizing:border-box;',
+    '}',
+    '.alkw-domain-btn:hover,.alkw-domain-btn:focus-visible{background:#065f46;border-color:#047857;color:#fff;outline:none}',
+    '.alkw-domain-btn-label{display:inline;font-weight:600;color:inherit}',
+    '.alkw-domain-btn-desc{display:none}',
+    /* domain bar */
+    '.alkw-domain-bar{',
+      'display:flex;justify-content:space-between;align-items:center;gap:8px;',
+      'padding:7px 12px;margin-bottom:10px;background:rgba(4,80,77,.18);',
+      'border:1px solid rgba(4,80,77,.4);border-radius:8px;font-size:12px;color:#9ca3af;',
+    '}',
+    '.alkw-domain-bar strong{color:#d1fae5}',
+    '.alkw-change-domain-btn{',
+      'all:initial;border:1px solid #374151;color:#d1d5db;padding:3px 9px;',
+      'border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;',
+      'transition:all .15s;',
+    '}',
+    '.alkw-change-domain-btn:hover{background:#1f2937;border-color:#047857}',
+    /* legacy quick-btn kept for backward compat */
     '.alkw-quick-buttons{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}',
     '.alkw-quick-btn{',
       'all:initial;background:#1f2937;border:1px solid #374151;padding:7px 14px;',
@@ -257,6 +282,27 @@
     this.isLoading     = false;
     this._panelBuilt   = false;          // ← lazy flag
     this.el            = {};             // DOM refs
+    this._selectedDomain = null;         // المجال المختار (preferredDomain)
+    this._domainLabel    = null;         // اسم المجال للعرض
+
+    // استرجاع المجال المحفوظ من localStorage
+    try {
+      var stored = localStorage.getItem('alkafeel_widget_domain');
+      if (stored) {
+        var validDomains = ['news','history','videos','sermons','abbas_bio','general'];
+        if (validDomains.indexOf(stored) !== -1) {
+          this._selectedDomain = stored;
+          var labelMap = {
+            news: 'الأخبار والمستجدات',
+            history: 'تاريخ العتبة المقدسة',
+            videos: 'الفيديوهات والمواد المرئية',
+            abbas_bio: 'سيرة أبي الفضل العباس عليه السلام',
+            general: 'بحث عام'
+          };
+          this._domainLabel = labelMap[stored] || stored;
+        }
+      }
+    } catch(e) {}
 
     this._initButton();
   }
@@ -360,12 +406,22 @@
       e.target.style.height = 'auto';
       e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
     });
-    // Quick-suggestion buttons (delegated)
+    // Domain-selection buttons (delegated) — no query sent, just saves priority
     this.el.messagesArea.addEventListener('click', function(e) {
-      var btn = e.target.closest('.alkw-quick-btn');
+      var btn = e.target.closest('.alkw-domain-btn');
       if (btn) {
-        var q = btn.getAttribute('data-query');
-        if (q) { self.el.input.value = q; self.sendMessage(); }
+        var domainId    = btn.getAttribute('data-domain-id');
+        var domainLabel = btn.getAttribute('data-domain-label');
+        // حفظ المجال كأولوية بحث فقط
+        self._selectedDomain = domainId;
+        self._domainLabel    = domainLabel;
+        try { localStorage.setItem('alkafeel_widget_domain', domainId); } catch(e2) {}
+        // إغلاق بطاقة الاختيار وإظهار شريط المجال
+        var welcome = self.el.messagesArea.querySelector('.alkw-welcome');
+        if (welcome) welcome.remove();
+        self._showDomainBar(domainLabel);
+        self.el.input.focus();
+        return;
       }
     });
   };
@@ -383,6 +439,14 @@
     this.el.button.classList.add('alkw-open');
     this.el.button.innerHTML = '\u2715';
     this.el.button.setAttribute('aria-label', 'إغلاق المحادثة');
+    // إذا كان المجال محفوظاً من قبل، أظهر شريط المجال بدل بطاقة الاختيار
+    if (this._selectedDomain && this._domainLabel) {
+      var welcome = this.el.messagesArea.querySelector('.alkw-welcome');
+      if (welcome) welcome.remove();
+      if (!this.el.messagesArea.querySelector('.alkw-domain-bar')) {
+        this._showDomainBar(this._domainLabel);
+      }
+    }
     this.el.input.focus();
   };
 
@@ -392,6 +456,24 @@
     this.el.button.classList.remove('alkw-open');
     this.el.button.innerHTML = this.config.buttonText;
     this.el.button.setAttribute('aria-label', 'فتح المحادثة');
+  };
+
+  // شريط تأكيد صغير يظهر بعد اختيار المجال
+  AlkafeelChatWidget.prototype._showDomainBar = function(label) {
+    // أزل الشريط القديم إن وُجد
+    var old = this.el.messagesArea.querySelector('.alkw-domain-bar');
+    if (old) old.remove();
+    var self = this;
+    var bar = document.createElement('div');
+    bar.className = 'alkw-domain-bar';
+    bar.innerHTML = '<span>المجال الحالي: <strong>' + _esc(label) + '</strong></span>'
+                  + '<button class="alkw-change-domain-btn">تغيير المجال</button>';
+    bar.querySelector('.alkw-change-domain-btn').addEventListener('click', function() {
+      bar.remove();
+      self.el.messagesArea.insertAdjacentHTML('afterbegin', self._welcomeHTML());
+    });
+    // أضف الشريط في بداية منطقة الرسائل
+    this.el.messagesArea.insertAdjacentElement('afterbegin', bar);
   };
 
   // ---------- Chat I/O ----------
@@ -418,10 +500,11 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        messages:   self.messages,
-        temperature: 0.2,
-        max_tokens:  1200,
-        use_tools: true,
+        messages:        self.messages,
+        temperature:     0.2,
+        max_tokens:      1200,
+        use_tools:       true,
+        preferredDomain: self._selectedDomain || 'general',
       }),
     })
     .then(function(response) {
@@ -562,25 +645,28 @@
 
   AlkafeelChatWidget.prototype._welcomeHTML = function() {
     var logoUrl = this._logoUrl();
-    var btns = [
-      { e:'📰', l:'آخر الأخبار',             q:'اعطني آخر الأخبار من العتبة العباسية' },
-      { e:'🎬', l:'آخر الفيديوهات',          q:'اعرض أحدث الفيديوهات' },
-      { e:'📂', l:'أقسام الفيديو',           q:'ما هي أقسام الفيديو المتوفرة؟' },
-      { e:'📜', l:'تاريخ العتبة',            q:'اعرض لي تاريخ العتبة حسب الأقسام' },
-      { e:'🕊️', l:'سيرة أبي الفضل العباس',  q:'اعطني معلومات عن تاريخ أبي الفضل العباس' },
-      { e:'🧭', l:'نشاطات رمضانية',          q:'ابحث عن نشاطات رمضانية حديثة' },
-      { e:'🗂️', l:'محاضرات وندوات',          q:'اعرض أحدث المحاضرات والندوات' },
-      { e:'🔤', l:'مصطلحات الموقع',          q:'اعرض أمثلة من كلمات واجهة الموقع باللغة العربية' },
+    var domains = [
+      { id:'news',      e:'📰', l:'الأخبار والمستجدات',                    d:'الأخبار والإعلانات والمستجدات' },
+      { id:'history',   e:'📙', l:'تاريخ العتبة المقدسة',                   d:'المعلومات التاريخية عن العتبة العباسية' },
+      { id:'videos',    e:'🎬', l:'الفيديوهات والمواد المرئية',             d:'المقاطع المرئية والمحتوى الإعلامي' },
+      { id:'sermons',   e:'📖', l:'خطب الجمعة',                              d:'خطب الجمعة في الصحن العباسي' },
+      { id:'abbas_bio', e:'🕊️', l:'سيرة أبي الفضل العباس عليه السلام',    d:'السيرة والمعلومات الخاصة بأبي الفضل العباس' },
+      { id:'general',   e:'🔎', l:'بحث عام',                                d:'البحث في جميع المصادر المتاحة' },
     ];
-    var html = btns.map(function(b) {
-      return '<button class="alkw-quick-btn" data-query="' + _esc(b.q) + '">'
-           + '<span>' + b.e + '</span><span>' + _esc(b.l) + '</span></button>';
+    var html = domains.map(function(d) {
+      return '<button class="alkw-domain-btn" type="button"'
+           + ' data-domain-id="'    + _esc(d.id) + '"'
+           + ' data-domain-label="' + _esc(d.l)  + '"'
+           + ' title="' + _esc(d.d) + '">'
+           + '<span class="alkw-domain-btn-label">' + d.e + ' ' + _esc(d.l) + '</span>'
+           + '</button>';
     }).join('');
     return '<div class="alkw-welcome">'
          + '<div class="alkw-welcome-icon"><img src="' + logoUrl + '" alt=""></div>'
-          + '<h3>  مرحباً بك، أنا مساعدك في محتوى العتبة العباسية المقدسة </h3>'
-          + '<p>يمكنني مساعدتك في الأخبار، الفيديوهات، التاريخ، وأقسام المحتوى المتاحة.</p>'
-         + '<div class="alkw-quick-buttons">' + html + '</div></div>';
+         + '<h3>مرحباً بك، أنا مساعدك في محتوى العتبة العباسية المقدسة</h3>'
+         + '<p>اختر المجال الذي تريد البحث فيه:</p>'
+         + '<div class="alkw-domain-options">' + html + '</div>'
+         + '</div>';
   };
 
   AlkafeelChatWidget.prototype.destroy = function() {

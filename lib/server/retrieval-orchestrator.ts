@@ -182,6 +182,40 @@ function buildSourceConstraint(
     }
   }
 
+  // إذا حدَّد المستخدم صراحةً allowed_sources (عبر اختيار مجال)
+  // وكان الـ intent محدداً (غير generic)، نطبّق قيداً صارماً يُركّز deep scan
+  // على مصادر المجال فقط (مثلاً videos_latest) دون إهدار الميزانية على المقالات.
+  if (
+    understanding.allowed_sources &&
+    understanding.allowed_sources.length > 0 &&
+    intent !== "generic"
+  ) {
+    // Guard: videos_by_category requires a category_id to be fetchable.
+    // If the LLM picked it without a category_id (e.g. for direct title queries
+    // like "فيلم طوعة العصر"), fall back to videos_latest + auto so deep title
+    // scan can find the video across all sections.
+    const allowed = understanding.allowed_sources
+    const onlyByCategoryNoId =
+      intent === "video" &&
+      allowed.includes("videos_by_category") &&
+      !allowed.includes("videos_latest") &&
+      !(typeof args.category_id === "string" && args.category_id.length > 0)
+    if (onlyByCategoryNoId) {
+      return {
+        intent,
+        hardConstraint: true,
+        preferredSources: ["videos_latest", "auto"],
+        allowedSources: ["videos_latest", "videos_by_category", "auto"]
+      }
+    }
+    return {
+      intent,
+      hardConstraint: true,
+      preferredSources: allowed,
+      allowedSources: allowed
+    }
+  }
+
   if (underspecified || capability.institutional_relation) {
     // For title/phrase lookups, list compact sources (videos, sermons, wahy)
     // before the very large articles index. With maxAttempts=4 the trailing
@@ -251,16 +285,30 @@ function buildSourceConstraint(
 
   // When AI explicitly chose videos_by_category (user specified a section/category),
   // route there exclusively — do not fall back to videos_latest from other sections.
+  // BUT only when a category_id is actually available; otherwise videos_by_category
+  // would be unfetchable (the endpoint requires {catId}). Fall back to videos_latest
+  // + deep title scan, which can find videos by title across all sections.
   if (
     intent === "video" &&
     understanding.allowed_sources?.includes("videos_by_category") &&
     !understanding.allowed_sources?.includes("videos_latest")
   ) {
+    const hasCategoryId = typeof args.category_id === "string" && args.category_id.length > 0
+    if (hasCategoryId) {
+      return {
+        intent: "video",
+        hardConstraint: true,
+        preferredSources: ["videos_by_category"],
+        allowedSources: ["videos_by_category"]
+      }
+    }
+    // No category_id → can't fetch videos_by_category. Use videos_latest with
+    // deep title scan as primary path, with auto fallback for safety.
     return {
       intent: "video",
       hardConstraint: true,
-      preferredSources: ["videos_by_category"],
-      allowedSources: ["videos_by_category"]
+      preferredSources: ["videos_latest", "auto"],
+      allowedSources: ["videos_latest", "videos_by_category", "auto"]
     }
   }
 

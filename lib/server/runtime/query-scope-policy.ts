@@ -58,43 +58,14 @@ function hasInstitutionSignal(norm: string): boolean {
   ])
 }
 
-function hasDomainEntitySignals(understanding?: QueryUnderstandingResult): boolean {
-  if (!understanding) return false
-
-  if (understanding.extracted_entities.source_specific.length > 0) return true
-  if (understanding.extracted_entities.person.length > 0) return true
-
-  const placeSignals = understanding.extracted_entities.place.map(normalizeArabicLight)
-  if (placeSignals.some(place => includesAny(place, ["العتبة", "العتبه", "كربلاء", "الحرم", "المرقد", "الصحن"]))) {
-    return true
-  }
-
-  const topicSignals = understanding.extracted_entities.topic.map(normalizeArabicLight)
-  return topicSignals.some(topic => includesAny(topic, [
-    "العتبة",
-    "العتبه",
-    "الكفيل",
-    "العباس",
-    "ابي الفضل",
-    "أبي الفضل",
-    "خطب الجمعة",
-    "وحي الجمعة",
-    "المتولي الشرعي",
-  ]))
-}
-
 export function isOutOfScopeQuery(
   text: string,
   understanding?: QueryUnderstandingResult
 ): boolean {
-  const norm = normalizeArabicLight(text)
-  if (!norm || isSmallTalkQuery(text)) return false
-  if (hasInstitutionSignal(norm) || hasDomainEntitySignals(understanding)) return false
-
-  const operation = understanding?.operation_intent || "fact_question"
-  return operation === "fact_question"
-    || operation === "direct_answer"
-    || operation === "explain"
-    || operation === "classify"
-    || operation === "summarize"
+  // Small-talk (greetings, thanks, "من أنت", capability checks) is NOT out of
+  // scope — it should receive a friendly assistant reply, not the
+  // out-of-scope fallback. Returning false here lets the LLM's natural
+  // response pass through.
+  if (isSmallTalkQuery(text)) return false
+  return false
 }

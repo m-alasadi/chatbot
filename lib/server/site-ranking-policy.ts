@@ -705,8 +705,18 @@ export function rankCandidateSources(
   // Always include articles as baseline
   scores.push({ source: "articles_latest", score: 5 })
 
-  // Video signals
-  const videoHints = ["فيديو", "فديو", "مرئي", "يوتيوب", "مقطع", "مشاهده", "حلقه", "حلقات"]
+  // Video signals — تشمل أنواع الإنتاج المرئي الشائعة في عناوين الفيديوهات
+  // (فيلم/افلام/وثائقي/مسلسل/...) لضمان توجيه deep scan إلى videos_latest
+  // عندما يكتب المستخدم عنواناً مباشراً مثل "فيلم طوعة العصر".
+  const videoHints = [
+    "فيديو", "فديو", "مرئي", "يوتيوب", "مقطع", "مشاهده", "حلقه", "حلقات",
+    "فيلم", "افلام", "الفيلم", "الافلام",
+    "وثائقي", "الوثائقي", "وثائقيه",
+    "مسلسل", "المسلسل", "حلقات",
+    "اوبريت", "الاوبريت", "انشوده", "اناشيد", "نشيد",
+    "تقرير", "تقارير", "التقرير", "التقارير",
+    "لقطه", "لقطات", "عرض"
+  ]
   const videoBoost = videoHints.reduce((acc, h) => acc + (norm.includes(normalizeArabic(h)) ? 6 : 0), 0)
   scores.push({ source: "videos_latest", score: 3 + videoBoost })
   if (params.category_id) scores.push({ source: "videos_by_category", score: 4 + videoBoost })
@@ -904,6 +914,13 @@ export async function deepTitleSearch(
             const gs = scoreUnifiedItem(item, query)
             hits.push({ item, score: Math.max(ts, gs) })
             if (ts >= HIGH_CONFIDENCE) foundHigh = true
+          } else {
+            // title لم يتطابق — تحقق من باقي الحقول (الوصف، الأقسام، إلخ)
+            // هذا ضروري لأسماء الأشخاص التي قد تظهر في الوصف لا العنوان
+            const gs = scoreUnifiedItem(item, query)
+            if (gs >= 15) {
+              hits.push({ item, score: gs })
+            }
           }
         }
       }
