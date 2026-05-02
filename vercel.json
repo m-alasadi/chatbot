@@ -7,6 +7,19 @@
   },
   "headers": [
     {
+      "source": "/api/chat/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Content-Encoding",
+          "value": "identity"
+        }
+      ]
+    },
+    {
       "source": "/widget.js",
       "headers": [
         {

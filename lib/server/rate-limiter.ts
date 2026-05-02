@@ -38,24 +38,23 @@ const DEFAULT_CONFIG: RateLimiterConfig = {
 
 /**
  * خريطة تخزين Rate Limits (في الذاكرة)
- * في Production يُفضل استخدام Redis
+ * في Production يُفضل استخدام Redis / Vercel KV (تتجاوز عبر عمال الإدج)
  */
 const rateLimitStore = new Map<string, RateLimitInfo>()
 
 /**
- * فترة التنظيف التلقائي (5 دقائق)
+ * سقف حجم الـ store لتجنب تسريب الذاكرة في حالات Edge worker طويلة العمر.
  */
-const CLEANUP_INTERVAL = 5 * 60 * 1000
+const MAX_STORE_ENTRIES = 5000
 
 /**
- * تنظيف البيانات القديمة
+ * تنظيف البيانات القديمة (يُستدعى بشكل كسول لأن setInterval غير موثوق في Edge runtime)
  */
 function cleanupOldEntries(): void {
   const now = Date.now()
   const entriesToDelete: string[] = []
 
   for (const [ip, info] of rateLimitStore.entries()) {
-    // إذا انتهت فترة الحظر وانتهت نافذة الوقت
     if (
       (!info.blockedUntil || info.blockedUntil < now) &&
       info.resetTime < now
@@ -65,14 +64,32 @@ function cleanupOldEntries(): void {
   }
 
   entriesToDelete.forEach(ip => rateLimitStore.delete(ip))
+}
 
-  if (entriesToDelete.length > 0) {
-    console.log(`[Rate Limiter] Cleaned up ${entriesToDelete.length} entries`)
+let lastCleanupAt = 0
+const LAZY_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
+
+function maybeCleanup(): void {
+  const now = Date.now()
+  if (
+    now - lastCleanupAt > LAZY_CLEANUP_INTERVAL_MS ||
+    rateLimitStore.size > MAX_STORE_ENTRIES
+  ) {
+    cleanupOldEntries()
+    lastCleanupAt = now
   }
 }
 
-// تشغيل التنظيف التلقائي
-setInterval(cleanupOldEntries, CLEANUP_INTERVAL)
+/**
+ * تجزئة بسيطة غير تشفيرية لـ IP لأغراض التسجيل (إخفاء PII).
+ */
+function hashIpForLog(ip: string): string {
+  let h = 0
+  for (let i = 0; i < ip.length; i++) {
+    h = (h * 31 + ip.charCodeAt(i)) | 0
+  }
+  return `ip_${(h >>> 0).toString(16).padStart(8, "0")}`
+}
 
 /**
  * استخراج IP من Request
@@ -116,6 +133,7 @@ export function checkRateLimit(
 } {
   const cfg = { ...DEFAULT_CONFIG, ...config }
   const now = Date.now()
+  maybeCleanup()
 
   let info = rateLimitStore.get(ip)
 
@@ -169,7 +187,7 @@ export function checkRateLimit(
     const retryAfter = Math.ceil(cfg.blockDurationMs / 1000)
 
     console.warn(
-      `[Rate Limiter] IP ${ip} exceeded limit. Blocked for ${retryAfter}s`
+      `[Rate Limiter] ${hashIpForLog(ip)} exceeded limit. Blocked for ${retryAfter}s`
     )
 
     return {
@@ -262,7 +280,6 @@ export function getRateLimitInfo(ip: string): RateLimitInfo | null {
  */
 export function resetRateLimit(ip: string): void {
   rateLimitStore.delete(ip)
-  console.log(`[Rate Limiter] Reset for IP: ${ip}`)
 }
 
 /**
@@ -271,7 +288,6 @@ export function resetRateLimit(ip: string): void {
  */
 export function clearAllRateLimits(): void {
   rateLimitStore.clear()
-  console.log(`[Rate Limiter] Cleared all rate limits`)
 }
 
 /**

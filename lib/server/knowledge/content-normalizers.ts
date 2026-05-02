@@ -66,7 +66,7 @@ function normalizeArticle(raw: any): NormalizedContent {
   const fullText = stripHtml(bodyText)
 
   const domain = SITE_DOMAIN()
-  const tpl = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}"
+  const tpl = process.env.SITE_ARTICLE_URL_TEMPLATE || "/news/index?id={id}&lang=ar"
   const url =
     pickText(raw.url, raw.link, raw.permalink, raw.news_url) ||
     `${domain}${tpl.replace("{id}", encodeURIComponent(id))}`
@@ -129,7 +129,7 @@ function normalizeVideo(
 }
 
 function normalizeVideoCategory(raw: any): NormalizedContent {
-  const id = String(raw.id || raw.cat_id || raw.slug || "")
+  const id = String(raw.id || raw.cat_id || raw.slug || raw.request || "")
   const title = pickText(raw.title, raw.cat_title, raw.name, "قسم فيديو")
   const bodyText = pickText(raw.description, "قسم من أقسام المكتبة المرئية")
 
@@ -143,7 +143,7 @@ function normalizeVideoCategory(raw: any): NormalizedContent {
     published_at: new Date().toISOString(),
     summary: bodyText,
     full_text: stripHtml(bodyText),
-    metadata: { original_id: raw.id || raw.cat_id },
+    metadata: { original_id: raw.id || raw.cat_id || raw.request },
   }
 }
 
@@ -164,6 +164,26 @@ function normalizeHistorySection(raw: any): NormalizedContent {
     summary: summarize(bodyText),
     full_text: fullText,
     metadata: { original_id: raw.id || raw.sec_id },
+  }
+}
+
+function normalizeHistoryTimeline(raw: any): NormalizedContent {
+  const id = String(raw.id || raw.history_id || raw.title || "")
+  const title = pickText(raw.title, raw.sec_title, raw.name, "مرحلة تاريخية")
+  const bodyText = pickText(raw.text, raw.description, raw.content)
+  const fullText = stripHtml(bodyText)
+
+  return {
+    id: `shrine_history_timeline::${id}`,
+    source: "shrine_history_timeline",
+    family: "history",
+    title,
+    section: "المراحل التاريخية للعتبة العباسية",
+    url: `${SITE_DOMAIN()}/history?lang=ar`,
+    published_at: toISODate(raw.time || raw.created_at),
+    summary: summarize(bodyText),
+    full_text: fullText,
+    metadata: { original_id: raw.id || raw.history_id },
   }
 }
 
@@ -231,6 +251,9 @@ export function normalizeRawToContent(
 
     case "videos_categories":
       return (arr ?? []).map(normalizeVideoCategory)
+
+    case "shrine_history_timeline":
+      return (arr ?? []).map(normalizeHistoryTimeline)
 
     case "shrine_history_sections":
       return (arr ?? []).map(normalizeHistorySection)

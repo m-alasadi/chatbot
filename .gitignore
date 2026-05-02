@@ -45,3 +45,27 @@ sw.js
 sw.js.map
 workbox-*.js
 workbox-*.js.map
+
+# Logs (dev/test artifacts)
+*.log
+.next-dev-*.log
+dev-server*.log
+dev.*.log
+tmp-dev*.log
+vitest.log
+
+# Temp/scratch files at repo root
+/tmp_*.ts
+/tmp_*.js
+/tmp_*.html
+/tmp_*.json
+/.tmp-*.ts
+/.tmp-*.js
+
+# One-off test outputs and data dumps
+/test-out*.txt
+/test-results*.txt
+/*-results*.txt
+/full-source-response.json
+/lang-ar-response.json
+/*-response.json

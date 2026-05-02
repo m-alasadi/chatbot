@@ -18,6 +18,7 @@ export type ContentSourceId =
   | "videos_latest"
   | "videos_by_category"
   | "videos_categories"
+  | "shrine_history_timeline"
   | "shrine_history_sections"
   | "shrine_history_by_section"
   | "abbas_history_by_id"

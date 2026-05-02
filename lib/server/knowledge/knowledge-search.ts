@@ -17,6 +17,7 @@ import type {
 } from "./content-types"
 import { getKnowledgeIndex, normalizeArabic, tokenize } from "./knowledge-index"
 import { backfillOlderPages, getBackfillSourcesForQuery } from "./content-ingestion"
+import { correctArabicQuery } from "../text/spell-correct"
 
 // ── Evidence snippet builder ────────────────────────────────────────
 
@@ -25,6 +26,12 @@ function buildEvidenceSnippet(
   queryTokens: string[],
   windowSize = 300
 ): string {
+  // Auto-widen the window for chunks longer than the default; ensures the
+  // matched cluster keeps surrounding context (e.g. enumerations that span
+  // multiple sentences after the query keyword).
+  if (chunkText.length > windowSize * 2) {
+    windowSize = Math.min(900, Math.max(windowSize, Math.floor(chunkText.length / 3)))
+  }
   const normText = normalizeArabic(chunkText)
 
   // Find best match position — where the most query tokens cluster
@@ -112,6 +119,34 @@ function isFridayQuery(normQuery: string): boolean {
   return hints.some(h => normQuery.includes(h))
 }
 
+// Honorific tokens (already normalized: ة→ه)
+const HONORIFIC_TOKENS = new Set([
+  "الشيخ", "السيد", "الامام", "الإمام",
+  "سماحه", "العلامه",
+])
+
+/**
+ * For a query like "محاضرات الشيخ زمان" return ["زمان"].
+ * For a query like "خطبة السيد أحمد الصافي" return ["احمد", "الصافي"].
+ * Returns [] if the query has no honorific (so we don't over-filter generic queries).
+ */
+function extractPersonNameTokens(rawQuery: string, queryTokens: string[]): string[] {
+  const norm = normalizeArabic(rawQuery)
+  const hasHonorific = [...HONORIFIC_TOKENS].some(h => norm.includes(h))
+  if (!hasHonorific) return []
+
+  // Drop honorifics + very short / generic tokens to keep only the name parts.
+  const generic = new Set([
+    "محاضره", "محاضرات", "خطبه", "خطب", "كلمه", "كلمات",
+    "برنامج", "حلقه", "حلقات", "فيديو", "فيديوهات",
+    "مقطع", "مقاطع", "تسجيل", "دروس", "درس",
+    "للعتبه", "العتبه", "العباسيه",
+  ])
+  return queryTokens.filter(tok =>
+    !HONORIFIC_TOKENS.has(tok) && !generic.has(tok) && tok.length >= 3
+  )
+}
+
 /** Detect explicit content-type constraint from the query.
  *  Returns the preferred ContentSourceFamily, or null. */
 function detectTypeConstraint(normQuery: string): import("./content-types").ContentSourceFamily | null {
@@ -125,6 +160,29 @@ function detectTypeConstraint(normQuery: string): import("./content-types").Cont
     if (hints.some(h => normQuery.includes(h))) return family
   }
   return null
+}
+
+function getSpecificQueryTokens(queryTokens: string[]): string[] {
+  const genericTokens = new Set([
+    "ما", "هو", "هي", "هل", "عن", "في", "على", "من", "الى", "إلى", "او", "أو",
+    "للعتبه", "للعتبة", "العتبه", "العتبة", "العباسيه", "العباسية",
+    "مشروع", "مشاريع", "اسبوع"
+  ].map(t => normalizeArabic(t)))
+
+  return queryTokens.filter(token => !genericTokens.has(token))
+}
+
+function countSpecificTokenMatches(haystacks: string[], specificTokens: string[]): number {
+  if (specificTokens.length === 0) return 0
+  let matched = 0
+
+  for (const token of specificTokens) {
+    if (haystacks.some(text => text.includes(token))) {
+      matched++
+    }
+  }
+
+  return matched
 }
 
 /**
@@ -201,6 +259,13 @@ function rerank(
   const normSection = normalizeArabic(chunk.section)
   const normText = normalizeArabic(chunk.chunk_text)
   const normQuery = normalizeArabic(rawQuery)
+  const haystacks = [normTitle, normSection, normText]
+  const specificTokens = getSpecificQueryTokens(queryTokens)
+  const specificMatchCount = countSpecificTokenMatches(haystacks, specificTokens)
+
+  if (specificTokens.length > 0 && specificMatchCount === 0) {
+    return 0
+  }
 
   // Title match: how many query tokens appear in title
   const titleHits = queryTokens.filter(t => normTitle.includes(t)).length
@@ -262,6 +327,15 @@ function rerank(
     signals.typeConstraint = 1
   }
 
+  if (specificTokens.length > 0) {
+    const specificCoverage = specificMatchCount / specificTokens.length
+    signals.textDensity += specificCoverage * 1.5
+
+    if (specificCoverage < 0.5) {
+      signals.typeConstraint -= 0.5
+    }
+  }
+
   // Weighted combination
   const score =
     signals.termCoverage * 3.0 +
@@ -315,12 +389,24 @@ export function searchKnowledgeChunks(
   // Phase 2: rerank with multi-signal scoring
   const scored: ChunkSearchResult[] = []
 
+  // Person-name disambiguation: when the query carries an honorific
+  // (الشيخ/السيد/سماحة/العلامة) + an actual name, require the chunk text or
+  // title to contain at least one non-honorific name token. Otherwise a chunk
+  // mentioning only "الشيخ X" (different person) would slip through.
+  const personNameTokens = extractPersonNameTokens(query, queryTokens)
+
   for (const { chunk_id, score: rawScore } of candidates) {
     const chunk = index.getChunk(chunk_id)
     if (!chunk) continue
 
     const finalScore = rerank(chunk, queryTokens, query, rawScore)
     if (finalScore < minScore) continue
+
+    if (personNameTokens.length > 0) {
+      const haystack = normalizeArabic(`${chunk.title || ""} ${chunk.chunk_text || ""}`)
+      const namePartMatched = personNameTokens.some(tok => haystack.includes(tok))
+      if (!namePartMatched) continue
+    }
 
     const evidence = buildEvidenceSnippet(chunk.chunk_text, queryTokens)
 
@@ -391,17 +477,30 @@ export async function searchKnowledgeWithBackfill(
   query: string,
   options: KnowledgeSearchOptions = {}
 ): Promise<KnowledgeSearchResponse & { backfilled: boolean }> {
+  // Phase 0: spell-correct the query against the in-memory vocabulary.
+  // Catches obvious typos (e.g. "العبس" → "العباس") BEFORE we spend
+  // multiple round-trips chasing 0-result paths across sources.
+  const correction = correctArabicQuery(query)
+  let effectiveQuery = query
+  if (correction.corrections.length > 0 && correction.corrected !== query) {
+    console.log(
+      `[Knowledge] Spell-corrected query: "${query}" → "${correction.corrected}" ` +
+        `(${correction.corrections.map(c => `${c.from}→${c.to}`).join(", ")})`
+    )
+    effectiveQuery = correction.corrected
+  }
+
   // Phase 1: initial search
-  let initial = searchKnowledgeChunks(query, options)
+  let initial = searchKnowledgeChunks(effectiveQuery, options)
   console.log(`[Knowledge] Initial search: ${initial.chunks.length} chunks (top=${initial.chunks[0]?.score.toFixed(1) ?? "–"})`)
 
   // Phase 1b: Abbas query enrichment — fuzzy prefix search over Abbas chunks.
   // Bridges Arabic morphological gaps (e.g., "اخوه" ↔ "اخوته", "زواج" ↔ "الزواج").
-  const normQ = normalizeArabic(query)
+  const normQ = normalizeArabic(effectiveQuery)
   if (isAbbasQuery(normQ)) {
-    const queryTokens = tokenize(query).filter(t => t.length >= 2)
+    const queryTokens = tokenize(effectiveQuery).filter(t => t.length >= 2)
     const limit = options.limit ?? 8
-    const abbasResults = fuzzySearchAbbasChunks(query, queryTokens, limit)
+    const abbasResults = fuzzySearchAbbasChunks(effectiveQuery, queryTokens, limit)
     if (abbasResults.length > 0) {
       console.log(`[Knowledge] Abbas enrichment (fuzzy): +${abbasResults.length} Abbas chunks`)
       // Score-based merge: combine, deduplicate, sort by score, keep best
@@ -428,17 +527,35 @@ export async function searchKnowledgeWithBackfill(
   }
 
   // Phase 2: find backfill candidates
-  const sources = getBackfillSourcesForQuery(query)
+  const sources = getBackfillSourcesForQuery(effectiveQuery)
   if (sources.length === 0) {
     console.log(`[Knowledge] Weak results but no backfill sources available`)
     return { ...initial, backfilled: false }
   }
 
-  // Phase 3: backfill one batch per source
+  // Phase 3: backfill one batch per source (incremental, stop early once strong)
   console.log(`[Knowledge] Weak results — backfilling: ${sources.join(", ")}`)
   let totalNew = 0
+  let best = initial
   for (const src of sources) {
-    totalNew += await backfillOlderPages(src)
+    const newItems = await backfillOlderPages(src)
+    totalNew += newItems
+
+    if (newItems <= 0) continue
+
+    const retry = searchKnowledgeChunks(effectiveQuery, options)
+    console.log(`[Knowledge] Backfill checkpoint (${src}): ${retry.chunks.length} chunks (top=${retry.chunks[0]?.score.toFixed(1) ?? "–"}) [+${newItems}]`)
+
+    if (
+      retry.chunks.length > best.chunks.length ||
+      (retry.chunks[0]?.score ?? 0) > (best.chunks[0]?.score ?? 0)
+    ) {
+      best = retry
+    }
+
+    if (!isWeakResult(retry)) {
+      return { ...retry, backfilled: true }
+    }
   }
 
   if (totalNew === 0) {
@@ -446,14 +563,6 @@ export async function searchKnowledgeWithBackfill(
     return { ...initial, backfilled: true }
   }
 
-  // Phase 4: retry search
-  const retry = searchKnowledgeChunks(query, options)
-  console.log(`[Knowledge] After backfill: ${retry.chunks.length} chunks (top=${retry.chunks[0]?.score.toFixed(1) ?? "–"}) [+${totalNew} items]`)
-
-  // Return whichever set is better
-  const best = (retry.chunks.length > initial.chunks.length ||
-    (retry.chunks[0]?.score ?? 0) > (initial.chunks[0]?.score ?? 0))
-    ? retry : initial
-
+  console.log(`[Knowledge] After backfill: ${best.chunks.length} chunks (top=${best.chunks[0]?.score.toFixed(1) ?? "–"}) [+${totalNew} items]`)
   return { ...best, backfilled: true }
 }
