@@ -134,7 +134,7 @@
       'padding:7px 12px;margin-bottom:10px;background:rgba(4,80,77,.18);',
       'border:1px solid rgba(4,80,77,.4);border-radius:8px;font-size:12px;color:#9ca3af;',
     '}',
-    '.alkw-domain-bar strong{color:#d1fae5}',
+    '.alkw-domain-bar {color:#d1fae5}',
     '.alkw-change-domain-btn{',
       'all:initial;border:1px solid #374151;color:#d1d5db;padding:3px 9px;',
       'border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;',

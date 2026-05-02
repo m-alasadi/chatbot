@@ -181,6 +181,9 @@ const HARD_EVIDENCE_PATTERNS = [
   "متي ولد", "متي استشهد", "متي توفي",
 ]
 
+// aa
+
+
 export function isHardEvidenceSensitive(text: string): boolean {
   const norm = normalizeArabicLight(text)
   return HARD_EVIDENCE_PATTERNS.some(p => norm.includes(p))
