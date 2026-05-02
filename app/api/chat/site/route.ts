@@ -104,8 +104,8 @@ function classifyRuntimeFailure(error: any): "timeout" | "rate_limit" | "upstrea
 }
 
 function buildRuntimeFailureMessage(kind: ReturnType<typeof classifyRuntimeFailure>, traceId: string): string {
-  const traceSuffix = `\n\nØ±Ù‚Ù… Ø§Ù„ØªØªØ¨Ø¹: ${traceId}`
-  const underDevelopmentMessage = `Ø®Ø¯Ù…Ø© Ø§Ù„Ø±Ø¯ Ø§Ù„Ø¢Ù„ÙŠ Ù‚ÙŠØ¯ Ø§Ù„ØªØ·ÙˆÙŠØ± Ø­Ø§Ù„ÙŠÙ‹Ø§ ÙˆÙ‚Ø¯ Ù„Ø§ ØªØªÙˆÙØ± Ø§Ù„Ø¥Ø¬Ø§Ø¨Ø© ÙÙŠ Ù‡Ø°Ù‡ Ø§Ù„Ù„Ø­Ø¸Ø©. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ø¨Ø¹Ø¯ Ù‚Ù„ÙŠÙ„.${traceSuffix}`
+  const traceSuffix = `\n\nرقم التتبع: ${traceId}`
+  const underDevelopmentMessage = `خدمة الرد الآلي قيد التطوير حالياً وقد لا تتوفر الإجابة في هذه اللحظة. يرجى المحاولة بعد قليل.${traceSuffix}`
   switch (kind) {
     case "auth":
       return underDevelopmentMessage
@@ -140,32 +140,32 @@ function includesAny(norm: string, values: string[]): boolean {
 function isStandaloneReferentialQuestion(text: string): boolean {
   const norm = normalizeArabicLight(text)
   const referentialSignals = [
-    "Ø£Ù„Ù‚Ø§Ø¨Ù‡",
-    "Ø§Ù„Ù‚Ø§Ø¨Ù‡",
-    "Ø£Ø¨Ù†Ø§Ø¤Ù‡",
-    "Ø§Ø¨Ù†Ø§Ø¤Ù‡",
-    "Ø£ÙˆÙ„Ø§Ø¯Ù‡",
-    "Ø§ÙˆÙ„Ø§Ø¯Ù‡",
-    "Ø²ÙˆØ¬ØªÙ‡",
-    "Ø²ÙˆØ¬Ø§ØªÙ‡",
-    "Ø§Ø³Ù… Ø²ÙˆØ¬ØªÙ‡",
-    "Ø´Ù‡Ø§Ø¯ØªÙ‡",
-    "Ø§Ø³ØªØ´Ù‡Ø§Ø¯Ù‡"
+    "ألقابه",
+    "القابه",
+    "أبناؤه",
+    "ابناؤه",
+    "أولاده",
+    "اولاده",
+    "زوجته",
+    "زوجاته",
+    "اسم زوجته",
+    "شهادته",
+    "استشهاده"
   ]
   const explicitSubjectSignals = [
-    "Ø§Ù„Ø¹Ø¨Ø§Ø³",
-    "Ø£Ø¨ÙŠ Ø§Ù„ÙØ¶Ù„",
-    "Ø§Ø¨ÙŠ Ø§Ù„ÙØ¶Ù„",
-    "Ø£Ø¨Ùˆ Ø§Ù„ÙØ¶Ù„",
-    "Ø§Ø¨Ùˆ Ø§Ù„ÙØ¶Ù„",
-    "Ø§Ù„Ù…ØªÙˆÙ„ÙŠ Ø§Ù„Ø´Ø±Ø¹ÙŠ",
-    "Ø¥Ø°Ø§Ø¹Ø© Ø§Ù„ÙƒÙÙŠÙ„",
-    "Ø§Ø°Ø§Ø¹Ø© Ø§Ù„ÙƒÙÙŠÙ„",
-    "Ù†Ø¯Ø§Ø¡ Ø§Ù„Ø¹Ù‚ÙŠØ¯Ø©",
-    "Ø£Ø³Ø¨ÙˆØ¹ Ø§Ù„Ø¥Ù…Ø§Ù…Ø©",
-    "Ø§Ø³Ø¨ÙˆØ¹ Ø§Ù„Ø§Ù…Ø§Ù…Ø©",
-    "Ø¬Ø§Ù…Ø¹Ø© Ø§Ù„ÙƒÙÙŠÙ„",
-    "Ø§Ù„Ø´Ø¤ÙˆÙ† Ø§Ù„Ù†Ø³ÙˆÙŠØ©"
+    "العباس",
+    "أبي الفضل",
+    "ابي الفضل",
+    "أبو الفضل",
+    "ابو الفضل",
+    "المتولي الشرعي",
+    "إذاعة الكفيل",
+    "اذاعة الكفيل",
+    "نداء العقيدة",
+    "أسبوع الإمامة",
+    "اسبوع الامامة",
+    "جامعة الكفيل",
+    "الشؤون النسوية"
   ]
 
   return includesAny(norm, referentialSignals) && !includesAny(norm, explicitSubjectSignals)
@@ -747,11 +747,11 @@ export async function POST(request: Request) {
       unavailable_reason: error?.message || "unknown_error"
     })
 
-    // Ø§Ù„Ø­ØµÙˆÙ„ Ø¹Ù„Ù‰ origin Ù„Ù„Ù€ security headers
+    // الحصول على origin للـ security headers
     const errorSecurityHeaders = getSecurityHeaders()
 
-    // Ù…Ø¹Ø§Ù„Ø¬Ø© Ø£Ù†ÙˆØ§Ø¹ Ø§Ù„Ø£Ø®Ø·Ø§Ø¡ Ø§Ù„Ù…Ø®ØªÙ„ÙØ©
-    const underDevelopmentErrorMessage = `Ø®Ø¯Ù…Ø© Ø§Ù„Ø±Ø¯ Ø§Ù„Ø¢Ù„ÙŠ Ù‚ÙŠØ¯ Ø§Ù„ØªØ·ÙˆÙŠØ± Ø­Ø§Ù„ÙŠÙ‹Ø§ ÙˆÙ‚Ø¯ Ù„Ø§ ØªØªÙˆÙØ± Ø§Ù„Ø¥Ø¬Ø§Ø¨Ø© ÙÙŠ Ù‡Ø°Ù‡ Ø§Ù„Ù„Ø­Ø¸Ø©. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ø¨Ø¹Ø¯ Ù‚Ù„ÙŠÙ„.\n\nØ±Ù‚Ù… Ø§Ù„ØªØªØ¨Ø¹: ${traceId}`
+    // معالجة أنواع الأخطاء المختلفة
+    const underDevelopmentErrorMessage = `خدمة الرد الآلي قيد التطوير حالياً وقد لا تتوفر الإجابة في هذه اللحظة. يرجى المحاولة بعد قليل.\n\nرقم التتبع: ${traceId}`
     let errorMessage = underDevelopmentErrorMessage
     let statusCode = 500
     let fallbackType: "api_error" | "api_quota_exceeded" = "api_error"
@@ -793,3 +793,4 @@ export async function POST(request: Request) {
     )
   }
 }
+
